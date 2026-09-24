@@ -1,10 +1,13 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Read};
+#[cfg(feature = "server")]
 use std::sync::Arc;
 use clap::{Parser, Subcommand};
+#[cfg(feature = "server")]
+use zev::create_router;
 use zev::{
-    create_router, SystemOneRequest, ZevEngine, ZevRequest,
+    SystemOneRequest, ZevEngine, ZevRequest,
 };
 
 #[derive(Parser)]
@@ -81,6 +84,7 @@ enum Commands {
     },
 
     /// Start the Zev HTTP API server
+    #[cfg(feature = "server")]
     Serve {
         #[arg(long, default_value = "127.0.0.1")]
         host: String,
@@ -201,6 +205,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }));
         }
 
+        #[cfg(feature = "server")]
         Commands::Serve { host, port, temperature } => {
             let engine = Arc::new(ZevEngine::new(temperature));
             let router = create_router(engine);

@@ -255,6 +255,58 @@ impl ContrastiveHead {
     }
 }
 
+/// Generates a fast L2-normalized feature-hashed vector representation of text for contrastive scoring.
+/// Uses word and subword 3-gram hashing into `dim` buckets.
+pub fn embed_text(text: &str, dim: usize) -> Vec<f32> {
+    let mut vec = vec![0.0f32; dim];
+    let lower = text.to_lowercase();
+    let words: Vec<&str> = lower.split_whitespace().collect();
+
+    for w in &words {
+        let clean: String = w.chars().filter(|c| c.is_alphanumeric()).collect();
+        if clean.is_empty() {
+            continue;
+        }
+
+        // Word hash
+        let mut h = 2166136261u32;
+        for b in clean.bytes() {
+            h ^= b as u32;
+            h = h.wrapping_mul(16777619);
+        }
+        let idx = (h as usize) % dim;
+        let sign = if (h & 0x80000000) != 0 { 1.0f32 } else { -1.0f32 };
+        vec[idx] += sign * 2.0;
+
+        // Subword 3-grams
+        let chars: Vec<char> = clean.chars().collect();
+        if chars.len() >= 3 {
+            for window in chars.windows(3) {
+                let mut sh = 2166136261u32;
+                for &ch in window {
+                    sh ^= ch as u32;
+                    sh = sh.wrapping_mul(16777619);
+                }
+                let sidx = (sh as usize) % dim;
+                let ssign = if (sh & 0x80000000) != 0 { 1.0f32 } else { -1.0f32 };
+                vec[sidx] += ssign;
+            }
+        }
+    }
+
+    // L2 normalize
+    let mut norm_sq = 0.0f32;
+    for &x in &vec {
+        norm_sq += x * x;
+    }
+    let norm = norm_sq.sqrt().max(1e-12);
+    for x in &mut vec {
+        *x /= norm;
+    }
+
+    vec
+}
+
 /// Two-Tier Hybrid Verification Engine combining Zev's ultra-fast lexical shortlisting
 /// with CLM's disaggregated contrastive action scoring.
 #[derive(Debug)]
@@ -267,7 +319,7 @@ pub struct HybridVerifier {
 impl Default for HybridVerifier {
     fn default() -> Self {
         Self {
-            arena: VectorArena::new(2048, 512),
+            arena: VectorArena::new(32, 512),
             head: ContrastiveHead::new(HeadConfig::default()),
             tier1_keep_slots: 25,
         }
@@ -316,6 +368,7 @@ impl HybridVerifier {
         // Tier 2: CLM Contrastive Scoring
         let arena_dim = self.arena.dim();
         let head_scale = self.head.scale;
+        let ctx = crate::order_invariant::PremiseContext::new(state);
         let logits: Vec<f64> = if let Some(s_emb) = state_embedding {
             let state_proj = self.head.project(s_emb);
             candidates
@@ -330,14 +383,12 @@ impl HybridVerifier {
                         (dot as f64) * head_scale
                     } else {
                         // Fallback to lexical premise score when vector embedding is missing
-                        let ctx = crate::order_invariant::PremiseContext::new(state);
                         ctx.score_candidate(cand)
                     }
                 })
                 .collect()
         } else {
             // Fallback: Pure Zev order-invariant logit evaluation
-            let ctx = crate::order_invariant::PremiseContext::new(state);
             candidates.iter().map(|c| ctx.score_candidate(c)).collect()
         };
 

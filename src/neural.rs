@@ -126,6 +126,7 @@ impl ApfelNeuralBackend {
             top_probability: if status == "ok" { 0.95 } else { 0.0 },
             entropy_nats: 0.1,
             concentration: 0.9,
+            margin: if status == "ok" { Some(0.90) } else { None },
             unavailable_probability: if matched_id == "__insufficient__" { 0.95 } else { 0.0 },
         };
 
@@ -147,6 +148,7 @@ impl ApfelNeuralBackend {
             statistics: None,
             expected_value: None,
             temperature: 1.0,
+            source: Some("neural".to_string()),
         })
     }
 }

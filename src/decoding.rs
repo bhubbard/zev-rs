@@ -181,10 +181,18 @@ pub fn decode_decision(
     let policy = question.policy();
     let mut status = "ok".to_string();
 
-    let mut sorted_probs: Vec<f64> = probs.to_vec();
-    sorted_probs.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-    let margin = if sorted_probs.len() >= 2 {
-        sorted_probs[0] - sorted_probs[1]
+    let margin = if probs.len() >= 2 {
+        let mut top1 = f64::NEG_INFINITY;
+        let mut top2 = f64::NEG_INFINITY;
+        for &p in probs {
+            if p > top1 {
+                top2 = top1;
+                top1 = p;
+            } else if p > top2 {
+                top2 = p;
+            }
+        }
+        top1 - top2
     } else {
         1.0
     };
@@ -198,13 +206,19 @@ pub fn decode_decision(
         0.0
     };
 
-    if policy.allow_abstain {
-        if unavailable_ids.contains(&winner.id.as_str()) || unavailable_prob >= policy.max_unavailable_probability {
-            let below_prob = prob_map.get(BELOW).copied().unwrap_or(0.0);
-            let above_prob = prob_map.get(ABOVE).copied().unwrap_or(0.0);
-            let unknown_prob = prob_map.get(UNKNOWN).copied().unwrap_or(0.0);
+    let below_prob = prob_map.get(BELOW).copied().unwrap_or(0.0);
+    let above_prob = prob_map.get(ABOVE).copied().unwrap_or(0.0);
+    let unknown_prob = prob_map.get(UNKNOWN).copied().unwrap_or(0.0);
+    let out_of_range_prob = below_prob + above_prob;
 
-            status = if (below_prob + above_prob) > unknown_prob {
+    // Out-of-range detection (R4):
+    // If the argmax/majority probability mass is on __below_range__ or __above_range__,
+    // the status must be reported as out_of_range, NOT ok (independent of allow_abstain).
+    if winner.id == BELOW || winner.id == ABOVE || out_of_range_prob > available_prob {
+        status = "out_of_range".into();
+    } else if policy.allow_abstain {
+        if unavailable_ids.contains(&winner.id.as_str()) || unavailable_prob >= policy.max_unavailable_probability {
+            status = if out_of_range_prob > unknown_prob {
                 "out_of_range".into()
             } else {
                 "insufficient_evidence".into()
@@ -240,7 +254,7 @@ pub fn decode_decision(
         question_type: q_type_str.into(),
         status: status.clone(),
         decision: None,
-        confidence: concentration,
+        confidence: top_prob,
         probabilities: prob_map,
         logits: logit_map,
         uncertainty: UncertaintyMetrics {
@@ -248,10 +262,12 @@ pub fn decode_decision(
             entropy_nats,
             concentration,
             unavailable_probability: unavailable_prob,
+            margin: Some(margin),
         },
         statistics: None,
         expected_value: None,
         temperature,
+        source: Some("native".to_string()),
     };
 
     if status == "ok" {
@@ -343,6 +359,91 @@ mod tests {
         let probs = [0.0, 0.0];
         let stats = summarize_moments(&values, &probs);
         assert_eq!(stats.median, 2.0);
+    }
+
+    #[test]
+    fn test_numeric_out_of_range_without_abstain_p07() {
+        use crate::types::{Anchor, NumericQuestion};
+
+        // P07: Numeric question with allow_abstain: false
+        let q = Question::Numeric(NumericQuestion {
+            instructions: "Estimate valuation".into(),
+            unit: "M_USD".into(),
+            anchors: vec![
+                Anchor { value: 0.0, description: "Seed stage".into() },
+                Anchor { value: 100.0, description: "Growth stage".into() },
+            ],
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
+        });
+        let candidates = generate_candidates(&q);
+        let mut logits = vec![0.0; candidates.len()];
+        let above_idx = candidates.iter().position(|c| c.id == ABOVE).unwrap();
+        logits[above_idx] = 10.0; // ABOVE heavily dominates
+
+        let ans = decode_decision(&q, &candidates, &logits, 1.0).unwrap();
+        assert_eq!(ans.status, "out_of_range");
+        assert!(ans.decision.is_none());
+        assert!(ans.expected_value.is_none());
+    }
+
+    #[test]
+    fn test_numeric_below_range_without_abstain() {
+        use crate::types::{Anchor, NumericQuestion};
+
+        let q = Question::Numeric(NumericQuestion {
+            instructions: "Estimate valuation".into(),
+            unit: "M_USD".into(),
+            anchors: vec![
+                Anchor { value: 10.0, description: "Seed".into() },
+                Anchor { value: 50.0, description: "Series A".into() },
+            ],
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
+        });
+        let candidates = generate_candidates(&q);
+        let mut logits = vec![0.0; candidates.len()];
+        let below_idx = candidates.iter().position(|c| c.id == BELOW).unwrap();
+        logits[below_idx] = 10.0; // BELOW heavily dominates
+
+        let ans = decode_decision(&q, &candidates, &logits, 1.0).unwrap();
+        assert_eq!(ans.status, "out_of_range");
+        assert!(ans.decision.is_none());
+        assert!(ans.expected_value.is_none());
+    }
+
+    #[test]
+    fn test_numeric_majority_out_of_range_without_abstain() {
+        use crate::types::{Anchor, NumericQuestion};
+
+        let q = Question::Numeric(NumericQuestion {
+            instructions: "Estimate valuation".into(),
+            unit: "M_USD".into(),
+            anchors: vec![
+                Anchor { value: 10.0, description: "Seed".into() },
+                Anchor { value: 50.0, description: "Series A".into() },
+            ],
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
+        });
+        let candidates = generate_candidates(&q);
+        let mut logits = vec![0.0; candidates.len()];
+        let below_idx = candidates.iter().position(|c| c.id == BELOW).unwrap();
+        let above_idx = candidates.iter().position(|c| c.id == ABOVE).unwrap();
+        // Combined below and above mass is majority
+        logits[below_idx] = 3.0;
+        logits[above_idx] = 3.0;
+
+        let ans = decode_decision(&q, &candidates, &logits, 1.0).unwrap();
+        assert_eq!(ans.status, "out_of_range");
+        assert!(ans.decision.is_none());
+        assert!(ans.expected_value.is_none());
     }
 }
 

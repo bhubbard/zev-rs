@@ -6,6 +6,7 @@ pub const DEFAULT_MODEL: &str = "zev-apex-v1";
 pub const MODEL_ALIAS: &str = "zev-latest";
 pub const MAX_SLOTS: usize = 26;
 pub const MAX_QUESTIONS: usize = 64;
+pub const MAX_STATE_BYTES: usize = 2 * 1024 * 1024; // 2MB
 pub const DEFAULT_CALIBRATED_TEMPERATURE: f64 = 2.179078721266035;
 
 pub const UNKNOWN: &str = "__insufficient__";
@@ -195,6 +196,8 @@ pub struct UncertaintyMetrics {
     pub entropy_nats: f64,
     pub concentration: f64,
     pub unavailable_probability: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub margin: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -212,6 +215,8 @@ pub struct ZevAnswer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_value: Option<f64>,
     pub temperature: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -246,65 +251,7 @@ pub struct ZevResponse {
 // TypeSafe / OpenJev Compatibility Wire Types
 // -------------------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WireNoulCriteria {
-    #[serde(rename = "true", default)]
-    pub true_criterion: Option<serde_json::Value>,
-    #[serde(rename = "false", default)]
-    pub false_criterion: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WireNoulQuestion {
-    pub instructions: serde_json::Value,
-    #[serde(default)]
-    pub criteria: Option<WireNoulCriteria>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WireChoiceQuestion {
-    pub instructions: serde_json::Value,
-    pub criteria: BTreeMap<String, Option<serde_json::Value>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WireScoreQuestion {
-    pub instructions: serde_json::Value,
-    pub criteria: Vec<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum WireQuestion {
-    Noul(WireNoulQuestion),
-    Choice(WireChoiceQuestion),
-    Score(WireScoreQuestion),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SystemOneRequest {
-    pub state: serde_json::Value,
-    #[serde(default = "default_wire_model")]
-    pub model: String,
-    pub questions: BTreeMap<String, WireQuestion>,
-}
-
-fn default_wire_model() -> String {
-    MODEL_ALIAS.into()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SystemOneResponse {
-    pub model: String,
-    pub answers: BTreeMap<String, serde_json::Value>,
-    pub usage: WireUsage,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WireUsage {
-    pub input_tokens: usize,
-    pub output_tokens: usize,
-}
+pub use crate::wire::*;
 
 #[cfg(test)]
 mod tests {

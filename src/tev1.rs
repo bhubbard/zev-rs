@@ -88,6 +88,12 @@ impl Tev1Request {
         if options.len() < 2 {
             return Err(ZevError::InvalidRequest("Tev1 requires at least 2 options".into()));
         }
+        if options.len() > 26 {
+            return Err(ZevError::InvalidRequest(format!(
+                "Tev1 requests support a maximum of 26 options, got {}",
+                options.len()
+            )));
+        }
 
         Ok(Self {
             state,
@@ -96,6 +102,23 @@ impl Tev1Request {
             model: Some("together/Tev1-4B-experimental".into()),
         })
     }
+}
+
+pub(crate) fn index_to_label(mut idx: usize) -> String {
+    if idx < 26 {
+        return ((b'A' + (idx as u8)) as char).to_string();
+    }
+    let mut result = Vec::new();
+    loop {
+        let rem = (idx % 26) as u8;
+        result.push(b'A' + rem);
+        if idx < 26 {
+            break;
+        }
+        idx = (idx / 26) - 1;
+    }
+    result.reverse();
+    String::from_utf8(result).unwrap_or_else(|_| "A".to_string())
 }
 
 fn extract_header_content<'a>(line: &'a str, header: &str) -> &'a str {
@@ -134,8 +157,20 @@ fn parse_option_line(line: &str, options: &mut Vec<String>) {
 pub fn evaluate_tev1_request(req: &Tev1Request, default_temp: f64) -> Result<Tev1Response> {
     let start = Instant::now();
 
+    if req.state.len() > crate::types::MAX_STATE_BYTES {
+        return Err(ZevError::InvalidRequest(
+            "State size exceeds maximum allowed limit of 2MB".into(),
+        ));
+    }
+
     if req.options.len() < 2 {
         return Err(ZevError::InvalidRequest("Tev1 requests require at least 2 options".into()));
+    }
+    if req.options.len() > 26 {
+        return Err(ZevError::InvalidRequest(format!(
+            "Tev1 requests support a maximum of 26 options, got {}",
+            req.options.len()
+        )));
     }
 
     // Preprocess premise (combining state + question)
@@ -147,6 +182,7 @@ pub fn evaluate_tev1_request(req: &Tev1Request, default_temp: f64) -> Result<Tev
     let mut candidates = Vec::with_capacity(req.options.len());
     let mut letter_labels = Vec::with_capacity(req.options.len());
     let mut choice_texts = Vec::with_capacity(req.options.len());
+    let mut seen_labels = std::collections::HashSet::new();
 
     for (idx, opt_str) in req.options.iter().enumerate() {
         let trimmed = opt_str.trim();
@@ -158,9 +194,16 @@ pub fn evaluate_tev1_request(req: &Tev1Request, default_temp: f64) -> Result<Tev
             let text = trimmed[2..].trim();
             (letter, text)
         } else {
-            let letter = ((b'A' + (idx as u8)) as char).to_string();
+            let letter = index_to_label(idx);
             (letter, trimmed)
         };
+
+        if !seen_labels.insert(letter.clone()) {
+            return Err(ZevError::InvalidRequest(format!(
+                "Duplicate option label '{}' detected in Tev1 options",
+                letter
+            )));
+        }
 
         candidates.push(Candidate {
             id: letter.clone(),
@@ -174,8 +217,18 @@ pub fn evaluate_tev1_request(req: &Tev1Request, default_temp: f64) -> Result<Tev
     // Isolated order-invariant scoring
     let logits = compute_order_invariant_logits_with_context(&ctx, &candidates);
 
+    let family = if req.question.to_lowercase().contains("intent") {
+        "intent"
+    } else if req.question.to_lowercase().contains("policy") {
+        "policy"
+    } else {
+        "choice"
+    };
+    let family_temp = crate::calibration::family_calibrated_temperature(family, default_temp);
+    let effective_temp = crate::calibration::dampen_temperature_by_margin(&logits, family_temp, 0.40);
+
     // Dynamic calibrated temperature softmax
-    let probs = scaled_softmax(&logits, default_temp)?;
+    let probs = scaled_softmax(&logits, effective_temp)?;
 
     let mut probabilities = BTreeMap::new();
     let mut logprobs = BTreeMap::new();
@@ -297,6 +350,89 @@ Answer: A
         let resp = evaluate_tev1_request(&req_implicit, 1.0).unwrap();
         assert_eq!(resp.answer, "A");
         assert_eq!(resp.choice, "Database cluster");
+    }
+
+    #[test]
+    fn test_tev1_rejects_more_than_26_options() {
+        let options: Vec<String> = (0..27).map(|i| format!("Option {}", i)).collect();
+        let req = Tev1Request {
+            state: "State".into(),
+            question: "Question".into(),
+            options,
+            model: None,
+        };
+        let err = evaluate_tev1_request(&req, 1.0).unwrap_err();
+        match err {
+            ZevError::InvalidRequest(msg) => {
+                assert!(msg.contains("maximum of 26 options"));
+            }
+            _ => panic!("Expected InvalidRequest, got {:?}", err),
+        }
+    }
+
+    #[test]
+    fn test_tev1_parse_prompt_rejects_more_than_26_options() {
+        let mut prompt = String::from("State: Some state\nQuestion: Some question\nOptions:\n");
+        for i in 0..27 {
+            prompt.push_str(&format!("{}: Option {}\n", (b'A' + (i % 26)) as char, i));
+        }
+        let res = Tev1Request::parse_prompt(&prompt);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_tev1_duplicate_labels_rejected() {
+        // Explicit duplicates
+        let req = Tev1Request {
+            state: "Database outage occurred".into(),
+            question: "Route".into(),
+            options: vec!["A: One".into(), "A: Two".into()],
+            model: None,
+        };
+        let err = evaluate_tev1_request(&req, 1.0).unwrap_err();
+        match err {
+            ZevError::InvalidRequest(msg) => {
+                assert!(msg.contains("Duplicate option label 'A'"));
+            }
+            _ => panic!("Expected InvalidRequest, got {:?}", err),
+        }
+
+        // Implicit and explicit collision
+        let req_collision = Tev1Request {
+            state: "Database outage occurred".into(),
+            question: "Route".into(),
+            options: vec!["B: One".into(), "Two".into()],
+            model: None,
+        };
+        let err_collision = evaluate_tev1_request(&req_collision, 1.0).unwrap_err();
+        match err_collision {
+            ZevError::InvalidRequest(msg) => {
+                assert!(msg.contains("Duplicate option label 'B'"));
+            }
+            _ => panic!("Expected InvalidRequest, got {:?}", err_collision),
+        }
+    }
+
+    #[test]
+    fn test_tev1_index_to_label_overflow_safety_p06() {
+        // P06: Test index_to_label with indices >= 190 without panicking or overflowing
+        assert_eq!(index_to_label(0), "A");
+        assert_eq!(index_to_label(25), "Z");
+        assert_eq!(index_to_label(26), "AA");
+        assert_eq!(index_to_label(27), "AB");
+        assert_eq!(index_to_label(190), "GI");
+        assert_eq!(index_to_label(200), "GS");
+        assert_eq!(index_to_label(1000), "ALM");
+
+        // Request with 200 options is cleanly rejected without panic (R5 / P06)
+        let options_200: Vec<String> = (0..200).map(|i| format!("Option {}", i)).collect();
+        let req_200 = Tev1Request {
+            state: "State".into(),
+            question: "Question".into(),
+            options: options_200,
+            model: None,
+        };
+        assert!(evaluate_tev1_request(&req_200, 1.0).is_err());
     }
 }
 

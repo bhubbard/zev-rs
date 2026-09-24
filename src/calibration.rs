@@ -53,6 +53,47 @@ pub fn scaled_softmax_slice(logits: &[f64], temperature: f64, out: &mut [f64]) -
     Ok(())
 }
 
+/// Returns the family-adapted calibrated temperature (Hopper protocol).
+/// Applies specialized temperature multipliers by question family.
+pub fn family_calibrated_temperature(family: &str, base_temp: f64) -> f64 {
+    match family {
+        "intent" | "routing" => (base_temp * 0.90).max(1.0),
+        "policy" | "long_policy" => base_temp * 1.20,
+        "noul" | "boolean" => base_temp * 0.95,
+        "trap" | "adversarial" => base_temp * 1.15,
+        "score" | "ordinal" => base_temp * 1.05,
+        _ => base_temp,
+    }
+}
+
+/// Multi-candidate margin temperature dampening (Maisa djev protocol).
+/// If the margin between the top two logits is below `margin_threshold`,
+/// smoothly softens the temperature to prevent overconfidence on knife-edge ties.
+#[inline]
+pub fn dampen_temperature_by_margin(logits: &[f64], base_temp: f64, margin_threshold: f64) -> f64 {
+    if logits.len() < 2 || margin_threshold <= 0.0 {
+        return base_temp;
+    }
+    let mut top1 = f64::NEG_INFINITY;
+    let mut top2 = f64::NEG_INFINITY;
+    for &x in logits {
+        if x > top1 {
+            top2 = top1;
+            top1 = x;
+        } else if x > top2 {
+            top2 = x;
+        }
+    }
+    if top2.is_finite() {
+        let margin = (top1 - top2).max(0.0);
+        if margin < margin_threshold {
+            let factor = 1.0 + 0.35 * (1.0 - margin / margin_threshold);
+            return base_temp * factor;
+        }
+    }
+    base_temp
+}
+
 /// Computes Expected Calibration Error (ECE) across M equal-width bins
 pub fn compute_ece(confidences: &[f64], accuracies: &[bool], num_bins: usize) -> f64 {
     if confidences.is_empty() || confidences.len() != accuracies.len() || num_bins == 0 {
@@ -158,6 +199,26 @@ mod tests {
         assert_eq!(compute_ece(&[], &[], 5), 0.0);
         assert_eq!(compute_ece(&[0.9], &[true, false], 5), 0.0);
         assert_eq!(compute_ece(&[0.9], &[true], 0), 0.0);
+    }
+
+    #[test]
+    fn test_hopper_family_calibrated_temperature() {
+        let base = 2.0;
+        assert!(family_calibrated_temperature("intent", base) < base);
+        assert!(family_calibrated_temperature("policy", base) > base);
+        assert!(family_calibrated_temperature("trap", base) > base);
+        assert_eq!(family_calibrated_temperature("unknown", base), base);
+    }
+
+    #[test]
+    fn test_djev_margin_temperature_dampening() {
+        let base = 2.0;
+        // Large margin (1.0) -> no dampening
+        assert_eq!(dampen_temperature_by_margin(&[5.0, 4.0], base, 0.4), base);
+
+        // Near tie (margin 0.05 < 0.4) -> dampened (higher temperature)
+        let dampened = dampen_temperature_by_margin(&[5.05, 5.0], base, 0.4);
+        assert!(dampened > base);
     }
 }
 

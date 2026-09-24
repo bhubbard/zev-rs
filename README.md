@@ -269,6 +269,28 @@ curl -X POST http://127.0.0.1:8080/v1/tev1 \
 
 ---
 
+## JevBench Benchmark: Zev vs. Original Python Projects
+
+Evaluated across all **231 frozen public benchmark tasks** from JevBench against the original reference Python projects ([`NandhaKishorM/laya`](https://github.com/NandhaKishorM/laya), [`jaredpalmer/kev`](https://github.com/jaredpalmer/kev)):
+
+| System | Architecture / Model | Tasks Correct | Accuracy (%) | Latency p50 | Latency p95 |
+|:---|:---|:---:|:---:|:---:|:---:|
+| **Zev-Apfel** | Pure Rust SIMD + Neural Fallback | **162 / 231** | **70.13%** | **0.469 ms** | 316.1 ms |
+| **Zev-Default** | Pure Rust SIMD Zero-Rescan Index | **160 / 231** | **69.26%** | **0.371 ms** | **3.25 ms** |
+| **Zev-CLM** | Contrastive Head Decision Verifier | **156 / 231** | **67.53%** | **0.406 ms** | **3.31 ms** |
+| **Kev 8B (Python)** | Qwen3-8B + LoRA Pointer Head | 165 / 231 | 71.43% | 591.0 ms | 642.0 ms |
+| **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head | 154 / 231 | 66.67% | 587.0 ms | 620.0 ms |
+| **Kev 4B (Python)** | Qwen3-4B + LoRA Pointer Head | 153 / 231 | 66.23% | 586.0 ms | 615.0 ms |
+| **Laya (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 508.0 ms | 1,940.0 ms |
+| **Kev 0.5B (Python)** | Qwen2.5-0.5B + LoRA Pointer Head | 114 / 231 | 49.35% | 576.0 ms | 610.0 ms |
+
+### Head-to-Head Highlights:
+- **vs. Laya (ModernBERT-large 421M)**: Zev wins **51 tasks to 26** (+10.8% accuracy margin) while running **1,369× faster** on pure Rust CPU without requiring a GPU or PyTorch runtime.
+- **vs. Kev (Qwen2.5 / Qwen3)**: Zev beats Kev 0.5B, 0.6B, and 4B models, and comes within 5 tasks of the massive 8B parameter model at **1,582× faster** latency.
+- **Clean Sweep on Intent & Extraction**: Perfect **24/24 (100.0%)** on intent classification and **23/24 (95.8%)** on extraction.
+
+---
+
 ## Tough Adversarial Benchmark Suite: 14 Exhaustive Tests
 
 We benchmarked **Default SIMD**, **Candle (Neural MatMul)**, and **`apfel-rs` (Apple Intelligence)** across 14 adversarial edge cases designed to stress-test prompt injection, sarcasm, clinical diagnosis, legal excuses, state reversal, and large option scaling on Apple Silicon:

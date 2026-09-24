@@ -1,6 +1,6 @@
 {
   "name": "zev-rs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "High-performance Rust zero-token LLM decision engine combining order-invariance, calibrated temperature, candidate-only projection, and guardrails",
   "main": "bin/zev.js",
   "bin": {

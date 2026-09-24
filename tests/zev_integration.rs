@@ -1,12 +1,15 @@
 use std::collections::BTreeMap;
+#[cfg(feature = "server")]
 use std::sync::Arc;
+#[cfg(feature = "server")]
 use axum::{body::Body, http::{Request, StatusCode}};
+#[cfg(feature = "server")]
 use tower::ServiceExt;
 
 use zev::{
-    compute_ece, fit_temperature, shortlist_options, ChoiceQuestion,
-    OptionDef, Policy, Question, SystemOneRequest,
-    ZevEngine, ZevRequest,
+    compute_ece, fit_temperature, shortlist_options, BooleanQuestion, ChoiceQuestion,
+    OptionDef, Policy, Question, SystemOneRequest, WireChoiceQuestion, WireNoulQuestion,
+    WireQuestion, ZevEngine, ZevError, ZevRequest,
 };
 
 #[test]
@@ -166,6 +169,7 @@ fn test_typesafe_systemone_compatibility() {
     assert!(dept["confidence"].as_f64().unwrap() > 0.0);
 }
 
+#[cfg(feature = "server")]
 #[tokio::test]
 async fn test_http_server_endpoints() {
     let engine = Arc::new(ZevEngine::default());
@@ -698,3 +702,154 @@ fn test_apfel_neural_speculative_hybrid() {
     let ans = resp.answers.get("priority").unwrap();
     assert_eq!(ans.decision, Some(serde_json::Value::String("critical".into())));
 }
+
+// --- 12. R10 Request Limits Enforcement ---
+#[test]
+fn test_r10_request_limits_enforcement() {
+    let engine = ZevEngine::default();
+
+    // 1. More than 64 questions on evaluate
+    let mut too_many_q = BTreeMap::new();
+    for i in 0..65 {
+        too_many_q.insert(format!("q_{i}"), Question::Boolean(BooleanQuestion {
+            instructions: "Is this valid?".into(),
+            true_description: "Yes".into(),
+            false_description: "No".into(),
+            policy: Policy::default(),
+        }));
+    }
+    let req_q_limit = ZevRequest {
+        state: serde_json::json!("State text"),
+        questions: too_many_q,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+    };
+    let err = engine.evaluate(&req_q_limit).unwrap_err();
+    match err {
+        ZevError::InvalidRequest(msg) => {
+            assert_eq!(msg, "Question count exceeds maximum allowed limit of 64");
+        }
+        other => panic!("Expected InvalidRequest, got {other:?}"),
+    }
+
+    // 2. More than 64 questions on evaluate_system_one
+    let mut too_many_wire = BTreeMap::new();
+    for i in 0..65 {
+        too_many_wire.insert(format!("q_{i}"), WireQuestion::Noul(WireNoulQuestion {
+            instructions: serde_json::json!("Is this valid?"),
+            criteria: None,
+        }));
+    }
+    let req_wire_q_limit = SystemOneRequest {
+        state: serde_json::json!("State text"),
+        questions: too_many_wire,
+        model: "zev".into(),
+    };
+    let err_wire = engine.evaluate_system_one(&req_wire_q_limit).unwrap_err();
+    match err_wire {
+        ZevError::InvalidRequest(msg) => {
+            assert_eq!(msg, "Question count exceeds maximum allowed limit of 64");
+        }
+        other => panic!("Expected InvalidRequest, got {other:?}"),
+    }
+
+    // 3. State > 2MB on evaluate
+    let big_state = "a".repeat(2 * 1024 * 1024 + 1);
+    let mut single_q = BTreeMap::new();
+    single_q.insert("q".into(), Question::Boolean(BooleanQuestion {
+        instructions: "Test".into(),
+        true_description: "Yes".into(),
+        false_description: "No".into(),
+        policy: Policy::default(),
+    }));
+    let req_state_limit = ZevRequest {
+        state: serde_json::json!(big_state),
+        questions: single_q,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+    };
+    let err_state = engine.evaluate(&req_state_limit).unwrap_err();
+    match err_state {
+        ZevError::InvalidRequest(msg) => {
+            assert_eq!(msg, "State size exceeds maximum allowed limit of 2MB");
+        }
+        other => panic!("Expected InvalidRequest, got {other:?}"),
+    }
+
+    // 4. State > 2MB on evaluate_system_one
+    let mut wire_single = BTreeMap::new();
+    wire_single.insert("q".into(), WireQuestion::Noul(WireNoulQuestion {
+        instructions: serde_json::json!("Test"),
+        criteria: None,
+    }));
+    let req_wire_state = SystemOneRequest {
+        state: serde_json::json!(big_state),
+        questions: wire_single,
+        model: "zev".into(),
+    };
+    let err_wire_state = engine.evaluate_system_one(&req_wire_state).unwrap_err();
+    match err_wire_state {
+        ZevError::InvalidRequest(msg) => {
+            assert_eq!(msg, "State size exceeds maximum allowed limit of 2MB");
+        }
+        other => panic!("Expected InvalidRequest, got {other:?}"),
+    }
+
+    // 5. State > 2MB on evaluate_tev1
+    let tev1_req = zev::Tev1Request {
+        state: big_state,
+        question: "Is this valid?".into(),
+        options: vec!["A: Yes".into(), "B: No".into()],
+        model: None,
+    };
+    let err_tev1 = engine.evaluate_tev1(&tev1_req).unwrap_err();
+    match err_tev1 {
+        ZevError::InvalidRequest(msg) => {
+            assert_eq!(msg, "State size exceeds maximum allowed limit of 2MB");
+        }
+        other => panic!("Expected InvalidRequest, got {other:?}"),
+    }
+}
+
+// --- 13. O1 & R8 Protocol Unification & Consistent Confidence ---
+#[test]
+fn test_o1_r8_protocol_unification_and_confidence() {
+    let engine = ZevEngine::default();
+
+    let mut questions = BTreeMap::new();
+    questions.insert("refund".into(), WireQuestion::Choice(WireChoiceQuestion {
+        instructions: serde_json::json!("Select the primary requested action."),
+        criteria: {
+            let mut m = BTreeMap::new();
+            m.insert("refund".into(), Some(serde_json::json!("Customer wants their money back")));
+            m.insert("support".into(), Some(serde_json::json!("Customer needs technical assistance")));
+            m
+        },
+    }));
+
+    let req = SystemOneRequest {
+        state: serde_json::json!("I want a full refund for my purchase!"),
+        questions,
+        model: "zev".into(),
+    };
+
+    let resp = engine.evaluate_system_one(&req).unwrap();
+    let ans = resp.answers.get("refund").unwrap();
+
+    // Check wire schema compatibility
+    assert_eq!(ans.get("type").unwrap(), "choice");
+    assert_eq!(ans.get("choice").unwrap(), "refund");
+    assert_eq!(ans.get("source").unwrap(), "native");
+
+    let conf = ans.get("confidence").unwrap().as_f64().unwrap();
+    assert!(conf > 0.0 && conf <= 1.0, "Confidence must be calibrated in (0, 1], got {conf}");
+
+    let probs = ans.get("probabilities").unwrap().as_object().unwrap();
+    let p_refund = probs.get("refund").unwrap().as_f64().unwrap();
+    let p_support = probs.get("support").unwrap().as_f64().unwrap();
+    assert!(p_refund > p_support);
+    assert!((p_refund + p_support - 1.0).abs() < 1e-4);
+}
+
