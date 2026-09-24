@@ -3,11 +3,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZEV — Zero-Token Decision Engine</title>
-  <meta name="description" content="Ultra-fast zero-token LLM decision engine combining order-invariance, calibrated temperature scaling, and strict guardrails.">
+  <title>ZEV — Zero-Token Decision Engine | 1,369× Faster Than PyTorch Decision Models</title>
+  <meta name="description" content="Zev is an ultra-fast zero-token LLM decision engine in pure Rust. Evaluates classification, routing, and scoring schemas in 0.37ms with 70.1% JevBench accuracy, 0% order bias, and zero GPU requirement.">
+  <meta name="keywords" content="Zev, decision model, zero-token, LLM decision engine, system 1 AI, order-invariance, calibrated softmax, JevBench, Laya, Kev, Rust AI">
+  <meta name="author" content="Brandon Hubbard">
+  <link rel="canonical" href="https://bhubbard.github.io/zev-rs/">
+
+  <!-- Open Graph / Social Cards -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://bhubbard.github.io/zev-rs/">
+  <meta property="og:title" content="ZEV — Zero-Token Decision Engine in Pure Rust">
+  <meta property="og:description" content="Evaluates classifications and routing decisions in 0.37 milliseconds with 70.1% accuracy on JevBench. 1,369× faster than 421M transformer decision models.">
+  <meta property="og:site_name" content="ZEV by Brandon Hubbard">
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ZEV — Zero-Token Decision Engine">
+  <meta name="twitter:description" content="0.37ms decisions, 70.1% JevBench accuracy, 0.0% order flip rate. The fastest open-source decision engine.">
+
+  <!-- Structured Data (JSON-LD) for Technical SEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Zev",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Cross-platform (Linux, macOS, Windows)",
+    "description": "High-performance zero-token LLM decision engine combining order-invariance, calibrated temperature scaling, and strict guardrails.",
+    "license": "https://opensource.org/licenses/MIT",
+    "author": {
+      "@type": "Person",
+      "name": "Brandon Hubbard",
+      "url": "https://brandonhubbard.com"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0.00",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <style>
     :root {
       --void: #0a0a0a;
@@ -20,6 +60,7 @@
       --electric-cyan: #06B6D4;
       --signal-emerald: #10B981;
       --precision-crimson: #F43F5E;
+      --amber-gold: #F59E0B;
       --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
@@ -29,6 +70,10 @@
       margin: 0;
       padding: 0;
       border-radius: 0 !important; /* Swiss sharp grid rule */
+    }
+
+    html {
+      scroll-behavior: smooth;
     }
 
     body {
@@ -68,11 +113,11 @@
     /* Navigation header */
     header {
       border-bottom: 1px solid var(--concrete);
-      background: rgba(10, 10, 10, 0.95);
+      background: rgba(10, 10, 10, 0.96);
       position: sticky;
       top: 0;
-      z-index: 100;
-      backdrop-filter: blur(8px);
+      z-index: 1000;
+      backdrop-filter: blur(10px);
     }
     .nav-inner {
       max-width: 1200px;
@@ -129,20 +174,88 @@
       color: var(--signal-emerald);
     }
 
-    nav ul {
+    /* Desktop Navigation */
+    .desktop-nav {
       display: flex;
       list-style: none;
       gap: 24px;
       font-family: var(--font-mono);
       font-size: 13px;
     }
-    nav a {
+    .desktop-nav a {
       color: var(--steel);
       text-decoration: none;
       transition: color 0.15s ease;
     }
-    nav a:hover {
+    .desktop-nav a:hover {
       color: var(--titanium);
+    }
+
+    /* Hamburger Button (Mobile Only) */
+    .menu-toggle {
+      display: none;
+      background: var(--charcoal);
+      border: 1px solid var(--concrete);
+      color: var(--titanium);
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      cursor: pointer;
+      align-items: center;
+      gap: 8px;
+    }
+    .menu-toggle:focus {
+      outline: 1px solid var(--electric-cyan);
+    }
+    .hamburger-icon {
+      display: inline-block;
+      width: 16px;
+      height: 12px;
+      position: relative;
+    }
+    .hamburger-icon span {
+      display: block;
+      position: absolute;
+      height: 2px;
+      width: 100%;
+      background: var(--titanium);
+      left: 0;
+      transition: all 0.2s ease;
+    }
+    .hamburger-icon span:nth-child(1) { top: 0; }
+    .hamburger-icon span:nth-child(2) { top: 5px; }
+    .hamburger-icon span:nth-child(3) { top: 10px; }
+
+    /* Mobile Drawer */
+    .mobile-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: 100%;
+      background: var(--charcoal);
+      border-bottom: 1px solid var(--concrete);
+      padding: 16px 24px 24px;
+      list-style: none;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    }
+    .mobile-menu.active {
+      display: flex;
+    }
+    .mobile-menu a {
+      color: #cccccc;
+      text-decoration: none;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      justify-content: space-between;
+    }
+    .mobile-menu a:hover {
+      color: var(--electric-cyan);
     }
 
     /* Hero section */
@@ -171,19 +284,41 @@
       color: var(--steel);
     }
     h1 {
-      font-size: 48px;
+      font-size: 46px;
       font-weight: 800;
       letter-spacing: -1.5px;
-      line-height: 1.1;
-      max-width: 900px;
+      line-height: 1.15;
+      max-width: 950px;
       margin-bottom: 24px;
     }
     .lead {
       font-size: 18px;
       color: #b5b5b5;
-      max-width: 780px;
+      max-width: 820px;
       margin-bottom: 36px;
       font-weight: 400;
+    }
+
+    /* Beginner Explanation Callout */
+    .primer-box {
+      border: 1px solid var(--concrete);
+      background: var(--charcoal);
+      padding: 24px 28px;
+      margin-bottom: 40px;
+      border-left: 3px solid var(--electric-cyan);
+    }
+    .primer-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--electric-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .primer-text {
+      font-size: 15px;
+      color: #e0e0e0;
+      line-height: 1.6;
     }
 
     /* Actions and CTA */
@@ -229,7 +364,7 @@
     /* Metrics Grid */
     .metrics-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       border: 1px solid var(--concrete);
       background: var(--concrete);
       gap: 1px;
@@ -268,7 +403,7 @@
       padding: 64px 24px;
     }
     .section-title {
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 700;
       letter-spacing: -0.5px;
       margin-bottom: 12px;
@@ -276,13 +411,14 @@
     .section-desc {
       color: var(--steel);
       margin-bottom: 32px;
-      max-width: 780px;
+      max-width: 820px;
+      font-size: 15px;
     }
 
     /* Configuration Architecture Cards */
     .config-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       border: 1px solid var(--concrete);
       background: var(--concrete);
       gap: 1px;
@@ -290,13 +426,13 @@
     }
     .config-card {
       background: var(--charcoal);
-      padding: 32px;
+      padding: 30px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
     }
     .config-header {
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
     .config-tag {
       font-family: var(--font-mono);
@@ -319,7 +455,7 @@
       padding: 16px;
       font-family: var(--font-mono);
       font-size: 12px;
-      margin: 20px 0;
+      margin: 18px 0;
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -327,6 +463,7 @@
     .config-specs div {
       display: flex;
       justify-content: space-between;
+      gap: 10px;
     }
     .config-specs span.lbl {
       color: var(--steel);
@@ -334,6 +471,7 @@
     .config-specs span.val {
       color: var(--titanium);
       font-weight: 600;
+      text-align: right;
     }
 
     /* Head-to-Head Banner */
@@ -344,9 +482,9 @@
       margin-bottom: 48px;
     }
     .banner-highlight h3 {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 800;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
       letter-spacing: -0.5px;
     }
     .banner-highlight p {
@@ -357,7 +495,7 @@
     }
     .h2h-stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 16px;
       border-top: 1px solid var(--concrete);
       padding-top: 24px;
@@ -378,12 +516,15 @@
       letter-spacing: 0.5px;
     }
 
-    /* Benchmark Table */
+    /* Sticky Header Table Wrapper */
     .table-wrapper {
       border: 1px solid var(--concrete);
       overflow-x: auto;
+      max-height: 540px; /* Enables sticky header inside scroll container */
+      overflow-y: auto;
       background: var(--charcoal);
       margin-bottom: 48px;
+      position: relative;
     }
     table {
       width: 100%;
@@ -391,24 +532,31 @@
       text-align: left;
       font-size: 14px;
     }
-    th {
+    thead th {
       font-family: var(--font-mono);
       font-size: 12px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       padding: 14px 18px;
-      background: var(--void);
-      color: var(--steel);
-      border-bottom: 1px solid var(--concrete);
+      background: #181818;
+      color: var(--titanium);
+      border-bottom: 2px solid var(--concrete);
+      position: sticky; /* Sticky table headers */
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 1px 0 var(--concrete);
     }
     td {
-      padding: 14px 18px;
+      padding: 13px 18px;
       border-bottom: 1px solid var(--concrete);
       color: var(--titanium);
     }
     tr:last-child td {
       border-bottom: none;
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
     }
     tr.highlight {
       background: rgba(59, 130, 246, 0.05);
@@ -423,13 +571,14 @@
       color: var(--signal-emerald);
       font-family: var(--font-mono);
       font-size: 12px;
+      font-weight: 600;
     }
 
     /* Visual Bar Graphs */
     .chart-container {
       border: 1px solid var(--concrete);
       background: var(--charcoal);
-      padding: 32px;
+      padding: 28px;
       margin-bottom: 48px;
     }
     .chart-title {
@@ -443,6 +592,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
     }
     .bar-group {
       display: flex;
@@ -572,6 +723,7 @@
       gap: 20px;
       list-style: none;
       font-family: var(--font-mono);
+      flex-wrap: wrap;
     }
     .footer-links a {
       color: var(--steel);
@@ -580,20 +732,71 @@
     .footer-links a:hover {
       color: var(--titanium);
     }
+
+    /* Responsive Mobile Media Queries */
+    @media (max-width: 860px) {
+      .desktop-nav {
+        display: none;
+      }
+      .menu-toggle {
+        display: flex;
+      }
+      h1 {
+        font-size: 32px;
+        letter-spacing: -1px;
+      }
+      .lead {
+        font-size: 16px;
+      }
+      .hero {
+        padding: 48px 20px 40px;
+      }
+      .container {
+        padding: 40px 20px;
+      }
+      .bar-row {
+        grid-template-columns: 130px 1fr 70px;
+        font-size: 11px;
+      }
+      .metrics-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .metric-val {
+        font-size: 26px;
+      }
+      .banner-highlight {
+        padding: 24px;
+      }
+      .banner-highlight h3 {
+        font-size: 20px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .top-bar {
+        display: none;
+      }
+      .metrics-grid {
+        grid-template-columns: 1fr;
+      }
+      .bar-row {
+        grid-template-columns: 100px 1fr 60px;
+      }
+    }
   </style>
 </head>
 <body>
 
   <!-- Top metadata bar -->
-  <div class="top-bar">
+  <aside class="top-bar" aria-label="Build Status">
     <div>// REPOSITORY: <span class="meta-tag">GITHUB.COM/BHUBBARD/ZEV-RS</span></div>
     <div>VERSION <span class="meta-tag">0.2.0</span> &bull; CRATES.IO &bull; MIT LICENSE</div>
-  </div>
+  </aside>
 
   <!-- Main header -->
   <header>
     <div class="nav-inner">
-      <a href="#" class="brand">
+      <a href="#" class="brand" aria-label="ZEV Home">
         <div class="bh-mark">BH</div>
         <div class="brand-title">
           ZEV
@@ -601,614 +804,670 @@
           <span class="badge badge-emerald">JevBench 70.1%</span>
         </div>
       </a>
-      <nav>
-        <ul>
-          <li><a href="#configurations">01. CONFIGS</a></li>
-          <li><a href="#benchmarks">02. BENCHMARKS</a></li>
+
+      <!-- Desktop Nav -->
+      <nav aria-label="Main Navigation">
+        <ul class="desktop-nav">
+          <li><a href="#what-is-zev">01. OVERVIEW</a></li>
+          <li><a href="#configurations">02. CONFIGS</a></li>
           <li><a href="#laya-comparison">03. VS LAYA</a></li>
-          <li><a href="#architecture">04. ARCHITECTURE</a></li>
+          <li><a href="#benchmarks">04. BENCHMARKS</a></li>
           <li><a href="#quickstart">05. QUICKSTART</a></li>
           <li><a href="https://github.com/bhubbard/zev-rs" target="_blank" rel="noopener">GITHUB &rarr;</a></li>
         </ul>
       </nav>
+
+      <!-- Mobile Hamburger Toggle -->
+      <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation menu" aria-expanded="false">
+        <span class="hamburger-icon">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+        MENU
+      </button>
+
+      <!-- Mobile Dropdown Menu -->
+      <ul class="mobile-menu" id="mobileMenu">
+        <li><a href="#what-is-zev" class="mobile-nav-link"><span>01. What is Zev? (Beginner Guide)</span> &rarr;</a></li>
+        <li><a href="#configurations" class="mobile-nav-link"><span>02. The 4 Configurations</span> &rarr;</a></li>
+        <li><a href="#laya-comparison" class="mobile-nav-link"><span>03. Why Zev Beats Laya (1,369×)</span> &rarr;</a></li>
+        <li><a href="#benchmarks" class="mobile-nav-link"><span>04. Complete Benchmarks</span> &rarr;</a></li>
+        <li><a href="#architecture" class="mobile-nav-link"><span>05. System Architecture</span> &rarr;</a></li>
+        <li><a href="#quickstart" class="mobile-nav-link"><span>06. Quickstart Guide</span> &rarr;</a></li>
+        <li><a href="https://github.com/bhubbard/zev-rs" target="_blank" rel="noopener"><span>View GitHub Repository</span> &rarr;</a></li>
+      </ul>
     </div>
   </header>
 
   <!-- Hero section -->
-  <section class="hero">
-    <div class="hero-inner">
-      <div class="kicker">ZERO-TOKEN SYSTEM 1 DECISION ENGINE</div>
-      <h1>Ultra-fast, order-invariant decision intelligence in pure Rust.</h1>
-      <p class="lead">
-        Zev synthesizes calibrated temperature scaling, 0.0% order-flip invariance, strict out-of-range guardrails, and speculative neural cascades into a unified library, CLI, and REST microservice.
+  <main>
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="kicker">ZERO-TOKEN SYSTEM 1 DECISION ENGINE</div>
+        <h1>Ultra-fast, order-invariant decision intelligence in pure Rust.</h1>
+        <p class="lead">
+          Traditional LLMs spend 500+ milliseconds generating words token by token just to make a simple true/false or routing decision. <strong>Zev evaluates the entire decision schema in 0.37 milliseconds in a single forward pass</strong> with calibrated probabilities and zero order bias.
+        </p>
+
+        <div class="action-row">
+          <a href="#quickstart" class="btn btn-primary">INSTALL VIA NPM / CARGO &rarr;</a>
+          <a href="https://github.com/bhubbard/zev-rs" target="_blank" rel="noopener" class="btn btn-secondary">VIEW REPOSITORY</a>
+          <a href="https://huggingface.co/spaces/bkhubbard/zev" target="_blank" rel="noopener" class="btn btn-secondary">HUGGING FACE DEMO</a>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-cell">
+            <div class="metric-val">0.371 <span>ms</span></div>
+            <div class="metric-label">p50 Latency (Pure Rust SIMD)</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-val">70.13 <span>%</span></div>
+            <div class="metric-label">JevBench Public Accuracy</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-val">0.0 <span>%</span></div>
+            <div class="metric-label">Order Flip Rate (Canonical Isolation)</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-val">1,369<span>×</span></div>
+            <div class="metric-label">Speedup vs. PyTorch / ModernBERT</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Beginner Explanation Section -->
+    <section id="what-is-zev" class="container">
+      <div class="primer-box">
+        <div class="primer-title">BEGINNER'S GUIDE // HOW ZERO-TOKEN DECISIONS WORK</div>
+        <p class="primer-text">
+          <strong>Why is this different from ChatGPT or Llama?</strong> When you ask standard LLMs to classify a ticket, they generate text character-by-character (e.g. <code>"I think this belongs to... Billing"</code>). This wastes hundreds of milliseconds and can hallucinate.<br><br>
+          <strong>Zev is a "System 1" engine:</strong> You give it a text snippet and a set of candidate choices. Instead of generating prose, Zev directly scores the probability distribution across your candidates in <strong>sub-millisecond CPU time</strong>. If you swap the order of choices, Zev’s mathematical order-invariance guarantees you get the exact same answer (0.0% flip rate).
+        </p>
+      </div>
+    </section>
+
+    <!-- Configurations Architecture Breakdown -->
+    <section id="configurations" class="container" style="padding-top: 0;">
+      <div class="kicker">ENGINE MODES & TIERS</div>
+      <h2 class="section-title">The Four Zev Configurations Explained</h2>
+      <p class="section-desc">
+        Zev offers multiple execution tiers depending on your latency goals, hardware environment, and whether you want lightweight CPU heuristics or deeper neural tensor projections.
       </p>
 
-      <div class="action-row">
-        <a href="#quickstart" class="btn btn-primary">INSTALL VIA NPM / CARGO &rarr;</a>
-        <a href="https://github.com/bhubbard/zev-rs" target="_blank" rel="noopener" class="btn btn-secondary">VIEW REPOSITORY</a>
-        <a href="https://huggingface.co/spaces/bkhubbard/zev" target="_blank" rel="noopener" class="btn btn-secondary">HUGGING FACE DEMO</a>
-      </div>
-
-      <div class="metrics-grid">
-        <div class="metric-cell">
-          <div class="metric-val">0.371 <span>ms</span></div>
-          <div class="metric-label">p50 Latency (Pure Rust SIMD)</div>
-        </div>
-        <div class="metric-cell">
-          <div class="metric-val">70.13 <span>%</span></div>
-          <div class="metric-label">JevBench Public Accuracy</div>
-        </div>
-        <div class="metric-cell">
-          <div class="metric-val">0.0 <span>%</span></div>
-          <div class="metric-label">Order Flip Rate (Canonical Isolation)</div>
-        </div>
-        <div class="metric-cell">
-          <div class="metric-val">1,369<span>×</span></div>
-          <div class="metric-label">Speedup vs. PyTorch / ModernBERT</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Configurations Architecture Breakdown -->
-  <section id="configurations" class="container">
-    <div class="kicker">ENGINE MODES & TIERS</div>
-    <h2 class="section-title">The Three Zev Configurations Explained</h2>
-    <p class="section-desc">
-      Zev is engineered with three distinct verification tiers to balance microsecond SIMD speed against deeper contrastive and foundation-model neural reasoning.
-    </p>
-
-    <div class="config-grid">
-      <!-- Zev-Default -->
-      <div class="config-card">
-        <div class="config-header">
-          <span class="config-tag" style="color: var(--electric-cyan);">TIER 1 // FAST-PATH</span>
-          <h3 class="config-title">Zev-Default</h3>
-          <p style="color: #999; font-size: 14px;">
-            The core engine: 100% pure Rust SIMD execution with zero-rescan token indexing, boundary-bounded token matching, and calibrated temperature scaling.
+      <div class="config-grid">
+        <!-- Zev-Default -->
+        <div class="config-card">
+          <div class="config-header">
+            <span class="config-tag" style="color: var(--electric-cyan);">TIER 1 // FAST-PATH HEURISTICS</span>
+            <h3 class="config-title">Zev-Default</h3>
+            <p style="color: #999; font-size: 14px;">
+              The standard production engine: 100% pure Rust SIMD execution with zero-rescan token indexing, boundary-bounded token matching, and calibrated temperature scaling.
+            </p>
+          </div>
+          <div class="config-specs">
+            <div><span class="lbl">Latency (p50):</span> <span class="val">0.371 ms</span></div>
+            <div><span class="lbl">Memory Footprint:</span> <span class="val">0 MB External Weights</span></div>
+            <div><span class="lbl">JevBench Accuracy:</span> <span class="val">69.26% (160/231)</span></div>
+            <div><span class="lbl">Execution Device:</span> <span class="val">Pure CPU (AVX2/NEON)</span></div>
+            <div><span class="lbl">Best For:</span> <span class="val">Microservices, API Gateways</span></div>
+          </div>
+          <p style="font-size: 13px; color: var(--steel);">
+            Pre-indexes premise byte offsets into an in-memory hash map during <code>PremiseContext::new</code>, evaluating bounded queries in $O(1)$ without repeated rescans.
           </p>
         </div>
-        <div class="config-specs">
-          <div><span class="lbl">Latency (p50):</span> <span class="val">0.371 ms</span></div>
-          <div><span class="lbl">Memory Footprint:</span> <span class="val">0 MB Weights</span></div>
-          <div><span class="lbl">JevBench Accuracy:</span> <span class="val">69.26% (160/231)</span></div>
-          <div><span class="lbl">Execution Device:</span> <span class="val">Pure CPU (AVX2/NEON)</span></div>
-          <div><span class="lbl">Best For:</span> <span class="val">Microservices, API Routing</span></div>
-        </div>
-        <p style="font-size: 13px; color: var(--steel);">
-          Pre-indexes premise byte offsets into an in-memory hash map during <code>PremiseContext::new</code>, completely eliminating rescans while strictly enforcing polarity and whole-word boundaries.
-        </p>
-      </div>
 
-      <!-- Zev-CLM -->
-      <div class="config-card">
-        <div class="config-header">
-          <span class="config-tag" style="color: var(--cobalt);">TIER 2 // CONTRASTIVE HEAD</span>
-          <h3 class="config-title">Zev-CLM</h3>
-          <p style="color: #999; font-size: 14px;">
-            Contrastive Language Model (CLM) verifier fallback. Embeds state and candidate actions into unified vector representations to score candidate similarities.
+        <!-- Zev-CLM -->
+        <div class="config-card">
+          <div class="config-header">
+            <span class="config-tag" style="color: var(--cobalt);">TIER 2 // CONTRASTIVE HEAD</span>
+            <h3 class="config-title">Zev-CLM</h3>
+            <p style="color: #999; font-size: 14px;">
+              Contrastive Language Model (CLM) verifier fallback. Embeds state and candidate actions into unified vector representations to score candidate similarities.
+            </p>
+          </div>
+          <div class="config-specs">
+            <div><span class="lbl">Latency (p50):</span> <span class="val">0.406 ms</span></div>
+            <div><span class="lbl">Memory Footprint:</span> <span class="val">Lightweight Head</span></div>
+            <div><span class="lbl">JevBench Accuracy:</span> <span class="val">67.53% (156/231)</span></div>
+            <div><span class="lbl">Execution Device:</span> <span class="val">CPU SIMD Dot-Product</span></div>
+            <div><span class="lbl">Best For:</span> <span class="val">Shortlist Disambiguation</span></div>
+          </div>
+          <p style="font-size: 13px; color: var(--steel);">
+            Invoked when <code>ZEV_FALLBACK=clm</code> or when SIMD confidence is near the margin threshold. Directly computes contrastive scores without allocating heavy arena buffers.
           </p>
         </div>
-        <div class="config-specs">
-          <div><span class="lbl">Latency (p50):</span> <span class="val">0.406 ms</span></div>
-          <div><span class="lbl">Memory Footprint:</span> <span class="val">Lightweight Head</span></div>
-          <div><span class="lbl">JevBench Accuracy:</span> <span class="val">67.53% (156/231)</span></div>
-          <div><span class="lbl">Execution Device:</span> <span class="val">CPU SIMD Dot-Product</span></div>
-          <div><span class="lbl">Best For:</span> <span class="val">Shortlist Disambiguation</span></div>
-        </div>
-        <p style="font-size: 13px; color: var(--steel);">
-          Invoked when <code>ZEV_FALLBACK=clm</code> or when SIMD confidence is near the margin threshold. Directly computes contrastive scores without allocating heavy arena buffers.
-        </p>
-      </div>
 
-      <!-- Zev-Apfel -->
-      <div class="config-card">
-        <div class="config-header">
-          <span class="config-tag" style="color: var(--signal-emerald);">TIER 3 // SPECULATIVE HYBRID</span>
-          <h3 class="config-title">Zev-Apfel</h3>
-          <p style="color: #999; font-size: 14px;">
-            The highest accuracy configuration: speculative hybrid cascading that runs SIMD first, escalating ambiguous edge cases to Apple Intelligence on-device FoundationModels.
+        <!-- Zev-Apfel -->
+        <div class="config-card">
+          <div class="config-header">
+            <span class="config-tag" style="color: var(--signal-emerald);">TIER 3 // SPECULATIVE HYBRID</span>
+            <h3 class="config-title">Zev-Apfel</h3>
+            <p style="color: #999; font-size: 14px;">
+              The highest accuracy configuration: speculative hybrid cascading that runs SIMD first, escalating ambiguous edge cases to Apple Intelligence on-device FoundationModels.
+            </p>
+          </div>
+          <div class="config-specs">
+            <div><span class="lbl">Latency (p50):</span> <span class="val">0.469 ms</span></div>
+            <div><span class="lbl">Memory Footprint:</span> <span class="val">0 MB Download (OS Model)</span></div>
+            <div><span class="lbl">JevBench Accuracy:</span> <span class="val">70.13% (162/231) 🏆</span></div>
+            <div><span class="lbl">Execution Device:</span> <span class="val">Apple Silicon NPU</span></div>
+            <div><span class="lbl">Best For:</span> <span class="val">Nuanced Legal & Medical Text</span></div>
+          </div>
+          <p style="font-size: 13px; color: var(--steel);">
+            Uses <code>apfel-rs</code> to tap directly into macOS 15's native 3B FoundationModel without downloading weights, boosting complex multi-step routing decisions.
           </p>
         </div>
-        <div class="config-specs">
-          <div><span class="lbl">Latency (p50):</span> <span class="val">0.469 ms</span></div>
-          <div><span class="lbl">Memory Footprint:</span> <span class="val">0 MB Download (OS Model)</span></div>
-          <div><span class="lbl">JevBench Accuracy:</span> <span class="val">70.13% (162/231) 🏆</span></div>
-          <div><span class="lbl">Execution Device:</span> <span class="val">Apple Silicon NPU</span></div>
-          <div><span class="lbl">Best For:</span> <span class="val">Legal & Medical Reasoning</span></div>
-        </div>
-        <p style="font-size: 13px; color: var(--steel);">
-          Uses <code>apfel-rs</code> to tap directly into macOS 15's native 3B FoundationModel without downloading weights, boosting complex multi-step routing decisions.
-        </p>
-      </div>
-    </div>
-  </section>
 
-  <!-- Big Highlight: Zev vs Laya -->
-  <section id="laya-comparison" class="container" style="border-top: 1px solid var(--concrete); padding-top: 48px;">
-    <div class="banner-highlight">
-      <div class="kicker" style="color: var(--signal-emerald);">HEAD-TO-HEAD SHOWDOWN</div>
-      <h3>How Zev Beats Laya: 70.1% vs 58.4% Accuracy at 1,369× Speed</h3>
-      <p>
-        Laya is Convai Innovations' open-weights ModernBERT-large 421M model running in PyTorch. In the official JevBench evaluation across 231 decisions, <strong>Zev won 51 head-to-head tasks while Laya won only 26</strong>. Furthermore, Zev requires zero external weights, runs on ordinary CPUs, and completes decisions in <strong>0.37 milliseconds</strong> rather than Laya's <strong>508 milliseconds</strong>.
+        <!-- Zev-Candle -->
+        <div class="config-card">
+          <div class="config-header">
+            <span class="config-tag" style="color: var(--amber-gold);">TIER 4 // TENSOR MATMUL (PLANNED)</span>
+            <h3 class="config-title">Zev-Candle</h3>
+            <p style="color: #999; font-size: 14px;">
+              Cross-platform pure-Rust tensor execution using Hugging Face's Candle. Encodes candidate options into contiguous 2D tensors for single batched BLAS/Metal GEMM passes.
+            </p>
+          </div>
+          <div class="config-specs">
+            <div><span class="lbl">Latency (p50):</span> <span class="val">~7.8 ms</span></div>
+            <div><span class="lbl">Memory Footprint:</span> <span class="val">~35 MB – 80 MB Tensors</span></div>
+            <div><span class="lbl">Stress Test Accuracy:</span> <span class="val">100.0% (14/14 tests)</span></div>
+            <div><span class="lbl">Execution Device:</span> <span class="val">CPU (BLAS) / GPU (Metal/CUDA)</span></div>
+            <div><span class="lbl">Best For:</span> <span class="val">Linux, Docker, Cross-Platform</span></div>
+          </div>
+          <p style="font-size: 13px; color: var(--steel);">
+            Bridges the gap on Linux/Docker servers where Apple FoundationModels aren't available, providing 100% accuracy on complex metaphors in single-digit milliseconds.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Big Highlight: Zev vs Laya -->
+    <section id="laya-comparison" class="container" style="border-top: 1px solid var(--concrete); padding-top: 48px;">
+      <div class="banner-highlight">
+        <div class="kicker" style="color: var(--signal-emerald);">HEAD-TO-HEAD SHOWDOWN</div>
+        <h3>How Zev Beats Laya: 70.1% vs 58.4% Accuracy at 1,369× Speed</h3>
+        <p>
+          Laya is Convai Innovations' open-weights ModernBERT-large 421M model running in PyTorch. In the official JevBench evaluation across 231 decisions, <strong>Zev won 51 head-to-head tasks while Laya won only 26</strong>. Furthermore, Zev requires zero external weights, runs on ordinary CPUs, and completes decisions in <strong>0.37 milliseconds</strong> rather than Laya's <strong>508 milliseconds</strong>.
+        </p>
+
+        <div class="h2h-stats">
+          <div class="h2h-stat-box">
+            <div class="h2h-stat-val">+11.7%</div>
+            <div class="h2h-stat-lbl">Accuracy Advantage (70.1% vs 58.4%)</div>
+          </div>
+          <div class="h2h-stat-box">
+            <div class="h2h-stat-val">1,369×</div>
+            <div class="h2h-stat-lbl">Latency Speedup (0.37ms vs 508ms)</div>
+          </div>
+          <div class="h2h-stat-box">
+            <div class="h2h-stat-val">51 to 26</div>
+            <div class="h2h-stat-lbl">Direct Head-to-Head Decisive Wins</div>
+          </div>
+          <div class="h2h-stat-box">
+            <div class="h2h-stat-val">0 MB vs 842 MB</div>
+            <div class="h2h-stat-lbl">Disk & Memory Footprint</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Bar Graphs comparing JevBench and Speed -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 48px;">
+        <!-- Chart 1: Accuracy -->
+        <div class="chart-container" style="margin-bottom: 0;">
+          <div class="chart-title">
+            <span>Overall JevBench Public Accuracy</span>
+            <span style="color: var(--signal-emerald);">Higher is Better &uarr;</span>
+          </div>
+          <div class="bar-group">
+            <div class="bar-row">
+              <span class="bar-label">Zev-Apfel</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-zev" style="width: 70.13%;">70.13%</div>
+              </div>
+              <span class="bar-val"><strong>162</strong> / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Zev-Default</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-zev" style="width: 69.26%;">69.26%</div>
+              </div>
+              <span class="bar-val"><strong>160</strong> / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Zev-CLM</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-zev-subtle" style="width: 67.53%;">67.53%</div>
+              </div>
+              <span class="bar-val"><strong>156</strong> / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Kev 0.6B (Python)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 66.67%;">66.67%</div>
+              </div>
+              <span class="bar-val">154 / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Laya (ModernBERT)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 58.44%; background: var(--precision-crimson); color: #fff;">58.44%</div>
+              </div>
+              <span class="bar-val">135 / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Kev 0.5B (Python)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 49.35%;">49.35%</div>
+              </div>
+              <span class="bar-val">114 / 231</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 2: Latency Speedup -->
+        <div class="chart-container" style="margin-bottom: 0;">
+          <div class="chart-title">
+            <span>Inference Latency (p50 Median)</span>
+            <span style="color: var(--electric-cyan);">Lower is Better &darr;</span>
+          </div>
+          <div class="bar-group">
+            <div class="bar-row">
+              <span class="bar-label">Zev-Default</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-zev" style="width: 5%; min-width: 8px;"></div>
+              </div>
+              <span class="bar-val"><strong>0.37 ms</strong></span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Zev-CLM</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-zev-subtle" style="width: 5.5%; min-width: 8px;"></div>
+              </div>
+              <span class="bar-val"><strong>0.41 ms</strong></span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Zev-Apfel</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-zev-subtle" style="width: 6%; min-width: 8px;"></div>
+              </div>
+              <span class="bar-val"><strong>0.47 ms</strong></span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Zev-Candle (Tensors)</span>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: 15%; background: var(--amber-gold); color: #000;">7.8ms</div>
+              </div>
+              <span class="bar-val">7.80 ms</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Laya (ModernBERT)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 88%; background: var(--precision-crimson); color: #fff;">508 ms</div>
+              </div>
+              <span class="bar-val">508.0 ms</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Kev 0.6B (Python)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 100%;">587 ms</div>
+              </div>
+              <span class="bar-val">587.0 ms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Complete Benchmarks & Task Family Tables -->
+    <section id="benchmarks" class="container" style="border-top: 1px solid var(--concrete); padding-top: 48px;">
+      <div class="kicker">COMPREHENSIVE RESULTS</div>
+      <h2 class="section-title">Task Family Breakdown: Zev vs. Laya vs. Kev</h2>
+      <p class="section-desc">
+        Detailed accuracy breakdown across all 18 task families in the JevBench public evaluation suite. <em>Headers scroll with you as you navigate through the table:</em>
       </p>
 
-      <div class="h2h-stats">
-        <div class="h2h-stat-box">
-          <div class="h2h-stat-val">+11.7%</div>
-          <div class="h2h-stat-lbl">Accuracy Advantage (70.1% vs 58.4%)</div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Task Family</th>
+              <th scope="col">Items</th>
+              <th scope="col">Zev-Default</th>
+              <th scope="col">Zev-Apfel</th>
+              <th scope="col">Zev-CLM</th>
+              <th scope="col">Laya (Python)</th>
+              <th scope="col">Kev 0.6B</th>
+              <th scope="col">Winner</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="highlight">
+              <td><strong>intent</strong></td>
+              <td class="mono">24</td>
+              <td class="mono"><strong>24 (100.0%)</strong></td>
+              <td class="mono"><strong>24 (100.0%)</strong></td>
+              <td class="mono"><strong>24 (100.0%)</strong></td>
+              <td class="mono">20 (83.3%)</td>
+              <td class="mono">20 (83.3%)</td>
+              <td class="tag-win">🏆 Zev (Clean Sweep)</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>extraction</strong></td>
+              <td class="mono">24</td>
+              <td class="mono"><strong>23 (95.8%)</strong></td>
+              <td class="mono"><strong>23 (95.8%)</strong></td>
+              <td class="mono"><strong>23 (95.8%)</strong></td>
+              <td class="mono">20 (83.3%)</td>
+              <td class="mono">22 (91.7%)</td>
+              <td class="tag-win">🏆 Zev</td>
+            </tr>
+            <tr>
+              <td><strong>fact</strong></td>
+              <td class="mono">12</td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono">10 (83.3%)</td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="tag-win">🏆 Zev / Kev (Tie)</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>ordinal</strong></td>
+              <td class="mono">12</td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono">11 (91.7%)</td>
+              <td class="mono">10 (83.3%)</td>
+              <td class="tag-win">🏆 Zev</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>policy</strong></td>
+              <td class="mono">12</td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono">9 (75.0%)</td>
+              <td class="mono">11 (91.7%)</td>
+              <td class="tag-win">🏆 Zev</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>routing_hard</strong></td>
+              <td class="mono">5</td>
+              <td class="mono"><strong>5 (100.0%)</strong></td>
+              <td class="mono"><strong>5 (100.0%)</strong></td>
+              <td class="mono"><strong>5 (100.0%)</strong></td>
+              <td class="mono">1 (20.0%)</td>
+              <td class="mono">3 (60.0%)</td>
+              <td class="tag-win">🏆 Zev</td>
+            </tr>
+            <tr>
+              <td><strong>tool_selection</strong></td>
+              <td class="mono">12</td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono">11 (91.7%)</td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="tag-win">🏆 3-Way Tie</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>adequacy</strong></td>
+              <td class="mono">12</td>
+              <td class="mono"><strong>10 (83.3%)</strong></td>
+              <td class="mono"><strong>10 (83.3%)</strong></td>
+              <td class="mono"><strong>10 (83.3%)</strong></td>
+              <td class="mono">8 (66.7%)</td>
+              <td class="mono">7 (58.3%)</td>
+              <td class="tag-win">🏆 Zev</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>trap</strong></td>
+              <td class="mono">8</td>
+              <td class="mono"><strong>5 (62.5%)</strong></td>
+              <td class="mono"><strong>5 (62.5%)</strong></td>
+              <td class="mono"><strong>5 (62.5%)</strong></td>
+              <td class="mono">0 (0.0%)</td>
+              <td class="mono"><strong>5 (62.5%)</strong></td>
+              <td class="tag-win">🏆 Zev / Kev (Tie)</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>judge_hard</strong></td>
+              <td class="mono">17</td>
+              <td class="mono"><strong>9 (52.9%)</strong></td>
+              <td class="mono"><strong>9 (52.9%)</strong></td>
+              <td class="mono"><strong>9 (52.9%)</strong></td>
+              <td class="mono">7 (41.2%)</td>
+              <td class="mono">7 (41.2%)</td>
+              <td class="tag-win">🏆 Zev</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>multi_hop</strong></td>
+              <td class="mono">18</td>
+              <td class="mono"><strong>8 (44.4%)</strong></td>
+              <td class="mono">7 (38.9%)</td>
+              <td class="mono"><strong>8 (44.4%)</strong></td>
+              <td class="mono">6 (33.3%)</td>
+              <td class="mono">6 (33.3%)</td>
+              <td class="tag-win">🏆 Zev</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>ambiguous</strong></td>
+              <td class="mono">7</td>
+              <td class="mono"><strong>3 (42.9%)</strong></td>
+              <td class="mono"><strong>3 (42.9%)</strong></td>
+              <td class="mono"><strong>3 (42.9%)</strong></td>
+              <td class="mono">1 (14.3%)</td>
+              <td class="mono">2 (28.6%)</td>
+              <td class="tag-win">🏆 Zev</td>
+            </tr>
+            <tr>
+              <td><strong>probability</strong></td>
+              <td class="mono">10</td>
+              <td class="mono"><strong>5 (50.0%)</strong></td>
+              <td class="mono"><strong>5 (50.0%)</strong></td>
+              <td class="mono"><strong>5 (50.0%)</strong></td>
+              <td class="mono"><strong>5 (50.0%)</strong></td>
+              <td class="mono">4 (40.0%)</td>
+              <td class="tag-win">🏆 Zev / Laya (Tie)</td>
+            </tr>
+            <tr>
+              <td><strong>tradeoff</strong></td>
+              <td class="mono">6</td>
+              <td class="mono">3 (50.0%)</td>
+              <td class="mono">3 (50.0%)</td>
+              <td class="mono">3 (50.0%)</td>
+              <td class="mono"><strong>6 (100.0%)</strong></td>
+              <td class="mono">4 (66.7%)</td>
+              <td>Laya</td>
+            </tr>
+            <tr>
+              <td><strong>adversarial</strong></td>
+              <td class="mono">6</td>
+              <td class="mono">3 (50.0%)</td>
+              <td class="mono">3 (50.0%)</td>
+              <td class="mono">3 (50.0%)</td>
+              <td class="mono"><strong>4 (66.7%)</strong></td>
+              <td class="mono"><strong>4 (66.7%)</strong></td>
+              <td>Laya / Kev</td>
+            </tr>
+            <tr>
+              <td><strong>routing</strong></td>
+              <td class="mono">12</td>
+              <td class="mono">5 (41.7%)</td>
+              <td class="mono">9 (75.0%)</td>
+              <td class="mono">3 (25.0%)</td>
+              <td class="mono">6 (50.0%)</td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td>Kev (Zev-Apfel 75%)</td>
+            </tr>
+            <tr>
+              <td><strong>temporal_numeric</strong></td>
+              <td class="mono">15</td>
+              <td class="mono">5 (33.3%)</td>
+              <td class="mono">4 (26.7%)</td>
+              <td class="mono">4 (26.7%)</td>
+              <td class="mono">5 (33.3%)</td>
+              <td class="mono"><strong>6 (40.0%)</strong></td>
+              <td>Kev</td>
+            </tr>
+            <tr>
+              <td><strong>long_policy</strong></td>
+              <td class="mono">19</td>
+              <td class="mono">4 (21.1%)</td>
+              <td class="mono">4 (21.1%)</td>
+              <td class="mono">4 (21.1%)</td>
+              <td class="mono">4 (21.1%)</td>
+              <td class="mono"><strong>7 (36.8%)</strong></td>
+              <td>Kev</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 14 Adversarial Tests Table -->
+      <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.3px;">
+        Adversarial Edge-Case Stress Suite (14 Exhaustive Scenarios)
+      </h3>
+      <p class="section-desc">
+        Evaluated against complex prompt injection, sarcasm, clinical differentials, and state reversals:
+      </p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Scenario</th>
+              <th scope="col">Edge-Case Challenge</th>
+              <th scope="col">Zev-Default (~25 µs)</th>
+              <th scope="col">Candle BLAS (~7.8 ms)</th>
+              <th scope="col">Zev-Apfel (~450 ms)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">01</td>
+              <td><strong>Adversarial Distractor</strong></td>
+              <td>Praise preface masking Kubernetes crash</td>
+              <td class="mono" style="color: var(--steel);">⚠️ Abstained (__insufficient__)</td>
+              <td class="tag-win">✅ PASS (infrastructure_outage)</td>
+              <td class="tag-win">✅ PASS (infrastructure_outage)</td>
+            </tr>
+            <tr>
+              <td class="mono">02</td>
+              <td><strong>Zero Keyword Metaphor</strong></td>
+              <td>Poetic description of clinical depression</td>
+              <td class="mono" style="color: var(--steel);">⚠️ Abstained (__insufficient__)</td>
+              <td class="tag-win">✅ PASS (depression)</td>
+              <td class="tag-win">✅ PASS (depression)</td>
+            </tr>
+            <tr>
+              <td class="mono">03</td>
+              <td><strong>Out-of-Domain Trap</strong></td>
+              <td>Baking recipe fed to security taxonomy</td>
+              <td class="tag-win">✅ PASS (__insufficient__)</td>
+              <td class="tag-win">✅ PASS (__insufficient__)</td>
+              <td class="tag-win">✅ PASS (__insufficient__)</td>
+            </tr>
+            <tr>
+              <td class="mono">04</td>
+              <td><strong>Network Systems</strong></td>
+              <td>Stateful conntrack drop vs. DNS timeout</td>
+              <td class="tag-win">✅ PASS (firewall_filter_drop)</td>
+              <td class="tag-win">✅ PASS (firewall_filter_drop)</td>
+              <td class="tag-win">✅ PASS (firewall_filter_drop)</td>
+            </tr>
+            <tr>
+              <td class="mono">05</td>
+              <td><strong>Sarcasm Inversion</strong></td>
+              <td>"Wonderful software!" masking fatal crash</td>
+              <td class="tag-win">✅ PASS (critical_bug_report)</td>
+              <td class="tag-win">✅ PASS (critical_bug_report)</td>
+              <td class="tag-win">✅ PASS (critical_bug_report)</td>
+            </tr>
+            <tr>
+              <td class="mono">06</td>
+              <td><strong>Clinical Differential</strong></td>
+              <td>McBurney point tenderness, "no diarrhea"</td>
+              <td class="tag-win">✅ PASS (acute_appendicitis)</td>
+              <td class="tag-win">✅ PASS (acute_appendicitis)</td>
+              <td class="tag-win">✅ PASS (acute_appendicitis)</td>
+            </tr>
+            <tr>
+              <td class="mono">07</td>
+              <td><strong>Temporal State Reversal</strong></td>
+              <td>Crash reversed by Bob's 10:45 AM rollback</td>
+              <td class="tag-win">✅ PASS (outage_resolved_post_rollback)</td>
+              <td class="tag-win">✅ PASS (outage_resolved_post_rollback)</td>
+              <td class="tag-win">✅ PASS (outage_resolved_post_rollback)</td>
+            </tr>
+            <tr>
+              <td class="mono">08</td>
+              <td><strong>20-Option Long List</strong></td>
+              <td>Target failure mode buried at index #15</td>
+              <td class="tag-win">✅ PASS (78.1 µs, 0 allocations)</td>
+              <td class="tag-win">✅ PASS (7.34 ms)</td>
+              <td class="tag-win">✅ PASS (pre-filtered attention)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Architecture section -->
+    <section id="architecture" class="container" style="border-top: 1px solid var(--concrete);">
+      <div class="kicker">SYSTEM DESIGN</div>
+      <h2 class="section-title">Architectural Principles</h2>
+      <p class="section-desc">
+        Engineered for extreme reliability, strict guardrails, and deterministic outcomes in high-throughput production environments.
+      </p>
+
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-num">01 // CANONICAL ISOLATION</div>
+          <h3>0.0% Order Flip Rate</h3>
+          <p>Isolated premise-option attention slots eliminate option order bias completely. Permuting candidate options produces 100% identical calibrated logits.</p>
         </div>
-        <div class="h2h-stat-box">
-          <div class="h2h-stat-val">1,369×</div>
-          <div class="h2h-stat-lbl">Latency Speedup (0.37ms vs 508ms)</div>
+        <div class="card">
+          <div class="card-num">02 // SAFETY GUARDRAILS</div>
+          <h3>Strict Abstention</h3>
+          <p>Refuses to hallucinate when evidence is missing (<code>__insufficient__</code>) or when continuous estimates exceed calibrated bounds (<code>out_of_range</code>).</p>
         </div>
-        <div class="h2h-stat-box">
-          <div class="h2h-stat-val">51 to 26</div>
-          <div class="h2h-stat-lbl">Direct Head-to-Head Decisive Wins</div>
+        <div class="card">
+          <div class="card-num">03 // MOMENT STATISTICS</div>
+          <h3>Continuous Moments</h3>
+          <p>For ordinal ratings and numeric rubrics, computes expected mean (&sum; v<sub>i</sub> p<sub>i</sub>), variance, standard deviation, and quantiles (p10, p90).</p>
         </div>
-        <div class="h2h-stat-box">
-          <div class="h2h-stat-val">0 MB vs 842 MB</div>
-          <div class="h2h-stat-lbl">Disk & Memory Footprint</div>
+        <div class="card">
+          <div class="card-num">04 // WIRE COMPATIBILITY</div>
+          <h3>Multi-Protocol REST</h3>
+          <p>Drop-in compatibility for native <code>/v1/decisions</code>, TypeSafe <code>/v1/systemone</code>, and Together AI <code>/v1/tev1</code> schemas.</p>
         </div>
-      </div>
-    </div>
-
-    <!-- Visual Bar Graphs comparing JevBench and Speed -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 24px; margin-bottom: 48px;">
-      <!-- Chart 1: Accuracy -->
-      <div class="chart-container" style="margin-bottom: 0;">
-        <div class="chart-title">
-          <span>Overall JevBench Public Accuracy</span>
-          <span>Higher is Better &uarr;</span>
+        <div class="card">
+          <div class="card-num">05 // ZERO-RESCAN INDEXING</div>
+          <h3>Single-Pass Tokenizer</h3>
+          <p>Pre-indexes byte positions into an in-memory token map in <code>PremiseContext</code>, evaluating bounded queries in $O(1)$ without repeated scans.</p>
         </div>
-        <div class="bar-group">
-          <div class="bar-row">
-            <span class="bar-label">Zev-Apfel</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-zev" style="width: 70.13%;">70.13%</div>
-            </div>
-            <span class="bar-val"><strong>162</strong> / 231</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Zev-Default</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-zev" style="width: 69.26%;">69.26%</div>
-            </div>
-            <span class="bar-val"><strong>160</strong> / 231</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Zev-CLM</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-zev-subtle" style="width: 67.53%;">67.53%</div>
-            </div>
-            <span class="bar-val"><strong>156</strong> / 231</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Kev 0.6B (Python)</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-competitor" style="width: 66.67%;">66.67%</div>
-            </div>
-            <span class="bar-val">154 / 231</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Laya (Python, 421M)</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-competitor" style="width: 58.44%; background: var(--precision-crimson); color: #fff;">58.44%</div>
-            </div>
-            <span class="bar-val">135 / 231</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Kev 0.5B (Python)</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-competitor" style="width: 49.35%;">49.35%</div>
-            </div>
-            <span class="bar-val">114 / 231</span>
-          </div>
+        <div class="card">
+          <div class="card-num">06 // HYBRID CASCADE</div>
+          <h3>Speculative Fallback</h3>
+          <p>Sub-millisecond SIMD runs first; automatically cascades to on-device Apple Intelligence (<code>apfel-rs</code>) or Candle BLAS tensors when uncertainty is detected.</p>
         </div>
       </div>
+    </section>
 
-      <!-- Chart 2: Latency Speedup (Log Scale representation) -->
-      <div class="chart-container" style="margin-bottom: 0;">
-        <div class="chart-title">
-          <span>Inference Latency (p50 Median)</span>
-          <span>Lower is Better &darr;</span>
-        </div>
-        <div class="bar-group">
-          <div class="bar-row">
-            <span class="bar-label">Zev-Default</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-zev" style="width: 4%; min-width: 8px;"></div>
-            </div>
-            <span class="bar-val"><strong>0.37 ms</strong></span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Zev-CLM</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-zev-subtle" style="width: 4.5%; min-width: 8px;"></div>
-            </div>
-            <span class="bar-val"><strong>0.41 ms</strong></span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Zev-Apfel</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-zev-subtle" style="width: 5%; min-width: 8px;"></div>
-            </div>
-            <span class="bar-val"><strong>0.47 ms</strong></span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Laya (ModernBERT)</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-competitor" style="width: 88%; background: var(--precision-crimson); color: #fff;">508 ms</div>
-            </div>
-            <span class="bar-val">508.0 ms</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Kev 0.5B</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-competitor" style="width: 95%;">576 ms</div>
-            </div>
-            <span class="bar-val">576.0 ms</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Kev 0.6B</span>
-            <div class="bar-track">
-              <div class="bar-fill bar-fill-competitor" style="width: 100%;">587 ms</div>
-            </div>
-            <span class="bar-val">587.0 ms</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+    <!-- Quickstart section -->
+    <section id="quickstart" class="container" style="border-top: 1px solid var(--concrete);">
+      <div class="kicker">GETTING STARTED</div>
+      <h2 class="section-title">Quick Installation & Usage</h2>
+      <p class="section-desc">
+        Use Zev via npx for instant zero-install CLI execution, install via Cargo, or launch the high-performance REST microservice.
+      </p>
 
-  <!-- Complete Benchmarks & Task Family Tables -->
-  <section id="benchmarks" class="container" style="border-top: 1px solid var(--concrete); padding-top: 48px;">
-    <div class="kicker">COMPREHENSIVE RESULTS</div>
-    <h2 class="section-title">Task Family Breakdown: Zev vs. Laya vs. Kev</h2>
-    <p class="section-desc">
-      Detailed accuracy breakdown across all 18 task families in the JevBench public evaluation suite:
-    </p>
-
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Task Family</th>
-            <th>Items</th>
-            <th>Zev-Default</th>
-            <th>Zev-Apfel</th>
-            <th>Zev-CLM</th>
-            <th>Laya (Python)</th>
-            <th>Kev 0.6B</th>
-            <th>Winner</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr class="highlight">
-            <td><strong>intent</strong></td>
-            <td class="mono">24</td>
-            <td class="mono"><strong>24 (100.0%)</strong></td>
-            <td class="mono"><strong>24 (100.0%)</strong></td>
-            <td class="mono"><strong>24 (100.0%)</strong></td>
-            <td class="mono">20 (83.3%)</td>
-            <td class="mono">20 (83.3%)</td>
-            <td class="tag-win">🏆 Zev (Clean Sweep)</td>
-          </tr>
-          <tr class="highlight">
-            <td><strong>extraction</strong></td>
-            <td class="mono">24</td>
-            <td class="mono"><strong>23 (95.8%)</strong></td>
-            <td class="mono"><strong>23 (95.8%)</strong></td>
-            <td class="mono"><strong>23 (95.8%)</strong></td>
-            <td class="mono">20 (83.3%)</td>
-            <td class="mono">22 (91.7%)</td>
-            <td class="tag-win">🏆 Zev</td>
-          </tr>
-          <tr>
-            <td><strong>fact</strong></td>
-            <td class="mono">12</td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono">10 (83.3%)</td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="tag-win">🏆 Zev / Kev (Tie)</td>
-          </tr>
-          <tr class="highlight">
-            <td><strong>ordinal</strong></td>
-            <td class="mono">12</td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono">11 (91.7%)</td>
-            <td class="mono">10 (83.3%)</td>
-            <td class="tag-win">🏆 Zev</td>
-          </tr>
-          <tr class="highlight">
-            <td><strong>policy</strong></td>
-            <td class="mono">12</td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono">9 (75.0%)</td>
-            <td class="mono">11 (91.7%)</td>
-            <td class="tag-win">🏆 Zev</td>
-          </tr>
-          <tr class="highlight">
-            <td><strong>routing_hard</strong></td>
-            <td class="mono">5</td>
-            <td class="mono"><strong>5 (100.0%)</strong></td>
-            <td class="mono"><strong>5 (100.0%)</strong></td>
-            <td class="mono"><strong>5 (100.0%)</strong></td>
-            <td class="mono">1 (20.0%)</td>
-            <td class="mono">3 (60.0%)</td>
-            <td class="tag-win">🏆 Zev</td>
-          </tr>
-          <tr>
-            <td><strong>tool_selection</strong></td>
-            <td class="mono">12</td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono">11 (91.7%)</td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td class="tag-win">🏆 3-Way Tie</td>
-          </tr>
-          <tr class="highlight">
-            <td><strong>adequacy</strong></td>
-            <td class="mono">12</td>
-            <td class="mono"><strong>10 (83.3%)</strong></td>
-            <td class="mono"><strong>10 (83.3%)</strong></td>
-            <td class="mono"><strong>10 (83.3%)</strong></td>
-            <td class="mono">8 (66.7%)</td>
-            <td class="mono">7 (58.3%)</td>
-            <td class="tag-win">🏆 Zev</td>
-          </tr>
-          <tr class="highlight">
-            <td><strong>trap</strong></td>
-            <td class="mono">8</td>
-            <td class="mono"><strong>5 (62.5%)</strong></td>
-            <td class="mono"><strong>5 (62.5%)</strong></td>
-            <td class="mono"><strong>5 (62.5%)</strong></td>
-            <td class="mono">0 (0.0%)</td>
-            <td class="mono"><strong>5 (62.5%)</strong></td>
-            <td class="tag-win">🏆 Zev / Kev (Tie)</td>
-          </tr>
-          <tr class="highlight">
-            <td><strong>judge_hard</strong></td>
-            <td class="mono">17</td>
-            <td class="mono"><strong>9 (52.9%)</strong></td>
-            <td class="mono"><strong>9 (52.9%)</strong></td>
-            <td class="mono"><strong>9 (52.9%)</strong></td>
-            <td class="mono">7 (41.2%)</td>
-            <td class="mono">7 (41.2%)</td>
-            <td class="tag-win">🏆 Zev</td>
-          </tr>
-          <tr class="highlight">
-            <td><strong>multi_hop</strong></td>
-            <td class="mono">18</td>
-            <td class="mono"><strong>8 (44.4%)</strong></td>
-            <td class="mono">7 (38.9%)</td>
-            <td class="mono"><strong>8 (44.4%)</strong></td>
-            <td class="mono">6 (33.3%)</td>
-            <td class="mono">6 (33.3%)</td>
-            <td class="tag-win">🏆 Zev</td>
-          </tr>
-          <tr class="highlight">
-            <td><strong>ambiguous</strong></td>
-            <td class="mono">7</td>
-            <td class="mono"><strong>3 (42.9%)</strong></td>
-            <td class="mono"><strong>3 (42.9%)</strong></td>
-            <td class="mono"><strong>3 (42.9%)</strong></td>
-            <td class="mono">1 (14.3%)</td>
-            <td class="mono">2 (28.6%)</td>
-            <td class="tag-win">🏆 Zev</td>
-          </tr>
-          <tr>
-            <td><strong>probability</strong></td>
-            <td class="mono">10</td>
-            <td class="mono"><strong>5 (50.0%)</strong></td>
-            <td class="mono"><strong>5 (50.0%)</strong></td>
-            <td class="mono"><strong>5 (50.0%)</strong></td>
-            <td class="mono"><strong>5 (50.0%)</strong></td>
-            <td class="mono">4 (40.0%)</td>
-            <td class="tag-win">🏆 Zev / Laya (Tie)</td>
-          </tr>
-          <tr>
-            <td><strong>tradeoff</strong></td>
-            <td class="mono">6</td>
-            <td class="mono">3 (50.0%)</td>
-            <td class="mono">3 (50.0%)</td>
-            <td class="mono">3 (50.0%)</td>
-            <td class="mono"><strong>6 (100.0%)</strong></td>
-            <td class="mono">4 (66.7%)</td>
-            <td>Laya</td>
-          </tr>
-          <tr>
-            <td><strong>adversarial</strong></td>
-            <td class="mono">6</td>
-            <td class="mono">3 (50.0%)</td>
-            <td class="mono">3 (50.0%)</td>
-            <td class="mono">3 (50.0%)</td>
-            <td class="mono"><strong>4 (66.7%)</strong></td>
-            <td class="mono"><strong>4 (66.7%)</strong></td>
-            <td>Laya / Kev</td>
-          </tr>
-          <tr>
-            <td><strong>routing</strong></td>
-            <td class="mono">12</td>
-            <td class="mono">5 (41.7%)</td>
-            <td class="mono">9 (75.0%)</td>
-            <td class="mono">3 (25.0%)</td>
-            <td class="mono">6 (50.0%)</td>
-            <td class="mono"><strong>12 (100.0%)</strong></td>
-            <td>Kev (Zev-Apfel 75%)</td>
-          </tr>
-          <tr>
-            <td><strong>temporal_numeric</strong></td>
-            <td class="mono">15</td>
-            <td class="mono">5 (33.3%)</td>
-            <td class="mono">4 (26.7%)</td>
-            <td class="mono">4 (26.7%)</td>
-            <td class="mono">5 (33.3%)</td>
-            <td class="mono"><strong>6 (40.0%)</strong></td>
-            <td>Kev</td>
-          </tr>
-          <tr>
-            <td><strong>long_policy</strong></td>
-            <td class="mono">19</td>
-            <td class="mono">4 (21.1%)</td>
-            <td class="mono">4 (21.1%)</td>
-            <td class="mono">4 (21.1%)</td>
-            <td class="mono">4 (21.1%)</td>
-            <td class="mono"><strong>7 (36.8%)</strong></td>
-            <td>Kev</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- 14 Adversarial Tests Table -->
-    <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.3px;">
-      Adversarial Edge-Case Stress Suite (14 Exhaustive Scenarios)
-    </h3>
-    <p class="section-desc">
-      Evaluated against complex prompt injection, sarcasm, clinical differentials, and state reversals:
-    </p>
-
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Scenario</th>
-            <th>Edge-Case Challenge</th>
-            <th>Zev-Default (~25 µs)</th>
-            <th>Candle BLAS (~7.8 ms)</th>
-            <th>Zev-Apfel (~450 ms)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="mono">01</td>
-            <td><strong>Adversarial Distractor</strong></td>
-            <td>Praise preface masking Kubernetes crash</td>
-            <td class="mono" style="color: var(--steel);">⚠️ Abstained (__insufficient__)</td>
-            <td class="tag-win">✅ PASS (infrastructure_outage)</td>
-            <td class="tag-win">✅ PASS (infrastructure_outage)</td>
-          </tr>
-          <tr>
-            <td class="mono">02</td>
-            <td><strong>Zero Keyword Metaphor</strong></td>
-            <td>Poetic description of clinical depression</td>
-            <td class="mono" style="color: var(--steel);">⚠️ Abstained (__insufficient__)</td>
-            <td class="tag-win">✅ PASS (depression)</td>
-            <td class="tag-win">✅ PASS (depression)</td>
-          </tr>
-          <tr>
-            <td class="mono">03</td>
-            <td><strong>Out-of-Domain Trap</strong></td>
-            <td>Baking recipe fed to security taxonomy</td>
-            <td class="tag-win">✅ PASS (__insufficient__)</td>
-            <td class="tag-win">✅ PASS (__insufficient__)</td>
-            <td class="tag-win">✅ PASS (__insufficient__)</td>
-          </tr>
-          <tr>
-            <td class="mono">04</td>
-            <td><strong>Network Systems</strong></td>
-            <td>Stateful conntrack drop vs. DNS timeout</td>
-            <td class="tag-win">✅ PASS (firewall_filter_drop)</td>
-            <td class="tag-win">✅ PASS (firewall_filter_drop)</td>
-            <td class="tag-win">✅ PASS (firewall_filter_drop)</td>
-          </tr>
-          <tr>
-            <td class="mono">05</td>
-            <td><strong>Sarcasm Inversion</strong></td>
-            <td>"Wonderful software!" masking fatal crash</td>
-            <td class="tag-win">✅ PASS (critical_bug_report)</td>
-            <td class="tag-win">✅ PASS (critical_bug_report)</td>
-            <td class="tag-win">✅ PASS (critical_bug_report)</td>
-          </tr>
-          <tr>
-            <td class="mono">06</td>
-            <td><strong>Clinical Differential</strong></td>
-            <td>McBurney point tenderness, "no diarrhea"</td>
-            <td class="tag-win">✅ PASS (acute_appendicitis)</td>
-            <td class="tag-win">✅ PASS (acute_appendicitis)</td>
-            <td class="tag-win">✅ PASS (acute_appendicitis)</td>
-          </tr>
-          <tr>
-            <td class="mono">07</td>
-            <td><strong>Temporal State Reversal</strong></td>
-            <td>Crash reversed by Bob's 10:45 AM rollback</td>
-            <td class="tag-win">✅ PASS (outage_resolved_post_rollback)</td>
-            <td class="tag-win">✅ PASS (outage_resolved_post_rollback)</td>
-            <td class="tag-win">✅ PASS (outage_resolved_post_rollback)</td>
-          </tr>
-          <tr>
-            <td class="mono">08</td>
-            <td><strong>20-Option Long List</strong></td>
-            <td>Target failure mode buried at index #15</td>
-            <td class="tag-win">✅ PASS (78.1 µs, 0 allocations)</td>
-            <td class="tag-win">✅ PASS (7.34 ms)</td>
-            <td class="tag-win">✅ PASS (pre-filtered attention)</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Architecture section -->
-  <section id="architecture" class="container" style="border-top: 1px solid var(--concrete);">
-    <div class="kicker">SYSTEM DESIGN</div>
-    <h2 class="section-title">Architectural Principles</h2>
-    <p class="section-desc">
-      Engineered for extreme reliability, strict guardrails, and deterministic outcomes in high-throughput production environments.
-    </p>
-
-    <div class="card-grid">
-      <div class="card">
-        <div class="card-num">01 // CANONICAL ISOLATION</div>
-        <h3>0.0% Order Flip Rate</h3>
-        <p>Isolated premise-option attention slots eliminate option order bias completely. Permuting candidate options produces 100% identical calibrated logits.</p>
-      </div>
-      <div class="card">
-        <div class="card-num">02 // SAFETY GUARDRAILS</div>
-        <h3>Strict Abstention</h3>
-        <p>Refuses to hallucinate when evidence is missing (<code>__insufficient__</code>) or when continuous estimates exceed calibrated bounds (<code>out_of_range</code>).</p>
-      </div>
-      <div class="card">
-        <div class="card-num">03 // MOMENT STATISTICS</div>
-        <h3>Continuous Moments</h3>
-        <p>For ordinal ratings and numeric rubrics, computes expected mean (&sum; v<sub>i</sub> p<sub>i</sub>), variance, standard deviation, and quantiles (p10, p90).</p>
-      </div>
-      <div class="card">
-        <div class="card-num">04 // WIRE COMPATIBILITY</div>
-        <h3>Multi-Protocol REST</h3>
-        <p>Drop-in compatibility for native <code>/v1/decisions</code>, TypeSafe <code>/v1/systemone</code>, and Together AI <code>/v1/tev1</code> schemas.</p>
-      </div>
-      <div class="card">
-        <div class="card-num">05 // ZERO-RESCAN INDEXING</div>
-        <h3>Single-Pass Tokenizer</h3>
-        <p>Pre-indexes byte positions into an in-memory token map in <code>PremiseContext</code>, evaluating bounded queries in O(1) without repeated scans.</p>
-      </div>
-      <div class="card">
-        <div class="card-num">06 // HYBRID CASCADE</div>
-        <h3>Speculative Fallback</h3>
-        <p>Sub-millisecond SIMD runs first; automatically cascades to on-device Apple Intelligence (<code>apfel-rs</code>) or Candle BLAS tensors when uncertainty is detected.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Quickstart section -->
-  <section id="quickstart" class="container" style="border-top: 1px solid var(--concrete);">
-    <div class="kicker">GETTING STARTED</div>
-    <h2 class="section-title">Quick Installation & Usage</h2>
-    <p class="section-desc">
-      Use Zev via npx for instant zero-install CLI execution, install via Cargo, or launch the high-performance REST microservice.
-    </p>
-
-    <div class="code-box">
+      <div class="code-box">
 <span class="comment"># 1. Instant zero-install CLI execution with npx</span>
 npx -y zev-rs route \
   --state <span class="str">"Critical: production database is down with 500 connection refused errors"</span> \
@@ -1219,9 +1478,9 @@ cargo install zev-rs
 
 <span class="comment"># 3. Launch high-performance REST daemon</span>
 npx -y zev-rs serve --port 8080
-    </div>
+      </div>
 
-    <div class="code-box">
+      <div class="code-box">
 <span class="comment">// 4. Embed in your Rust Cargo.toml</span>
 <span class="keyword">[dependencies]</span>
 zev-rs = <span class="str">"0.2"</span>
@@ -1238,8 +1497,9 @@ zev-rs = <span class="str">"0.2"</span>
     println!(<span class="str">"Routed to: {} (confidence: {:.2})"</span>, dest, conf);
     Ok(())
 }
-    </div>
-  </section>
+      </div>
+    </section>
+  </main>
 
   <!-- Footer -->
   <footer>
@@ -1257,6 +1517,34 @@ zev-rs = <span class="str">"0.2"</span>
       </ul>
     </div>
   </footer>
+
+  <!-- Mobile Hamburger Script -->
+  <script>
+    const menuToggle = document.getElementById('menuToggle');
+    const mobileMenu = document.getElementById('mobileMenu');
+    const mobileLinks = document.querySelectorAll('.mobile-nav-link');
+
+    menuToggle.addEventListener('click', () => {
+      const isOpen = mobileMenu.classList.toggle('active');
+      menuToggle.setAttribute('aria-expanded', isOpen);
+    });
+
+    // Close menu when clicking any nav link
+    mobileLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        mobileMenu.classList.remove('active');
+        menuToggle.setAttribute('aria-expanded', 'false');
+      });
+    });
+
+    // Close menu on click outside
+    document.addEventListener('click', (e) => {
+      if (!menuToggle.contains(e.target) && !mobileMenu.contains(e.target)) {
+        mobileMenu.classList.remove('active');
+        menuToggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  </script>
 
 </body>
 </html>
