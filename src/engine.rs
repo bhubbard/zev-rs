@@ -51,8 +51,6 @@ impl ZevEngine {
 
         // 2. Parallel / Multi-Task Question Scoring
         for (key, question) in &req.questions {
-            question.validate(key)?;
-
             // Shortlisting if choice options exceed MAX_SLOTS
             let shortlisted_storage;
             let final_question: &Question = match question {
@@ -68,6 +66,8 @@ impl ZevEngine {
                 }
                 _ => question,
             };
+
+            final_question.validate(key)?;
 
             let candidates = generate_candidates(final_question);
 

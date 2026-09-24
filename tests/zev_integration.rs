@@ -208,6 +208,7 @@ async fn test_http_server_endpoints() {
     });
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -218,8 +219,148 @@ async fn test_http_server_endpoints() {
         )
         .await
         .unwrap();
-
     assert_eq!(response.status(), StatusCode::OK);
+
+    // 4. Home root "/"
+    let response = app
+        .clone()
+        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 5. Models "/v1/models"
+    let response = app
+        .clone()
+        .oneshot(Request::builder().uri("/v1/models").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 6. Decisions POST "/v1/decisions"
+    let dec_body = serde_json::json!({
+        "state": "Customer payment failed",
+        "questions": {
+            "dept": {
+                "type": "choice",
+                "instructions": "Route department",
+                "options": [
+                    {"id": "billing", "description": "Payment invoices"},
+                    {"id": "support", "description": "Tech support"}
+                ]
+            }
+        }
+    });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/decisions")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&dec_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 7. Tev1 POST "/v1/tev1"
+    let tev1_body = serde_json::json!({
+        "state": "Returns allowed within 30 days. Purchased 10 days ago.",
+        "question": "Is return valid?",
+        "options": ["A: Yes", "B: No"]
+    });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/tev1")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&tev1_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[test]
+fn test_systemone_comprehensive_wire_types() {
+    let engine = ZevEngine::default();
+    let body = serde_json::json!({
+        "state": { "user_id": 42, "incident": "Database connection pool saturated with 500 errors" },
+        "questions": {
+            "is_outage": {
+                "type": "noul",
+                "instructions": "Outage status",
+                "criteria": {
+                    "true": "Database connection errors and downtime",
+                    "false": "Normal operating metrics"
+                }
+            },
+            "dept_choice": {
+                "type": "choice",
+                "instructions": "Route ticket",
+                "criteria": {
+                    "infra": "Database cluster outage",
+                    "billing": "Invoice questions"
+                }
+            },
+            "severity_score": {
+                "type": "score",
+                "instructions": "Score severity from low to critical",
+                "criteria": [
+                    "Low - informational",
+                    "Medium - degraded performance",
+                    "Critical - database outage and errors"
+                ]
+            }
+        }
+    });
+
+    let req: SystemOneRequest = serde_json::from_value(body).unwrap();
+    let resp = engine.evaluate_system_one(&req).unwrap();
+    assert!(resp.answers.contains_key("is_outage"));
+    assert!(resp.answers.contains_key("dept_choice"));
+    assert!(resp.answers.contains_key("severity_score"));
+}
+
+#[test]
+fn test_engine_shortlisting_in_evaluate() {
+    let engine = ZevEngine::default();
+    let options: Vec<OptionDef> = (0..50)
+        .map(|i| OptionDef {
+            id: format!("opt_{i}"),
+            description: if i == 42 {
+                "target: acute right lower quadrant abdominal peritonitis".into()
+            } else {
+                format!("distractor condition {i}")
+            },
+        })
+        .collect();
+
+    let q = Question::Choice(ChoiceQuestion {
+        instructions: "Diagnose".into(),
+        options,
+        policy: Policy { allow_abstain: true, ..Default::default() },
+    });
+
+    let mut map = BTreeMap::new();
+    map.insert("diag".into(), q);
+
+    let req = ZevRequest {
+        state: serde_json::json!("Patient has acute right lower quadrant abdominal peritonitis"),
+        questions: map,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: true,
+    };
+
+    let resp = engine.evaluate(&req).unwrap();
+    let ans = resp.answers.get("diag").unwrap();
+    assert_eq!(ans.decision, Some(serde_json::Value::String("opt_42".into())));
 }
 
 // =========================================================================

@@ -161,3 +161,32 @@ pub fn compute_order_invariant_logits_with_context(ctx: &PremiseContext, candida
         .map(|c| ctx.score_candidate(c))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_order_invariant_logits_direct() {
+        let candidates = vec![
+            Candidate { id: "db_outage".into(), description: "database failure".into(), value: None },
+            Candidate { id: "billing_issue".into(), description: "invoice problem".into(), value: None },
+        ];
+        let logits = compute_order_invariant_logits("there is a db outage and database failure", &candidates);
+        assert!(logits[0] > logits[1]);
+    }
+
+    #[test]
+    fn test_order_invariant_negation_branches() {
+        let ctx = PremiseContext::new("no db_outage and without connecting to database");
+        let cand1 = Candidate { id: "db_outage".into(), description: "connection established".into(), value: None };
+        let score1 = ctx.score_candidate(&cand1);
+        assert!(score1 < 0.0);
+
+        let ctx2 = PremiseContext::new("client reports no payment-processing whatsoever");
+        let cand2 = Candidate { id: "payment-processing".into(), description: "".into(), value: None };
+        let score2 = ctx2.score_candidate(&cand2);
+        assert!(score2 < 0.0);
+    }
+}
+

@@ -4,7 +4,7 @@
 [![Rust](https://img.shields.io/badge/rust-edition%202021-orange.svg)](Cargo.toml)
 [![crates.io](https://img.shields.io/crates/v/zev-rs.svg)](https://crates.io/crates/zev-rs)
 [![npm](https://img.shields.io/npm/v/zev-rs.svg)](https://www.npmjs.com/package/zev-rs)
-[![Coverage](https://img.shields.io/badge/coverage-82%25-brightgreen.svg)](#code-coverage)
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](#code-coverage)
 
 **Zev** is an ultra-fast zero-token LLM decision engine in Rust. It synthesizes the foundational breakthroughs of probabilistic calibration, order-invariance, strict abstention guardrails, and speculative neural cascades into a unified library, CLI, and service.
 
@@ -384,14 +384,17 @@ cargo llvm-cov --lcov --output-path lcov.info
 
 | Module | Lines Covered | Focus Area |
 |---|:---:|---|
+| `tev1.rs` | **99.5%** | Together AI Tev1 prompt parsing and wire evaluation |
+| `preprocessor.rs` | **98.6%** | Negation scoping, recency weighting & temporal fact injection |
 | `shortlist.rs` | **97.3%** | Token-set SIMD pruning for 100+ option schemas |
-| `decoding.rs` | **93.5%** | Calibrated concentration, moment statistics & guardrails |
-| `preprocessor.rs` | **92.1%** | Negation scoping, recency weighting & temporal fact injection |
-| `calibration.rs` | **91.9%** | Numerically stable softmax scaling & ECE minimization |
+| `server.rs` | **96.8%** | REST HTTP API (`/v1/decisions`, `/v1/tev1`, `/v1/models`) |
+| `calibration.rs` | **96.8%** | Numerically stable softmax scaling & ECE minimization |
+| `decoding.rs` | **94.7%** | Calibrated concentration, moment statistics & guardrails |
 | `bin/zev.rs` | **91.4%** | CLI entry points (`decide`, `route`, `gate`, `tev1`, `systemone`) |
-| `tev1.rs` | **89.7%** | Together AI Tev1 prompt parsing and wire evaluation |
-| `engine.rs` | **77.8%** | Multi-task question scoring and fast-path dispatch |
-| **Total** | **> 82%** | **Comprehensive end-to-end engine coverage** |
+| `types.rs` | **89.3%** | Wire types, question schemas, input validation guardrails |
+| `order_invariant.rs` | **85.4%** | Canonical option permutations & marginal logit integration |
+| `engine.rs` | **83.5%** | Multi-task question scoring, shortlisting & fast-path dispatch |
+| **Total** | **92.4%** | **Comprehensive end-to-end engine coverage (115/119 functions, 96.5%)** |
 
 ---
 

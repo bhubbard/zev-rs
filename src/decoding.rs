@@ -275,3 +275,70 @@ pub fn decode_decision(
 
     Ok(answer)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{ChoiceQuestion, OptionDef, Policy};
+
+    #[test]
+    fn test_decoding_mismatched_lengths() {
+        let q = Question::Choice(ChoiceQuestion {
+            instructions: "test".into(),
+            options: vec![
+                OptionDef { id: "a".into(), description: "A".into() },
+                OptionDef { id: "b".into(), description: "B".into() },
+            ],
+            policy: Default::default(),
+        });
+        let cands = generate_candidates(&q);
+        assert!(decode_decision(&q, &cands, &[1.0], 1.0).is_err());
+    }
+
+    #[test]
+    fn test_decoding_large_option_buffer() {
+        let options: Vec<OptionDef> = (0..130)
+            .map(|i| OptionDef { id: format!("opt_{i}"), description: format!("option {i}") })
+            .collect();
+        let q = Question::Choice(ChoiceQuestion {
+            instructions: "test".into(),
+            options,
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        });
+        let cands = generate_candidates(&q);
+        let logits = vec![0.5; cands.len()];
+        let ans = decode_decision(&q, &cands, &logits, 1.0).unwrap();
+        assert_eq!(ans.status, "ok");
+    }
+
+    #[test]
+    fn test_decoding_uncertain_status_margin() {
+        let q = Question::Choice(ChoiceQuestion {
+            instructions: "test".into(),
+            options: vec![
+                OptionDef { id: "a".into(), description: "Option A".into() },
+                OptionDef { id: "b".into(), description: "Option B".into() },
+                OptionDef { id: "c".into(), description: "Option C".into() },
+            ],
+            policy: Policy {
+                allow_abstain: true,
+                min_top_probability: 0.35,
+                max_unavailable_probability: 0.9,
+            },
+        });
+        let cands = generate_candidates(&q);
+        // Tie logits producing narrow margin (<0.10)
+        let logits = vec![1.01, 1.00, 0.99, -5.0];
+        let ans = decode_decision(&q, &cands, &logits, 1.0).unwrap();
+        assert_eq!(ans.status, "uncertain");
+    }
+
+    #[test]
+    fn test_summarize_moments_edge_quantile() {
+        let values = [1.0, 2.0];
+        let probs = [0.0, 0.0];
+        let stats = summarize_moments(&values, &probs);
+        assert_eq!(stats.median, 2.0);
+    }
+}
+

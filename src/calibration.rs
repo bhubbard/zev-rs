@@ -137,3 +137,27 @@ pub fn fit_temperature(pairs: &[(Vec<f64>, usize)], min_t: f64, max_t: f64, max_
 
     (a + b) / 2.0
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calibration_errors() {
+        assert!(resolve_temperature(Some(-1.0)).is_err());
+        assert!(resolve_temperature(Some(f64::NAN)).is_err());
+
+        assert!(scaled_softmax(&[], 1.0).is_err());
+        assert!(scaled_softmax(&[1.0, 2.0], -1.0).is_err());
+
+        let mut out = vec![0.0];
+        assert!(scaled_softmax_slice(&[1.0, 2.0], 1.0, &mut out).is_err());
+        let mut out2 = vec![0.0, 0.0];
+        assert!(scaled_softmax_slice(&[1.0, 2.0], 0.0, &mut out2).is_err());
+
+        assert_eq!(compute_ece(&[], &[], 5), 0.0);
+        assert_eq!(compute_ece(&[0.9], &[true, false], 5), 0.0);
+        assert_eq!(compute_ece(&[0.9], &[true], 0), 0.0);
+    }
+}
+

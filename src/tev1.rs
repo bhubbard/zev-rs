@@ -250,4 +250,53 @@ Answer      A
         assert!(resp.probabilities.contains_key("A"));
         assert!(resp.logprobs.contains_key("A"));
     }
+
+    #[test]
+    fn test_tev1_multiline_parsing() {
+        let prompt = r#"
+State:
+First line of state.
+Second line of state.
+Question:
+What is the diagnosis?
+Options:
+A: Option One
+B: Option Two
+Answer: A
+"#;
+        let req = Tev1Request::parse_prompt(prompt).expect("multiline parse failed");
+        assert!(req.state.contains("First line"));
+        assert!(req.state.contains("Second line"));
+        assert_eq!(req.question, "What is the diagnosis?");
+        assert_eq!(req.options.len(), 2);
+    }
+
+    #[test]
+    fn test_tev1_parser_errors() {
+        assert!(Tev1Request::parse_prompt("Question: What?\nOptions: A: 1 B: 2").is_err());
+        assert!(Tev1Request::parse_prompt("State: Here\nOptions: A: 1 B: 2").is_err());
+        assert!(Tev1Request::parse_prompt("State: Here\nQuestion: What?\nOptions: A: 1").is_err());
+    }
+
+    #[test]
+    fn test_tev1_implicit_letters_and_empty_options() {
+        let req_few = Tev1Request {
+            state: "test".into(),
+            question: "test".into(),
+            options: vec!["only_one".into()],
+            model: None,
+        };
+        assert!(evaluate_tev1_request(&req_few, 1.0).is_err());
+
+        let req_implicit = Tev1Request {
+            state: "Database outage occurred".into(),
+            question: "Route".into(),
+            options: vec!["Database cluster".into(), "Billing support".into()],
+            model: None,
+        };
+        let resp = evaluate_tev1_request(&req_implicit, 1.0).unwrap();
+        assert_eq!(resp.answer, "A");
+        assert_eq!(resp.choice, "Database cluster");
+    }
 }
+

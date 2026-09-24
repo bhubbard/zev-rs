@@ -78,3 +78,21 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
         cleaned
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_preprocess_state_cleaned_and_temporal() {
+        let text1 = "Payment failed yesterday.\n---\nSent from Outlook";
+        let res1 = preprocess_state(text1, true);
+        assert!(!res1.contains("Sent from Outlook"));
+        assert!(res1.contains("[Temporal Facts:"));
+
+        let text2 = "Simple issue here.\n---\nConfidentiality Notice: Privileged";
+        let res2 = preprocess_state(text2, true);
+        assert!(!res2.contains("Confidentiality"));
+    }
+}
+

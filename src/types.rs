@@ -301,3 +301,94 @@ pub struct WireUsage {
     pub input_tokens: usize,
     pub output_tokens: usize,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_question_instructions_and_defaults() {
+        let b: BooleanQuestion = serde_json::from_str(r#"{"instructions": "is active"}"#).unwrap();
+        assert_eq!(b.true_description, "Yes. The context provides strong affirmative evidence.");
+        assert_eq!(b.false_description, "No. The context contradicts or does not support the premise.");
+
+        let q_bool = Question::Boolean(b);
+        assert_eq!(q_bool.instructions(), "is active");
+
+        let q_choice = Question::Choice(ChoiceQuestion {
+            instructions: "pick one".into(),
+            options: vec![
+                OptionDef { id: "a".into(), description: "desc a".into() },
+                OptionDef { id: "b".into(), description: "desc b".into() },
+            ],
+            policy: Default::default(),
+        });
+        assert_eq!(q_choice.instructions(), "pick one");
+
+        let q_score = Question::Score(ScoreQuestion {
+            instructions: "rate quality".into(),
+            levels: vec!["bad".into(), "good".into()],
+            policy: Default::default(),
+        });
+        assert_eq!(q_score.instructions(), "rate quality");
+
+        let q_num = Question::Numeric(NumericQuestion {
+            instructions: "estimate temp".into(),
+            unit: "F".into(),
+            anchors: vec![
+                Anchor { value: 0.0, description: "freezing".into() },
+                Anchor { value: 100.0, description: "boiling".into() },
+            ],
+            policy: Default::default(),
+        });
+        assert_eq!(q_num.instructions(), "estimate temp");
+    }
+
+    #[test]
+    fn test_score_validation_edge_cases() {
+        let q_few = Question::Score(ScoreQuestion {
+            instructions: "rate".into(),
+            levels: vec!["only_one".into()],
+            policy: Default::default(),
+        });
+        assert!(q_few.validate("test").is_err());
+
+        let q_many = Question::Score(ScoreQuestion {
+            instructions: "rate".into(),
+            levels: (0..30).map(|i| format!("lvl_{i}")).collect(),
+            policy: Policy { allow_abstain: true, ..Default::default() },
+        });
+        assert!(q_many.validate("test").is_err());
+    }
+
+    #[test]
+    fn test_numeric_validation_edge_cases() {
+        let q_few = Question::Numeric(NumericQuestion {
+            instructions: "num".into(),
+            unit: "x".into(),
+            anchors: vec![Anchor { value: 1.0, description: "one".into() }],
+            policy: Default::default(),
+        });
+        assert!(q_few.validate("test").is_err());
+
+        let q_unordered = Question::Numeric(NumericQuestion {
+            instructions: "num".into(),
+            unit: "x".into(),
+            anchors: vec![
+                Anchor { value: 10.0, description: "ten".into() },
+                Anchor { value: 5.0, description: "five".into() },
+            ],
+            policy: Default::default(),
+        });
+        assert!(q_unordered.validate("test").is_err());
+
+        let q_many = Question::Numeric(NumericQuestion {
+            instructions: "num".into(),
+            unit: "x".into(),
+            anchors: (0..30).map(|i| Anchor { value: i as f64, description: format!("a{i}") }).collect(),
+            policy: Policy { allow_abstain: true, ..Default::default() },
+        });
+        assert!(q_many.validate("test").is_err());
+    }
+}
+
