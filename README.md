@@ -232,7 +232,7 @@ We benchmarked **Default SIMD**, **Candle (Neural MatMul)**, and **`apfel-rs` (A
 The table below compares **`zev-rs`** directly against the **original upstream reference projects** and **TypeSafe Jev**:
 
 | Capability / Feature | `zev-rs` (Apex) | `TypeSafe Jev` | `tev1` (Together AI) | `laya` (Python) | `von` (Python) | `rizzo-flow` (Python) | `nimble` (Python) | `semif` (Python) | `kev` (TypeScript) | `NanoJev` (Python) | `needle` (Python/C++) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Upstream Project** | [bhubbard/zev-rs](https://github.com/bhubbard/zev-rs) | [typesafe.ai](https://typesafe.ai) | [togethercomputer/tev1](https://github.com/togethercomputer/tev1) | [NandhaKishorM/laya](https://github.com/NandhaKishorM/laya) | [wfzyx/von](https://github.com/wfzyx/von) | [Rizzo-AI/rizzo-flow](https://github.com/Rizzo-AI-Academy/rizzo-flow) | [bespokelabs/nimble](https://github.com/bespokelabsai/nimble) | [theoleecj/semif](https://github.com/theoleecj/semif) | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) | [TianyuCodings/NanoJev](https://github.com/TianyuCodings/NanoJev) | [cactus-compute/needle](https://github.com/cactus-compute/needle) |
 | **100% Order-Invariance (0% Flip Rate)** | ✅ Yes | ❌ No (~10% flip) | ❌ No (Prompt-order bias) | ✅ Yes | ✅ Yes (Inventor) | ⚠️ Logit only | ❌ No | ❌ No | ❌ No | ⚠️ Partial | ⚠️ Partial |
 | **Abstention & Out-of-Range Guardrails** | ✅ Yes | ❌ No (Forced) | ⚠️ Manual option | ❌ No | ❌ No | ✅ Yes (Inventor) | ❌ No | ❌ No | ❌ No | ⚠️ Threshold | ⚠️ Date check |
@@ -245,7 +245,7 @@ The table below compares **`zev-rs`** directly against the **original upstream r
 | **Drop-in REST API Support** | ✅ `/v1/decisions`<br>`/v1/systemone`<br>`/v1/tev1` | ✅ Native SaaS | ⚠️ Python script | ❌ No | ❌ No | ⚠️ Custom AST | ⚠️ Custom JSON | ❌ No (JSONL) | ⚠️ Express app | ❌ No (Custom) | ❌ No |
 | **Implementation / Model Base** | **Native Rust** | Closed SaaS | Qwen3.5-4B LoRA | Python / PyTorch | Python / PyTorch | Python / NumPy | Python / vLLM | Python / PyTorch | TypeScript / Node | Python / PyTorch | Python / C++ |
 | **Evaluation Latency** | **5.86 µs** | 50 – 150 ms | **300.5 ms** | 30 – 60 ms | 20 – 50 ms | 2 – 5 ms | 40 – 100 ms | 20 – 50 ms | 30 – 70 ms | 15 – 40 ms | 40 – 80 ms |
-| **Deployment License** | **MIT** | Proprietary | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | MIT | MIT | MIT | Apache-2.0 |
+| **Deployment License** | **MIT** | Proprietary | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | MIT | MIT | Apache-2.0 |
 
 ---
 
