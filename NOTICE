@@ -1,0 +1,15 @@
+zev-rs
+Copyright (c) 2026 Brandon Hubbard and contributors.
+
+This product is an advanced unified decision engine synthesizing the best architectural
+innovations from all major open-source Jev alternatives:
+- NandhaKishorM/laya (Candidate shortlisting, text cleaning)
+- cactus-compute/needle (Fast Walsh-Hadamard transform, grounding verification)
+- theoleecj/semif (Single-token slot readouts, golden-section ECE calibration)
+- jaredpalmer/kev (TypeSafe wire compatibility, date facts temporal arithmetic)
+- wfzyx/von (100% order-invariant premise-option attention, 0.0% flip rate)
+- TianyuCodings/NanoJev (Parallel multi-task batch evaluations)
+- bespokelabsai/nimble (Candidate-only LM head projection, fitted temperature scaling)
+- Rizzo-AI-Academy/rizzo-flow (Pure deterministic moment decoding, abstention guardrails)
+
+Licensed under Apache License, Version 2.0.
