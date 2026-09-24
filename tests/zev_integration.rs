@@ -221,3 +221,304 @@ async fn test_http_server_endpoints() {
 
     assert_eq!(response.status(), StatusCode::OK);
 }
+
+// =========================================================================
+// PORTED TEST SUITES FROM JEV-ALTERNATIVE ECOSYSTEM
+// =========================================================================
+
+// --- 1. From semif-rs: Exact Softmax Parity & Numerical Accuracy ---
+#[test]
+fn test_exact_softmax_parity() {
+    let logits = vec![22.0, 26.375, 24.375];
+    let probs = zev::scaled_softmax(&logits, 1.0).unwrap();
+
+    let expected = [0.010966012254357338, 0.8711382150650024, 0.11789573729038239];
+    for (p, e) in probs.iter().zip(expected.iter()) {
+        assert!((p - e).abs() < 1e-7, "Softmax parity mismatch: {p} vs {e}");
+    }
+}
+
+// --- 2. From semif-rs: ECE Reduction Under Temperature Scaling ---
+#[test]
+fn test_ece_reduction_under_temperature_scaling() {
+    // Synthetic miscalibrated model (75% accuracy but 99.9% overconfidence)
+    let mut pairs = Vec::new();
+    for i in 0..100 {
+        let is_correct = i % 4 != 0;
+        let logits = if is_correct { vec![12.0, 2.0] } else { vec![12.0, 2.0] };
+        let true_idx = if is_correct { 0 } else { 1 };
+        pairs.push((logits, true_idx));
+    }
+
+    let optimal_t = fit_temperature(&pairs, 0.5, 5.0, 30);
+    assert!(optimal_t > 1.0, "Optimal temperature for overconfident model must be > 1.0, got {optimal_t}");
+}
+
+// --- 3. From von-rs: Multi-Permutation Mathematical Order Invariance ---
+#[test]
+fn test_multi_permutation_order_invariance() {
+    let engine = ZevEngine::default();
+    let options_base = [
+        ("alpha", "Alpha risk profile with minimal variance"),
+        ("beta", "Beta market sensitivity with high correlation"),
+        ("gamma", "Gamma non-linear derivatives exposure"),
+        ("delta", "Delta directional equity exposure"),
+    ];
+
+    let state = "Portfolio shows massive directional equity exposure with steep delta shifts.";
+
+    let permutations = [
+        [0, 1, 2, 3],
+        [3, 2, 1, 0],
+        [2, 0, 3, 1],
+        [1, 3, 0, 2],
+    ];
+
+    let mut first_delta_prob = None;
+
+    for perm in permutations {
+        let opts: Vec<OptionDef> = perm
+            .iter()
+            .map(|&idx| OptionDef {
+                id: options_base[idx].0.into(),
+                description: options_base[idx].1.into(),
+            })
+            .collect();
+
+        let q = Question::Choice(ChoiceQuestion {
+            instructions: "Classify risk profile".into(),
+            options: opts,
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        });
+
+        let mut questions = BTreeMap::new();
+        questions.insert("risk".into(), q);
+
+        let resp = engine.evaluate(&ZevRequest {
+            state: serde_json::json!(state),
+            questions,
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+        }).unwrap();
+
+        let ans = resp.answers.get("risk").unwrap();
+        assert_eq!(
+            ans.decision,
+            Some(serde_json::Value::String("delta".into())),
+            "Winning option must always be 'delta' regardless of option permutation!"
+        );
+
+        let delta_prob = ans.probabilities["delta"];
+        match first_delta_prob {
+            None => first_delta_prob = Some(delta_prob),
+            Some(first_p) => {
+                assert!(
+                    (delta_prob - first_p).abs() < 1e-9,
+                    "Permutation probability drift detected: {delta_prob} vs {first_p}"
+                );
+            }
+        }
+    }
+}
+
+// --- 4. From rizzo-flow-rs: Candidate Generation & Reserved Slots ---
+#[test]
+fn test_candidate_generation_with_reserved_slots() {
+    use zev::types::{ABOVE, BELOW, UNKNOWN};
+
+    // Choice question with allow_abstain
+    let choice_q = Question::Choice(ChoiceQuestion {
+        instructions: "Pick one".into(),
+        options: vec![
+            OptionDef { id: "a".into(), description: "Option A".into() },
+            OptionDef { id: "b".into(), description: "Option B".into() },
+        ],
+        policy: Policy { allow_abstain: true, ..Default::default() },
+    });
+    let choice_cands = zev::generate_candidates(&choice_q);
+    assert_eq!(choice_cands.len(), 3);
+    assert_eq!(choice_cands[2].id, UNKNOWN);
+
+    // Numeric question with anchors
+    let num_q = Question::Numeric(zev::NumericQuestion {
+        instructions: "Estimate price".into(),
+        unit: "USD".into(),
+        anchors: vec![
+            zev::Anchor { value: 10.0, description: "Budget".into() },
+            zev::Anchor { value: 50.0, description: "Midrange".into() },
+            zev::Anchor { value: 100.0, description: "Premium".into() },
+        ],
+        policy: Policy { allow_abstain: true, ..Default::default() },
+    });
+    let num_cands = zev::generate_candidates(&num_q);
+    assert_eq!(num_cands.len(), 6); // 3 anchors + below + above + unknown
+    assert!(num_cands.iter().any(|c| c.id == BELOW));
+    assert!(num_cands.iter().any(|c| c.id == ABOVE));
+    assert!(num_cands.iter().any(|c| c.id == UNKNOWN));
+}
+
+// --- 5. From rizzo-flow-rs: Score Monotonicity & Moment Statistics ---
+#[test]
+fn test_score_monotonicity_and_moment_statistics() {
+    let q = Question::Score(zev::ScoreQuestion {
+        instructions: "Rate quality 0 to 3".into(),
+        levels: vec!["Poor".into(), "Fair".into(), "Good".into(), "Excellent".into()],
+        policy: Policy { allow_abstain: false, ..Default::default() },
+    });
+
+    let candidates = zev::generate_candidates(&q);
+    // Monotonically increasing logits biased towards Excellent
+    let logits = vec![1.0, 2.0, 3.0, 4.0];
+    let ans = zev::decode_decision(&q, &candidates, &logits, 1.0).unwrap();
+
+    assert_eq!(ans.status, "ok");
+    assert!(ans.expected_value.is_some());
+    let score = ans.expected_value.unwrap();
+    // With higher logits on higher levels, expected mean MUST be > 1.5
+    assert!(score > 1.5, "Expected mean {score} should be > 1.5 due to logit weighting");
+    assert!(ans.statistics.is_some());
+    let stats = ans.statistics.unwrap();
+    assert!(stats.stddev >= 0.0);
+}
+
+// --- 6. From rizzo-flow-rs: Out-of-Range Detection ---
+#[test]
+fn test_out_of_range_guardrail() {
+    use zev::types::ABOVE;
+
+    let q = Question::Numeric(zev::NumericQuestion {
+        instructions: "Estimate valuation".into(),
+        unit: "M_USD".into(),
+        anchors: vec![
+            zev::Anchor { value: 1.0, description: "Seed stage".into() },
+            zev::Anchor { value: 10.0, description: "Series A".into() },
+            zev::Anchor { value: 50.0, description: "Series B".into() },
+        ],
+        policy: Policy {
+            allow_abstain: true,
+            max_unavailable_probability: 0.4,
+            min_top_probability: 0.0,
+        },
+    });
+
+    let candidates = zev::generate_candidates(&q);
+    let mut logits = vec![0.0; candidates.len()];
+    let above_idx = candidates.iter().position(|c| c.id == ABOVE).unwrap();
+    logits[above_idx] = 10.0; // ABOVE heavily dominates
+
+    let ans = zev::decode_decision(&q, &candidates, &logits, 1.0).unwrap();
+    assert_eq!(ans.status, "out_of_range");
+}
+
+// --- 7. From nanojev-rs: Question Schema Validation Rules ---
+#[test]
+fn test_question_schema_validation() {
+    // 1. Choice with <2 options must fail
+    let choice_too_few = Question::Choice(ChoiceQuestion {
+        instructions: "Choose".into(),
+        options: vec![OptionDef { id: "lone".into(), description: "Single option".into() }],
+        policy: Policy::default(),
+    });
+    assert!(choice_too_few.validate("test_q").is_err());
+
+    // 2. Choice with options exceeding MAX_SLOTS must fail
+    let mut too_many = Vec::new();
+    for i in 0..30 {
+        too_many.push(OptionDef { id: format!("opt_{i}"), description: format!("Desc {i}") });
+    }
+    let choice_excess = Question::Choice(ChoiceQuestion {
+        instructions: "Choose".into(),
+        options: too_many,
+        policy: Policy { allow_abstain: true, ..Default::default() },
+    });
+    assert!(choice_excess.validate("excess_q").is_err());
+
+    // 3. Numeric anchors not strictly increasing must fail
+    let non_monotonic_numeric = Question::Numeric(zev::NumericQuestion {
+        instructions: "Measure".into(),
+        unit: "kg".into(),
+        anchors: vec![
+            zev::Anchor { value: 50.0, description: "Anchor 1".into() },
+            zev::Anchor { value: 30.0, description: "Anchor 2 (invalid decreasing)".into() },
+        ],
+        policy: Policy::default(),
+    });
+    assert!(non_monotonic_numeric.validate("numeric_q").is_err());
+}
+
+// --- 8. From nanojev-rs: ViZDoom Combat Multi-Task Evaluation ---
+#[test]
+fn test_multitask_gameplay_combat_decision() {
+    let engine = ZevEngine::default();
+    let combat_state = serde_json::json!({
+        "monster_detected": true,
+        "crosshair_offset_x": 0.0,
+        "target_in_range": true,
+        "ammo": 15,
+        "situation": "Target centered in crosshairs, rocket launcher loaded and ready to discharge"
+    });
+
+    let action_q = Question::Choice(ChoiceQuestion {
+        instructions: "Select next combat action".into(),
+        options: vec![
+            OptionDef { id: "turn_left".into(), description: "Turn weapon crosshairs left".into() },
+            OptionDef { id: "turn_right".into(), description: "Turn weapon crosshairs right".into() },
+            OptionDef { id: "fire".into(), description: "Target centered, discharge rocket".into() },
+            OptionDef { id: "wait".into(), description: "Hold position".into() },
+        ],
+        policy: Policy { allow_abstain: false, ..Default::default() },
+    });
+
+    let mut questions = BTreeMap::new();
+    questions.insert("action".into(), action_q);
+
+    let resp = engine.evaluate(&ZevRequest {
+        state: combat_state,
+        questions,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+    }).unwrap();
+
+    let ans = resp.answers.get("action").unwrap();
+    assert_eq!(ans.decision, Some(serde_json::Value::String("fire".into())));
+}
+
+// --- 9. From kev-rs: Preprocessor Text Cleaning & Dynamic Date Grounding ---
+#[test]
+fn test_preprocessor_signature_cleaning_and_date_grounding() {
+    // 1. Clean email signatures and disclaimers
+    let email = "Customer needs urgent assistance with password reset.\n---\nJohn Doe\nAcme Corp\nConfidentiality Notice: This email and any attachments are confidential.";
+    let cleaned = zev::clean_text(email);
+    assert!(!cleaned.contains("Confidentiality Notice:"));
+    assert!(!cleaned.contains("Acme Corp"));
+    assert!(cleaned.contains("password reset"));
+
+    // 2. Dynamic temporal facts injection
+    let text_with_relative_time = "I requested a payout today, but my account has been locked since yesterday.";
+    let grounded = zev::inject_temporal_facts(text_with_relative_time);
+    assert!(grounded.contains("Temporal Facts: reference_date="));
+    assert!(grounded.contains("yesterday="));
+}
+
+// --- 10. From nimble-rs: Fast Confidence Gating Helper ---
+#[test]
+fn test_confidence_gating_helper() {
+    let engine = ZevEngine::default();
+    let state = "Critical server incident: production database is down and taking no traffic.";
+
+    let q = Question::Choice(ChoiceQuestion {
+        instructions: "Is this a critical outage?".into(),
+        options: vec![
+            OptionDef { id: "critical".into(), description: "Critical server incident production down".into() },
+            OptionDef { id: "routine".into(), description: "Routine general inquiry".into() },
+        ],
+        policy: Policy { allow_abstain: false, ..Default::default() },
+    });
+
+    // High confidence threshold (0.50) should pass for clear match
+    let (passed, ans) = engine.confidence_gate(state, q, 0.40).unwrap();
+    assert!(passed);
+    assert_eq!(ans.decision, Some(serde_json::Value::String("critical".into())));
+}
