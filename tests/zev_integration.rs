@@ -522,3 +522,36 @@ fn test_confidence_gating_helper() {
     assert!(passed);
     assert_eq!(ans.decision, Some(serde_json::Value::String("critical".into())));
 }
+
+// --- 11. Optional Neural Backend with apfel-rs (Apple Intelligence / FoundationModels) ---
+#[cfg(feature = "neural")]
+#[test]
+fn test_apfel_neural_speculative_hybrid() {
+    let engine = ZevEngine::default();
+    let backend = zev::ApfelNeuralBackend::new();
+
+    let state = "Customer reports severe outage and database degradation.";
+    let q = Question::Choice(ChoiceQuestion {
+        instructions: "Assess priority".into(),
+        options: vec![
+            OptionDef { id: "critical".into(), description: "Critical outage database degradation".into() },
+            OptionDef { id: "low".into(), description: "Routine question".into() },
+        ],
+        policy: Policy::default(),
+    });
+
+    let mut questions = BTreeMap::new();
+    questions.insert("priority".into(), q);
+
+    let req = ZevRequest {
+        state: serde_json::json!(state),
+        questions,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+    };
+
+    let resp = engine.evaluate_speculative_hybrid(&req, 0.70, &backend).unwrap();
+    let ans = resp.answers.get("priority").unwrap();
+    assert_eq!(ans.decision, Some(serde_json::Value::String("critical".into())));
+}

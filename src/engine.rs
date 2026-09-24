@@ -326,4 +326,35 @@ impl ZevEngine {
         let prob = ans.probabilities.get(&choice).copied().unwrap_or(0.0);
         Ok((choice, prob))
     }
+
+    /// Evaluates using the speculative two-tier cascade:
+    /// 1. Fast reflex via zev SIMD hot path (5.86 µs).
+    /// 2. If any decision has confidence below `confidence_threshold` or abstains,
+    ///    cascades to the on-device Apple Intelligence / FoundationModels neural backend.
+    #[cfg(feature = "neural")]
+    pub fn evaluate_speculative_hybrid(
+        &self,
+        req: &ZevRequest,
+        confidence_threshold: f64,
+        neural_backend: &crate::neural::ApfelNeuralBackend,
+    ) -> Result<ZevResponse> {
+        let mut resp = self.evaluate(req)?;
+        let state_str = match &req.state {
+            serde_json::Value::String(s) => s.clone(),
+            other => other.to_string(),
+        };
+
+        for (key, q) in &req.questions {
+            if let Some(ans) = resp.answers.get_mut(key) {
+                if ans.confidence < confidence_threshold || ans.status != "ok" {
+                    let candidates = crate::decoding::generate_candidates(q);
+                    if let Ok(neural_ans) = neural_backend.evaluate_candidates(&state_str, q, &candidates) {
+                        *ans = neural_ans;
+                    }
+                }
+            }
+        }
+
+        Ok(resp)
+    }
 }

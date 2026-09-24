@@ -85,6 +85,39 @@ cargo run --release --bin zev -- gate \
   --threshold 0.7
 ```
 
+---
+
+## Optional Neural Backend (Apple Intelligence / `apfel-rs`)
+
+`zev-rs` is a zero-dependency, sub-6µs SIMD decision engine by default. However, when complex semantic paraphrase or edge-case reasoning is required, `zev-rs` supports an **optional neural feature** powered by **[`apfel-rs`](https://github.com/bhubbard/apfel-rs)** (Apple Intelligence on-device `FoundationModels` framework).
+
+### Enable Neural Feature
+
+```toml
+[dependencies]
+zev-rs = { version = "0.1", features = ["neural"] }
+```
+
+### Speculative Two-Tier Hybrid Cascade
+
+The hybrid cascade provides the best of both worlds:
+1. **Tier 1 (Fast SIMD - 5.86 µs)**: Evaluates the query in microseconds.
+2. **Tier 2 (Neural Fallback - On-Device)**: If and only if confidence is below threshold or `__insufficient__` is triggered, it cascades directly to `apfel-rs` Apple Intelligence FoundationModel on-device.
+
+```rust
+use zev::{ZevEngine, ZevRequest, ApfelNeuralBackend};
+
+// Initialize fast SIMD engine and on-device neural backend
+let engine = ZevEngine::default();
+let apfel = ApfelNeuralBackend::new();
+
+// Evaluates fast path in 5.8µs; cascades to on-device Apple Intelligence
+// only when confidence is below 0.75 or evidence is ambiguous:
+let response = engine.evaluate_speculative_hybrid(&request, 0.75, &apfel)?;
+```
+
+---
+
 ## Performance Benchmark Comparison
 
 Benchmarked over **1,000 iterations** on Apple Silicon on an identical end-to-end task: Support Triage (`Boolean is_urgent` + 3-Choice `department` + `Score urgency_rating`).

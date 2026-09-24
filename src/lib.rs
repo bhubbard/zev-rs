@@ -23,3 +23,8 @@ pub use engine::ZevEngine;
 
 #[cfg(feature = "server")]
 pub use server::create_router;
+
+#[cfg(feature = "neural")]
+pub mod neural;
+#[cfg(feature = "neural")]
+pub use neural::ApfelNeuralBackend;
