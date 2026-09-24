@@ -1,6 +1,6 @@
 # zev-rs (Zev)
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-edition%202021-orange.svg)](Cargo.toml)
 
 **Zev** is an advanced, unified zero-token LLM decision engine in Rust. It synthesizes the best architectural breakthroughs from all major open-source Jev alternatives into a single high-performance library and service.
@@ -202,4 +202,4 @@ cargo run --release --bin zev -- gate \
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Licensed under the MIT License. See [LICENSE](LICENSE).

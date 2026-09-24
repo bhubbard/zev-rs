@@ -12,4 +12,4 @@ innovations from all major open-source Jev alternatives:
 - bespokelabsai/nimble (Candidate-only LM head projection, fitted temperature scaling)
 - Rizzo-AI-Academy/rizzo-flow (Pure deterministic moment decoding, abstention guardrails)
 
-Licensed under Apache License, Version 2.0.
+Licensed under the MIT License.
