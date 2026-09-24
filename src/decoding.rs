@@ -178,6 +178,14 @@ pub fn decode_decision(
     let policy = question.policy();
     let mut status = "ok".to_string();
 
+    let mut sorted_probs: Vec<f64> = probs.to_vec();
+    sorted_probs.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+    let margin = if sorted_probs.len() >= 2 {
+        sorted_probs[0] - sorted_probs[1]
+    } else {
+        1.0
+    };
+
     if unavailable_ids.contains(&winner.id.as_str()) || unavailable_prob >= policy.max_unavailable_probability {
         let below_prob = prob_map.get(BELOW).copied().unwrap_or(0.0);
         let above_prob = prob_map.get(ABOVE).copied().unwrap_or(0.0);
@@ -188,7 +196,7 @@ pub fn decode_decision(
         } else {
             "insufficient_evidence".into()
         };
-    } else if top_prob < policy.min_top_probability {
+    } else if top_prob < policy.min_top_probability || (candidates.len() > 2 && margin < 0.12 && top_prob < 0.58) {
         status = "uncertain".into();
     }
 
