@@ -55,7 +55,29 @@ impl ApfelNeuralBackend {
             question.instructions()
         );
 
-        for (i, c) in candidates.iter().enumerate() {
+        // Mitigate "Lost in the Middle" and attention dilution for long candidate lists:
+        // Use lightweight SIMD token-set shortlisting to narrow lists > 6 down to top 6 relevant candidates
+        let effective_candidates: Vec<Candidate> = if candidates.len() > 6 {
+            let opt_defs: Vec<crate::types::OptionDef> = candidates
+                .iter()
+                .map(|c| crate::types::OptionDef {
+                    id: c.id.clone(),
+                    description: c.description.clone(),
+                })
+                .collect();
+            let shortlisted = crate::shortlist::shortlist_options(&opt_defs, state, 6);
+            let mut list = Vec::new();
+            for s in shortlisted {
+                if let Some(c) = candidates.iter().find(|c| c.id == s.id) {
+                    list.push(c.clone());
+                }
+            }
+            list
+        } else {
+            candidates.to_vec()
+        };
+
+        for (i, c) in effective_candidates.iter().enumerate() {
             prompt.push_str(&format!("{}. [{}] {}\n", i + 1, c.id, c.description));
         }
 
@@ -70,7 +92,7 @@ impl ApfelNeuralBackend {
             messages: None,
             temperature: Some(0.0),
             top_p: Some(0.9),
-            max_tokens: Some(16),
+            max_tokens: Some(32),
             permissive: true,
             seed: Some(42),
         };
