@@ -4,6 +4,8 @@
 [![Rust](https://img.shields.io/badge/rust-edition%202021-orange.svg)](Cargo.toml)
 [![crates.io](https://img.shields.io/crates/v/zev-rs.svg)](https://crates.io/crates/zev-rs)
 [![npm](https://img.shields.io/npm/v/zev-rs.svg)](https://www.npmjs.com/package/zev-rs)
+[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-yellow)](https://huggingface.co/spaces/bkhubbard/zev)
+[![Hugging Face Datasets](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Datasets-blue)](https://huggingface.co/datasets/bkhubbard/zev-benchmarks)
 [![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](#code-coverage)
 
 **Zev** is an ultra-fast zero-token LLM decision engine in Rust. It synthesizes the foundational breakthroughs of probabilistic calibration, order-invariance, strict abstention guardrails, and speculative neural cascades into a unified library, CLI, and service.
@@ -97,6 +99,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+---
+
+## Hugging Face: Interactive Space & Benchmark Dataset
+
+Zev provides full support for the Hugging Face ecosystem:
+
+- **Interactive Hugging Face Space**: Run Zev live in a zero-install interactive web playground with order-invariance testing, live microsecond latency comparison, and Together AI `tev1` evaluation. See [`hf-space/`](hf-space/) and the [Deployment Guide](docs/huggingface.md).
+- **Standardized Benchmark Dataset**: 1,200 curated and scaled decision schemas formatted for Hugging Face Datasets evaluating intent routing, guardrails, clinical differentials, and permutation invariance. See [`datasets/zev_benchmarks/`](datasets/zev_benchmarks/).
 
 ---
 

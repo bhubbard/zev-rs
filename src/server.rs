@@ -2,6 +2,7 @@ use std::sync::Arc;
 use axum::{
     extract::State,
     http::StatusCode,
+    response::Html,
     routing::{get, post},
     Json, Router,
 };
@@ -10,6 +11,8 @@ use crate::types::{
     SystemOneRequest, SystemOneResponse, ZevRequest, ZevResponse,
     DEFAULT_MODEL, MAX_QUESTIONS, MAX_SLOTS, MODEL_ALIAS,
 };
+
+const INDEX_HTML: &str = include_str!("../assets/index.html");
 
 #[derive(Clone)]
 pub struct ServerState {
@@ -30,8 +33,8 @@ pub fn create_router(engine: Arc<ZevEngine>) -> Router {
         .with_state(state)
 }
 
-async fn home_handler() -> &'static str {
-    "Zev: High-performance, 100% order-invariant, calibrated zero-token LLM decision engine."
+async fn home_handler() -> Html<&'static str> {
+    Html(INDEX_HTML)
 }
 
 async fn health_handler() -> Json<serde_json::Value> {

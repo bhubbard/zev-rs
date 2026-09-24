@@ -75,6 +75,7 @@ fn test_abstention_guardrails() {
             allow_abstain: true,
             max_unavailable_probability: 0.1, // low tolerance triggers abstention
             min_top_probability: 0.8,
+            max_slots: None,
         },
     });
 
@@ -540,6 +541,7 @@ fn test_out_of_range_guardrail() {
             allow_abstain: true,
             max_unavailable_probability: 0.4,
             min_top_probability: 0.0,
+            max_slots: None,
         },
     });
 

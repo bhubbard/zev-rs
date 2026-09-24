@@ -54,15 +54,24 @@ impl ZevEngine {
             // Shortlisting if choice options exceed MAX_SLOTS
             let shortlisted_storage;
             let final_question: &Question = match question {
-                Question::Choice(c) if c.options.len() > MAX_SLOTS - 1 => {
-                    let max_keep = if c.policy.allow_abstain { MAX_SLOTS - 1 } else { MAX_SLOTS };
-                    let shortlisted = shortlist_options(&c.options, &preprocessed_state, max_keep);
-                    shortlisted_storage = Some(Question::Choice(ChoiceQuestion {
-                        instructions: c.instructions.clone(),
-                        options: shortlisted,
-                        policy: c.policy.clone(),
-                    }));
-                    shortlisted_storage.as_ref().unwrap()
+                Question::Choice(c) => {
+                    let slot_limit = c.policy.max_slots.unwrap_or(MAX_SLOTS);
+                    let max_keep = if c.policy.allow_abstain {
+                        slot_limit.saturating_sub(1).max(2)
+                    } else {
+                        slot_limit.max(2)
+                    };
+                    if c.options.len() > max_keep {
+                        let shortlisted = shortlist_options(&c.options, &preprocessed_state, max_keep);
+                        shortlisted_storage = Some(Question::Choice(ChoiceQuestion {
+                            instructions: c.instructions.clone(),
+                            options: shortlisted,
+                            policy: c.policy.clone(),
+                        }));
+                        shortlisted_storage.as_ref().unwrap()
+                    } else {
+                        question
+                    }
                 }
                 _ => question,
             };
@@ -101,7 +110,6 @@ impl ZevEngine {
         };
 
         let preprocessed_state = preprocess_state(&state_borrowed, true);
-        let ctx = PremiseContext::new(&preprocessed_state);
         let temp = self.default_temperature;
 
         let mut wire_answers = BTreeMap::new();
@@ -112,6 +120,17 @@ impl ZevEngine {
 
         for (key, q) in &req.questions {
             input_tokens += 20; // branch overhead
+            let instr = match q {
+                WireQuestion::Noul(n) => n.instructions.as_str().unwrap_or(""),
+                WireQuestion::Choice(c) => c.instructions.as_str().unwrap_or(""),
+                WireQuestion::Score(s) => s.instructions.as_str().unwrap_or(""),
+            };
+            let q_state: std::borrow::Cow<str> = if instr.is_empty() {
+                preprocessed_state.clone()
+            } else {
+                std::borrow::Cow::Owned(format!("{preprocessed_state} {instr}"))
+            };
+            let ctx = PremiseContext::new(&q_state);
             match q {
                 WireQuestion::Noul(n) => {
                     let true_desc = if let Some(ref c) = n.criteria {

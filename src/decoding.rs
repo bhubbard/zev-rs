@@ -153,11 +153,14 @@ pub fn decode_decision(
         .map(|(_, &p)| p)
         .sum();
 
-    let top_idx = probs
-        .iter()
-        .enumerate()
-        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-        .map(|(i, _)| i)
+    let top_idx = (0..candidates.len())
+        .max_by(|&a, &b| {
+            let pa = probs[a];
+            let pb = probs[b];
+            pa.partial_cmp(&pb)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| candidates[b].id.cmp(&candidates[a].id))
+        })
         .unwrap_or(0);
 
     let winner = &candidates[top_idx];
@@ -324,6 +327,7 @@ mod tests {
                 allow_abstain: true,
                 min_top_probability: 0.35,
                 max_unavailable_probability: 0.9,
+                max_slots: None,
             },
         });
         let cands = generate_candidates(&q);

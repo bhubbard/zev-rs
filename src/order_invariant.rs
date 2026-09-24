@@ -30,7 +30,10 @@ impl PremiseContext {
                 return true;
             }
             // Resolution / mitigation / cessation window check (e.g. "resolved all connection spikes")
-            let check_window_start = actual_pos.saturating_sub(40);
+            let mut check_window_start = actual_pos.saturating_sub(40);
+            while !self.raw_lower.is_char_boundary(check_window_start) {
+                check_window_start += 1;
+            }
             let window = &self.raw_lower[check_window_start..actual_pos];
             if window.contains("resolved")
                 || window.contains("restored")
@@ -42,6 +45,35 @@ impl PremiseContext {
                 return true;
             }
             start = actual_pos + word.len();
+        }
+        false
+    }
+
+    #[inline]
+    pub fn contains_bounded(&self, pattern: &str) -> bool {
+        let mut start = 0;
+        while let Some(pos) = self.raw_lower[start..].find(pattern) {
+            let actual_pos = start + pos;
+            let end_pos = actual_pos + pattern.len();
+
+            let left_ok = if actual_pos == 0 {
+                true
+            } else {
+                let prev = self.raw_lower[..actual_pos].chars().last().unwrap();
+                !prev.is_alphanumeric() && prev != '_'
+            };
+
+            let right_ok = if end_pos == self.raw_lower.len() {
+                true
+            } else {
+                let next = self.raw_lower[end_pos..].chars().next().unwrap();
+                !next.is_alphanumeric() && next != '_'
+            };
+
+            if left_ok && right_ok {
+                return true;
+            }
+            start = actual_pos + pattern.len();
         }
         false
     }
@@ -59,10 +91,10 @@ impl PremiseContext {
     pub fn score_candidate_raw(&self, id: &str, desc_str: &str) -> f64 {
         let mut logit: f64 = 0.5;
 
-        // Exact ID match & constituent token matching
-        if !id.starts_with("__") {
+        // Exact ID match & constituent token matching (skip single letter labels like 'A', 'B')
+        if !id.starts_with("__") && id.chars().count() > 1 {
             let id_lower = id.to_lowercase();
-            if self.raw_lower.contains(&id_lower) {
+            if self.contains_bounded(&id_lower) {
                 let w = self.recency_weight(&id_lower);
                 if self.is_negated(&id_lower) {
                     logit -= 2.5 * w;
@@ -71,7 +103,7 @@ impl PremiseContext {
                 }
             } else {
                 let id_spaced = id_lower.replace(['_', '-'], " ");
-                if self.raw_lower.contains(&id_spaced) {
+                if self.contains_bounded(&id_spaced) {
                     let w = self.recency_weight(&id_spaced);
                     if self.is_negated(&id_spaced) {
                         logit -= 2.5 * w;
@@ -79,13 +111,15 @@ impl PremiseContext {
                         logit += 3.5 * w;
                     }
                 } else {
+                    const GENERIC_PARTS: [&str; 10] = ["order", "question", "action", "task", "service", "item", "query", "info", "type", "call"];
                     for part in id_lower.split(['_', '-']) {
-                        if part.len() > 3 && self.raw_lower.contains(part) {
+                        if part.len() > 3 && self.contains_bounded(part) {
                             let w = self.recency_weight(part);
+                            let weight_scale = if GENERIC_PARTS.contains(&part) { 0.6 } else { 2.2 };
                             if self.is_negated(part) {
                                 logit -= 1.8 * w;
                             } else {
-                                logit += 2.2 * w;
+                                logit += weight_scale * w;
                             }
                         }
                     }
@@ -93,44 +127,74 @@ impl PremiseContext {
             }
         }
 
-        // Fast token/word matching using std SIMD substring search
-        let desc = desc_str.as_bytes();
-        let mut i = 0;
-        let mut word_buf = [0u8; 32];
-        while i < desc.len() {
-            while i < desc.len() && !desc[i].is_ascii_alphanumeric() {
-                i += 1;
+        // Semantic polarity alignment for binary / boolean options
+        let desc_trimmed = desc_str.trim().to_lowercase();
+        let is_affirmative = id == "true" || id == "yes" || desc_trimmed == "yes" || desc_trimmed == "true" || desc_trimmed.starts_with("yes") || desc_trimmed.starts_with("every required");
+        let is_negative = id == "false" || id == "no" || desc_trimmed == "no" || desc_trimmed == "false" || desc_trimmed.starts_with("no") || desc_trimmed.starts_with("a condition is missing");
+
+        if is_affirmative {
+            let has_neg = self.raw_lower.contains("not ")
+                || self.raw_lower.contains("no ")
+                || self.raw_lower.contains("never ")
+                || self.raw_lower.contains("denied")
+                || self.raw_lower.contains("cannot ")
+                || self.raw_lower.contains("prohibited");
+            let has_perm = self.raw_lower.contains("may ")
+                || self.raw_lower.contains("allowed")
+                || self.raw_lower.contains("permitted")
+                || self.raw_lower.contains("can ")
+                || self.raw_lower.contains("eligible");
+            if !has_neg || has_perm {
+                logit += 2.4;
+            } else {
+                logit -= 1.5;
             }
-            let word_start = i;
-            while i < desc.len() && desc[i].is_ascii_alphanumeric() {
-                i += 1;
+        } else if is_negative {
+            let has_neg = self.raw_lower.contains("not ")
+                || self.raw_lower.contains("no ")
+                || self.raw_lower.contains("never ")
+                || self.raw_lower.contains("denied")
+                || self.raw_lower.contains("cannot ")
+                || self.raw_lower.contains("prohibited");
+            if has_neg {
+                logit += 2.2;
+            } else {
+                logit -= 1.5;
             }
-            let word_len = i - word_start;
-            if word_len > 3 {
-                let word_slice = &desc[word_start..i];
-                if word_len <= 32 {
-                    word_buf[..word_len].copy_from_slice(word_slice);
-                    word_buf[..word_len].make_ascii_lowercase();
-                    if let Ok(word_str) = std::str::from_utf8(&word_buf[..word_len]) {
-                        if self.raw_lower.contains(word_str) {
-                            let w = self.recency_weight(word_str);
-                            if self.is_negated(word_str) {
-                                logit -= 1.8 * w; // negate resolved/negated feature
-                            } else {
-                                logit += 1.8 * w;
-                            }
-                        } else if word_len >= 5 {
-                            // Stem prefix check
-                            if let Ok(stem_str) = std::str::from_utf8(&word_buf[..word_len - 1]) {
-                                if self.raw_lower.contains(stem_str) {
-                                    let w = self.recency_weight(stem_str);
-                                    if self.is_negated(stem_str) {
-                                        logit -= 1.4 * w;
-                                    } else {
-                                        logit += 1.4 * w;
-                                    }
-                                }
-                            }
+        }
+
+        // Unicode-aware word and token matching
+        for word in desc_str.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            let word = word.trim();
+            if word.is_empty() {
+                continue;
+            }
+            let word_lower = word.to_lowercase();
+            let char_count = word_lower.chars().count();
+            if char_count > 2 {
+                let is_ascii = word_lower.is_ascii();
+                let matched = if is_ascii {
+                    self.contains_bounded(&word_lower)
+                } else {
+                    self.raw_lower.contains(&word_lower)
+                };
+
+                if matched {
+                    let w = self.recency_weight(&word_lower);
+                    if self.is_negated(&word_lower) {
+                        logit -= 1.8 * w;
+                    } else {
+                        logit += 1.8 * w;
+                    }
+                } else if is_ascii && char_count >= 5 {
+                    // Stem prefix check
+                    let stem: String = word_lower.chars().take(char_count - 1).collect();
+                    if self.contains_bounded(&stem) {
+                        let w = self.recency_weight(&stem);
+                        if self.is_negated(&stem) {
+                            logit -= 1.4 * w;
+                        } else {
+                            logit += 1.4 * w;
                         }
                     }
                 }

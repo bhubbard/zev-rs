@@ -20,6 +20,8 @@ pub struct Policy {
     pub max_unavailable_probability: f64,
     #[serde(default = "default_min_top_prob")]
     pub min_top_probability: f64,
+    #[serde(default)]
+    pub max_slots: Option<usize>,
 }
 
 fn default_allow_abstain() -> bool { true }
@@ -32,6 +34,7 @@ impl Default for Policy {
             allow_abstain: default_allow_abstain(),
             max_unavailable_probability: default_max_unavailable_prob(),
             min_top_probability: default_min_top_prob(),
+            max_slots: None,
         }
     }
 }
@@ -122,15 +125,16 @@ impl Question {
 
     pub fn validate(&self, key: &str) -> Result<()> {
         let reserved = if self.policy().allow_abstain { 1 } else { 0 };
+        let slot_limit = self.policy().max_slots.unwrap_or(MAX_SLOTS);
         match self {
             Question::Boolean(_) => Ok(()),
             Question::Choice(c) => {
                 if c.options.len() < 2 {
                     return Err(ZevError::InvalidRequest(format!("{key}: choice requires at least 2 options")));
                 }
-                if c.options.len() + reserved > MAX_SLOTS {
+                if c.options.len() + reserved > slot_limit {
                     return Err(ZevError::SlotLimitExceeded(format!(
-                        "{key}: options ({}) + reserved ({reserved}) exceed MAX_SLOTS ({MAX_SLOTS})",
+                        "{key}: options ({}) + reserved ({reserved}) exceed slot limit ({slot_limit})",
                         c.options.len()
                     )));
                 }
@@ -140,9 +144,9 @@ impl Question {
                 if s.levels.len() < 2 {
                     return Err(ZevError::InvalidRequest(format!("{key}: score requires at least 2 levels")));
                 }
-                if s.levels.len() + reserved > MAX_SLOTS {
+                if s.levels.len() + reserved > slot_limit {
                     return Err(ZevError::SlotLimitExceeded(format!(
-                        "{key}: levels ({}) + reserved ({reserved}) exceed MAX_SLOTS ({MAX_SLOTS})",
+                        "{key}: levels ({}) + reserved ({reserved}) exceed slot limit ({slot_limit})",
                         s.levels.len()
                     )));
                 }
@@ -152,7 +156,7 @@ impl Question {
                 if n.anchors.len() < 2 {
                     return Err(ZevError::InvalidRequest(format!("{key}: numeric requires at least 2 anchors")));
                 }
-                if n.anchors.len() + reserved + 2 > MAX_SLOTS {
+                if n.anchors.len() + reserved + 2 > slot_limit {
                     return Err(ZevError::SlotLimitExceeded(format!(
                         "{key}: anchors exceed slot capacity"
                     )));

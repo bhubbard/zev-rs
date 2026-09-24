@@ -7,6 +7,7 @@ pub mod calibration;
 pub mod decoding;
 pub mod engine;
 pub mod tev1;
+pub mod clm;
 
 #[cfg(feature = "server")]
 pub mod server;
@@ -22,6 +23,7 @@ pub use calibration::{compute_ece, fit_temperature, resolve_temperature, scaled_
 pub use decoding::{decode_decision, generate_candidates, summarize_moments};
 pub use engine::ZevEngine;
 pub use tev1::{Tev1Request, Tev1Response};
+pub use clm::{ContrastiveHead, HeadConfig, HybridVerifier, VectorArena};
 
 #[cfg(feature = "server")]
 pub use server::create_router;
