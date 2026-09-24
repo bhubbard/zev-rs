@@ -114,21 +114,22 @@ Benchmarked over **1,000 iterations** on Apple Silicon on an identical end-to-en
 
 ## Architectural Feature Checklist Matrix
 
-The table below contrasts **`zev-rs`** against all major open-source Jev alternatives:
+The table below contrasts **`zev-rs`** against the **original upstream reference projects** and **TypeSafe Jev**:
 
-| Capability / Feature | `zev-rs` (Apex) | `kev-rs` | `von-rs` | `nanojev-rs` | `nimble-rs` | `rizzo-flow-rs` | `semif-rs` | `laya-rs` | `needle-rs` |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **100% Order-Invariance (0% Flip Rate)** | ✅ Yes | ⚠️ Partial | ❌ No | ⚠️ Partial | ❌ No | ⚠️ Partial | ❌ No | ✅ Yes | ⚠️ Partial |
-| **Abstention & Out-of-Range Guardrails** | ✅ Yes | ❌ No | ❌ No | ⚠️ Threshold | ❌ No | ⚠️ Basic | ❌ No | ❌ No | ❌ No |
-| **Calibrated Temperature Scaling (ECE)** | ✅ Yes | ❌ No | ❌ No | ❌ No | ⚠️ Fixed | ❌ No | ✅ Platt | ❌ No | ❌ No |
-| **Continuous Moment Statistics (Mean/Var)** | ✅ Yes | ❌ No | ❌ No | ❌ No | ⚠️ Mean | ⚠️ Basic | ❌ No | ❌ No | ❌ No |
-| **Zero-Allocation Stack Buffers** | ✅ Yes | ✅ Yes | ✅ Yes | ⚠️ Partial | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No |
-| **SIMD Fast Substring Matching** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | N/A | N/A |
-| **Candidate Shortlisting (Large Schemas)**| ✅ Yes | ❌ No | ❌ No | ❌ No | ⚠️ Trunc | ❌ No | ❌ No | ✅ Cosine | ❌ No |
-| **Temporal Fact Grounding & Cleaning** | ✅ Yes | ⚠️ Basic | ❌ No | ❌ No | ⚠️ Basic | ❌ No | ❌ No | ❌ No | ❌ No |
-| **Zero Output-Token Generation** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
-| **TypeSafe `/v1/systemone` Drop-in REST**| ✅ Yes | ⚠️ Direct | ⚠️ Direct | ❌ No | ⚠️ Direct | ⚠️ Direct | ❌ No | ❌ No | ❌ No |
-| **Execution Latency Class** | **~5 µs** | ~4 µs | ~4 µs | ~5 µs | ~12 µs | ~13 µs | ~22 µs | ~35 ms | ~48 ms |
+| Capability / Feature | `zev-rs` (Apex) | `TypeSafe Jev` | `laya` (Python) | `von` (Python) | `rizzo-flow` (Python) | `nimble` (Python) | `semif` (Python) | `kev` (TypeScript) | `NanoJev` (Python) | `needle` (Python/C++) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Original Upstream Repository** | [bhubbard/zev-rs](https://github.com/bhubbard/zev-rs) | [typesafe.ai](https://typesafe.ai) | [NandhaKishorM/laya](https://github.com/NandhaKishorM/laya) | [wfzyx/von](https://github.com/wfzyx/von) | [Rizzo-AI/rizzo-flow](https://github.com/Rizzo-AI-Academy/rizzo-flow) | [bespokelabs/nimble](https://github.com/bespokelabsai/nimble) | [theoleecj/semif](https://github.com/theoleecj/semif) | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) | [TianyuCodings/NanoJev](https://github.com/TianyuCodings/NanoJev) | [cactus-compute/needle](https://github.com/cactus-compute/needle) |
+| **100% Order-Invariance (0% Flip Rate)** | ✅ Yes | ❌ No (~10% flip) | ✅ Yes | ✅ Yes (Inventor) | ⚠️ Logit only | ❌ No | ❌ No | ❌ No | ⚠️ Partial | ⚠️ Partial |
+| **Abstention & Out-of-Range Guardrails** | ✅ Yes | ❌ No (Forced) | ❌ No | ❌ No | ✅ Yes (Inventor) | ❌ No | ❌ No | ❌ No | ⚠️ Threshold | ⚠️ Date check |
+| **Calibrated Temperature Scaling (ECE)** | ✅ Yes | ❌ No | ❌ No | ❌ No | ⚠️ Fixed user T | ✅ Yes (Fitted) | ✅ Yes (Platt/NLL) | ❌ No | ❌ No | ❌ No |
+| **Continuous Moment Statistics (Mean/Var)** | ✅ Yes | ⚠️ Basic score | ❌ No | ❌ No | ✅ Yes (Inventor) | ⚠️ Mean only | ❌ No | ⚠️ Basic sum | ⚠️ Basic score | ❌ No |
+| **Candidate Shortlisting (Scales to 50+)** | ✅ Yes | ❌ No (~5-7 cap) | ✅ Yes (Inventor) | ❌ No | ❌ No | ⚠️ Truncation | ❌ No ($O(N^2)$) | ❌ No | ❌ No | ❌ No |
+| **Temporal Fact Grounding & Cleaning** | ✅ Yes | ❌ No (Cutoff bug)| ⚠️ Normalizer | ❌ No | ❌ No | ⚠️ Template | ❌ No | ✅ Yes (Inventor) | ❌ No | ⚠️ Date ground |
+| **Zero Output-Token Generation** | ✅ Yes | ✅ Yes (Inventor) | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No (Loop) |
+| **Drop-in `/v1/systemone` REST API** | ✅ Yes | ✅ Native SaaS | ❌ No | ❌ No | ⚠️ Custom AST | ⚠️ Custom JSON | ❌ No (JSONL) | ⚠️ Express app | ❌ No (Custom) | ❌ No |
+| **Original Implementation Runtime** | **Native Rust** | Closed SaaS | Python / PyTorch | Python / PyTorch | Python / NumPy | Python / vLLM | Python / PyTorch | TypeScript / Node | Python / PyTorch | Python / C++ |
+| **Typical Evaluation Latency** | **5.86 µs** | 50 – 150 ms | 30 – 60 ms | 20 – 50 ms | 2 – 5 ms | 40 – 100 ms | 20 – 50 ms | 30 – 70 ms | 15 – 40 ms | 40 – 80 ms |
+| **Deployment License** | **MIT** | Proprietary | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | MIT | MIT | MIT | Apache-2.0 |
 
 ---
 
