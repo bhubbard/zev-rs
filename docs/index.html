@@ -147,6 +147,13 @@
       font-size: 16px;
       letter-spacing: -1px;
       color: var(--titanium);
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .bh-mark:hover {
+      border-color: var(--electric-cyan);
+      background: #1a1a1a;
+      color: var(--electric-cyan);
     }
     .brand-title {
       font-weight: 700;
@@ -796,14 +803,14 @@
   <!-- Main header -->
   <header>
     <div class="nav-inner">
-      <a href="#" class="brand" aria-label="ZEV Home">
-        <div class="bh-mark">BH</div>
-        <div class="brand-title">
+      <div class="brand">
+        <a href="https://brandonhubbard.com/?utm_source=zev-rs&utm_medium=referral&utm_campaign=zev_docs_header" class="bh-mark" title="Brandon Hubbard" target="_blank" rel="noopener">BH</a>
+        <a href="#" class="brand-title" style="text-decoration: none; color: inherit;">
           ZEV
           <span class="badge badge-cyan">v0.2.0</span>
           <span class="badge badge-emerald">JevBench 70.1%</span>
-        </div>
-      </a>
+        </a>
+      </div>
 
       <!-- Desktop Nav -->
       <nav aria-label="Main Navigation">
@@ -1525,14 +1532,15 @@ zev-rs = <span class="str">"0.2"</span>
     <div class="footer-inner">
       <div>
         <div style="font-weight: 700; color: var(--titanium); margin-bottom: 4px;">ZEV-RS</div>
-        <div>Created by <a href="https://brandonhubbard.com" style="color: inherit; text-decoration: underline;" target="_blank" rel="noopener">Brandon Hubbard</a> &bull; MIT License</div>
+        <div>Created by <a href="https://brandonhubbard.com/?utm_source=zev-rs&utm_medium=referral&utm_campaign=zev_docs_footer" style="color: inherit; text-decoration: underline;" target="_blank" rel="noopener">Brandon Hubbard</a> &bull; MIT License</div>
       </div>
       <ul class="footer-links">
         <li><a href="https://github.com/bhubbard/zev-rs" target="_blank" rel="noopener">GITHUB</a></li>
         <li><a href="https://crates.io/crates/zev-rs" target="_blank" rel="noopener">CRATES.IO</a></li>
         <li><a href="https://www.npmjs.com/package/zev-rs" target="_blank" rel="noopener">NPM</a></li>
+        <li><a href="https://github.com/bhubbard/homebrew-tap" target="_blank" rel="noopener">HOMEBREW</a></li>
         <li><a href="https://huggingface.co/spaces/bkhubbard/zev" target="_blank" rel="noopener">HUGGING FACE</a></li>
-        <li><a href="https://brandonhubbard.com/branding/" target="_blank" rel="noopener">BRANDING</a></li>
+        <li><a href="https://brandonhubbard.com/branding/?utm_source=zev-rs&utm_medium=referral&utm_campaign=zev_docs_branding" target="_blank" rel="noopener">BRANDING</a></li>
       </ul>
     </div>
   </footer>
