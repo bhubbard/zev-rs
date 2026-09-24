@@ -284,6 +284,7 @@ Evaluated across all **231 frozen public benchmark tasks** from JevBench against
 |:---|:---|:---:|:---:|:---:|:---:|
 | **Zev-Apfel** | Pure Rust SIMD + Neural Fallback | **162 / 231** | **70.13%** | **0.469 ms** | 316.1 ms |
 | **Zev-Default** | Pure Rust SIMD Zero-Rescan Index | **160 / 231** | **69.26%** | **0.371 ms** | **3.25 ms** |
+| **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | **158 / 231** | **68.40%** | **7.800 ms** | **12.40 ms** |
 | **Zev-CLM** | Contrastive Head Decision Verifier | **156 / 231** | **67.53%** | **0.406 ms** | **3.31 ms** |
 | **Kev 8B (Python)** | Qwen3-8B + LoRA Pointer Head | 165 / 231 | 71.43% | 591.0 ms | 642.0 ms |
 | **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head | 154 / 231 | 66.67% | 587.0 ms | 620.0 ms |
