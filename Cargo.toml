@@ -10,6 +10,15 @@ homepage = "https://github.com/bhubbard/zev-rs"
 readme = "README.md"
 keywords = ["zev", "jev", "decision-model", "order-invariant", "calibration"]
 categories = ["science", "web-programming::http-server"]
+exclude = [
+    "datasets/*",
+    "tests/scale_2000_tests.rs",
+    "hf-space/*",
+    "scripts/*",
+    "docs/*",
+    ".github/*",
+    "bin/*",
+]
 
 [lib]
 name = "zev"
