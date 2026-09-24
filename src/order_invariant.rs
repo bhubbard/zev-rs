@@ -29,9 +29,30 @@ impl PremiseContext {
             {
                 return true;
             }
+            // Resolution / mitigation / cessation window check (e.g. "resolved all connection spikes")
+            let check_window_start = actual_pos.saturating_sub(40);
+            let window = &self.raw_lower[check_window_start..actual_pos];
+            if window.contains("resolved")
+                || window.contains("restored")
+                || window.contains("mitigated")
+                || window.contains("fixed")
+                || window.contains("reverted")
+                || window.contains("rolled back")
+            {
+                return true;
+            }
             start = actual_pos + word.len();
         }
         false
+    }
+
+    #[inline]
+    fn recency_weight(&self, word: &str) -> f64 {
+        if let Some(pos) = self.raw_lower.rfind(word) {
+            1.0 + (pos as f64 / self.raw_lower.len().max(1) as f64) * 0.6
+        } else {
+            1.0
+        }
     }
 
     #[inline(always)]
@@ -42,26 +63,29 @@ impl PremiseContext {
         if !id.starts_with("__") {
             let id_lower = id.to_lowercase();
             if self.raw_lower.contains(&id_lower) {
+                let w = self.recency_weight(&id_lower);
                 if self.is_negated(&id_lower) {
-                    logit -= 2.5;
+                    logit -= 2.5 * w;
                 } else {
-                    logit += 3.5;
+                    logit += 3.5 * w;
                 }
             } else {
                 let id_spaced = id_lower.replace(['_', '-'], " ");
                 if self.raw_lower.contains(&id_spaced) {
+                    let w = self.recency_weight(&id_spaced);
                     if self.is_negated(&id_spaced) {
-                        logit -= 2.5;
+                        logit -= 2.5 * w;
                     } else {
-                        logit += 3.5;
+                        logit += 3.5 * w;
                     }
                 } else {
                     for part in id_lower.split(['_', '-']) {
                         if part.len() > 3 && self.raw_lower.contains(part) {
+                            let w = self.recency_weight(part);
                             if self.is_negated(part) {
-                                logit -= 1.5;
+                                logit -= 1.8 * w;
                             } else {
-                                logit += 1.8;
+                                logit += 2.2 * w;
                             }
                         }
                     }
@@ -89,19 +113,21 @@ impl PremiseContext {
                     word_buf[..word_len].make_ascii_lowercase();
                     if let Ok(word_str) = std::str::from_utf8(&word_buf[..word_len]) {
                         if self.raw_lower.contains(word_str) {
+                            let w = self.recency_weight(word_str);
                             if self.is_negated(word_str) {
-                                logit -= 1.8; // negate feature
+                                logit -= 1.8 * w; // negate resolved/negated feature
                             } else {
-                                logit += 1.8;
+                                logit += 1.8 * w;
                             }
                         } else if word_len >= 5 {
                             // Stem prefix check
                             if let Ok(stem_str) = std::str::from_utf8(&word_buf[..word_len - 1]) {
                                 if self.raw_lower.contains(stem_str) {
+                                    let w = self.recency_weight(stem_str);
                                     if self.is_negated(stem_str) {
-                                        logit -= 1.4;
+                                        logit -= 1.4 * w;
                                     } else {
-                                        logit += 1.4;
+                                        logit += 1.4 * w;
                                     }
                                 }
                             }
