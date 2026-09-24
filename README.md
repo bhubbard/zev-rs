@@ -17,6 +17,12 @@ By default, Zev evaluates complex schemas in **5.8 microseconds** with zero mode
 
 ## Installation
 
+### Via Homebrew (macOS & Linux)
+```bash
+brew tap bhubbard/tap
+brew install zev
+```
+
 ### Via npm / npx (Instant zero-install)
 ```bash
 # Run instantly with npx
@@ -26,7 +32,7 @@ npx -y zev-rs --help
 npm install -g zev-rs
 ```
 
-### Via Cargo
+### Via Cargo (crates.io)
 ```bash
 cargo install zev-rs
 ```

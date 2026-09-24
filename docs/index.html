@@ -1462,30 +1462,49 @@
     <!-- Quickstart section -->
     <section id="quickstart" class="container" style="border-top: 1px solid var(--concrete);">
       <div class="kicker">GETTING STARTED</div>
-      <h2 class="section-title">Quick Installation & Usage</h2>
+      <h2 class="section-title">Quick Installation & Package Registries</h2>
       <p class="section-desc">
-        Use Zev via npx for instant zero-install CLI execution, install via Cargo, or launch the high-performance REST microservice.
+        Install Zev via <strong>Homebrew</strong>, <strong>npm / npx</strong>, or <strong>Cargo / Crates.io</strong>, or embed directly into your Rust services.
       </p>
 
+      <div class="action-row" style="margin-bottom: 24px;">
+        <a href="https://crates.io/crates/zev-rs" target="_blank" rel="noopener" class="btn btn-secondary">
+          <span style="color: #f97316;">📦</span> CRATES.IO &rarr;
+        </a>
+        <a href="https://www.npmjs.com/package/zev-rs" target="_blank" rel="noopener" class="btn btn-secondary">
+          <span style="color: #ef4444;">🔻</span> NPM REGISTRY &rarr;
+        </a>
+        <a href="https://github.com/bhubbard/homebrew-tap" target="_blank" rel="noopener" class="btn btn-secondary">
+          <span style="color: var(--amber-gold);">🍺</span> HOMEBREW TAP &rarr;
+        </a>
+      </div>
+
       <div class="code-box">
-<span class="comment"># 1. Instant zero-install CLI execution with npx</span>
+<span class="comment"># Option A: Install via Homebrew (macOS & Linux)</span>
+brew tap bhubbard/tap
+brew install zev
+
+<span class="comment"># Option B: Instant zero-install CLI execution with npx / npm</span>
 npx -y zev-rs route \
   --state <span class="str">"Critical: production database is down with 500 connection refused errors"</span> \
   --routes <span class="str">'{"billing": "Invoices", "infra": "Database outages", "sales": "Enterprise"}'</span>
 
-<span class="comment"># 2. Or install globally via Cargo</span>
+<span class="comment"># Or install globally via npm:</span>
+npm install -g zev-rs
+
+<span class="comment"># Option C: Install via Cargo (crates.io)</span>
 cargo install zev-rs
 
-<span class="comment"># 3. Launch high-performance REST daemon</span>
-npx -y zev-rs serve --port 8080
+<span class="comment"># Start the high-performance REST daemon</span>
+zev serve --port 8080
       </div>
 
       <div class="code-box">
-<span class="comment">// 4. Embed in your Rust Cargo.toml</span>
+<span class="comment">// Option D: Embed directly in your Rust Cargo.toml</span>
 <span class="keyword">[dependencies]</span>
 zev-rs = <span class="str">"0.2"</span>
 
-<span class="comment">// 5. Evaluate decisions in microsecond scale</span>
+<span class="comment">// Evaluate decisions in microsecond scale</span>
 <span class="keyword">use</span> zev::ZevEngine;
 
 <span class="keyword">fn</span> main() -> Result&lt;(), Box&lt;<span class="keyword">dyn</span> std::error::Error&gt;&gt; {
