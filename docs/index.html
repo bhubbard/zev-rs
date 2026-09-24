@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZEV — Zero-Token Decision Engine</title>
+  <meta name="description" content="Ultra-fast zero-token LLM decision engine combining order-invariance, calibrated temperature scaling, and strict guardrails.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void: #0a0a0a;
+      --charcoal: #121212;
+      --concrete: #262626;
+      --concrete-hover: #333333;
+      --titanium: #ffffff;
+      --steel: #888888;
+      --cobalt: #3B82F6;
+      --electric-cyan: #06B6D4;
+      --signal-emerald: #10B981;
+      --precision-crimson: #F43F5E;
+      --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      border-radius: 0 !important; /* Swiss sharp grid rule */
+    }
+
+    body {
+      background-color: var(--void);
+      color: var(--titanium);
+      font-family: var(--font-display);
+      font-size: 15px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* Top utility bar */
+    .top-bar {
+      border-bottom: 1px solid var(--concrete);
+      background: var(--charcoal);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 8px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--steel);
+    }
+    .top-bar a {
+      color: var(--steel);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    .top-bar a:hover {
+      color: var(--titanium);
+    }
+    .top-bar .meta-tag {
+      color: var(--electric-cyan);
+    }
+
+    /* Navigation header */
+    header {
+      border-bottom: 1px solid var(--concrete);
+      background: rgba(10, 10, 10, 0.95);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(8px);
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .bh-mark {
+      width: 38px;
+      height: 38px;
+      background: var(--charcoal);
+      border: 1px solid var(--concrete);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: -1px;
+      color: var(--titanium);
+    }
+    .brand-title {
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 7px;
+      border: 1px solid var(--concrete);
+      background: var(--charcoal);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-cyan {
+      border-color: rgba(6, 182, 212, 0.4);
+      color: var(--electric-cyan);
+    }
+    .badge-emerald {
+      border-color: rgba(16, 185, 129, 0.4);
+      color: var(--signal-emerald);
+    }
+
+    nav ul {
+      display: flex;
+      list-style: none;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+    nav a {
+      color: var(--steel);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    nav a:hover {
+      color: var(--titanium);
+    }
+
+    /* Hero section */
+    .hero {
+      border-bottom: 1px solid var(--concrete);
+      padding: 80px 24px 60px;
+      background: linear-gradient(180deg, var(--charcoal) 0%, var(--void) 100%);
+    }
+    .hero-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .kicker {
+      font-family: var(--font-mono);
+      color: var(--cobalt);
+      font-size: 13px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .kicker::before {
+      content: "//";
+      color: var(--steel);
+    }
+    h1 {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      max-width: 900px;
+      margin-bottom: 24px;
+    }
+    .lead {
+      font-size: 18px;
+      color: #b5b5b5;
+      max-width: 780px;
+      margin-bottom: 36px;
+      font-weight: 400;
+    }
+
+    /* Actions and CTA */
+    .action-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+    .btn {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 12px 24px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: var(--titanium);
+      color: var(--void);
+      border-color: var(--titanium);
+    }
+    .btn-primary:hover {
+      background: #e0e0e0;
+      border-color: #e0e0e0;
+    }
+    .btn-secondary {
+      background: var(--charcoal);
+      color: var(--titanium);
+      border-color: var(--concrete);
+    }
+    .btn-secondary:hover {
+      border-color: var(--steel);
+      background: #1a1a1a;
+    }
+
+    /* Metrics Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      border: 1px solid var(--concrete);
+      background: var(--concrete);
+      gap: 1px;
+      margin-top: 48px;
+    }
+    .metric-cell {
+      background: var(--charcoal);
+      padding: 24px;
+    }
+    .metric-val {
+      font-family: var(--font-mono);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--titanium);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+    .metric-val span {
+      font-size: 16px;
+      color: var(--steel);
+    }
+    .metric-label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--steel);
+    }
+
+    /* Content Layout */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 64px 24px;
+    }
+    .section-title {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+    .section-desc {
+      color: var(--steel);
+      margin-bottom: 32px;
+      max-width: 700px;
+    }
+
+    /* Benchmark Table */
+    .table-wrapper {
+      border: 1px solid var(--concrete);
+      overflow-x: auto;
+      background: var(--charcoal);
+      margin-bottom: 48px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 14px;
+    }
+    th {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 14px 18px;
+      background: var(--void);
+      color: var(--steel);
+      border-bottom: 1px solid var(--concrete);
+    }
+    td {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--concrete);
+      color: var(--titanium);
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    tr.highlight {
+      background: rgba(59, 130, 246, 0.05);
+    }
+    tr.highlight td {
+      font-weight: 600;
+    }
+    .mono {
+      font-family: var(--font-mono);
+    }
+    .tag-win {
+      color: var(--signal-emerald);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    /* Grid cards */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      border: 1px solid var(--concrete);
+      background: var(--concrete);
+      gap: 1px;
+      margin-bottom: 48px;
+    }
+    .card {
+      background: var(--charcoal);
+      padding: 32px;
+    }
+    .card-num {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--steel);
+      margin-bottom: 12px;
+    }
+    .card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: -0.3px;
+    }
+    .card p {
+      color: #999999;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Code blocks */
+    .code-box {
+      background: var(--void);
+      border: 1px solid var(--concrete);
+      padding: 20px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: #e5e5e5;
+      overflow-x: auto;
+      line-height: 1.5;
+      margin-top: 16px;
+    }
+    .code-box .comment {
+      color: var(--steel);
+    }
+    .code-box .keyword {
+      color: var(--cobalt);
+    }
+    .code-box .str {
+      color: var(--signal-emerald);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--concrete);
+      background: var(--charcoal);
+      padding: 48px 24px;
+      color: var(--steel);
+      font-size: 13px;
+    }
+    .footer-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+    .footer-links {
+      display: flex;
+      gap: 20px;
+      list-style: none;
+      font-family: var(--font-mono);
+    }
+    .footer-links a {
+      color: var(--steel);
+      text-decoration: none;
+    }
+    .footer-links a:hover {
+      color: var(--titanium);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top metadata bar -->
+  <div class="top-bar">
+    <div>// REPOSITORY: <span class="meta-tag">GITHUB.COM/BHUBBARD/ZEV-RS</span></div>
+    <div>VERSION <span class="meta-tag">0.2.0</span> &bull; CRATES.IO &bull; MIT LICENSE</div>
+  </div>
+
+  <!-- Main header -->
+  <header>
+    <div class="nav-inner">
+      <a href="#" class="brand">
+        <div class="bh-mark">BH</div>
+        <div class="brand-title">
+          ZEV
+          <span class="badge badge-cyan">v0.2.0</span>
+          <span class="badge badge-emerald">JevBench 70.1%</span>
+        </div>
+      </a>
+      <nav>
+        <ul>
+          <li><a href="#benchmarks">01. BENCHMARKS</a></li>
+          <li><a href="#architecture">02. ARCHITECTURE</a></li>
+          <li><a href="#quickstart">03. QUICKSTART</a></li>
+          <li><a href="https://github.com/bhubbard/zev-rs" target="_blank" rel="noopener">GITHUB &rarr;</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero section -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="kicker">ZERO-TOKEN SYSTEM 1 DECISION ENGINE</div>
+      <h1>Ultra-fast, order-invariant decision intelligence in pure Rust.</h1>
+      <p class="lead">
+        Zev synthesizes calibrated temperature scaling, 0.0% order-flip invariance, strict out-of-range guardrails, and speculative neural cascades into a unified library, CLI, and REST microservice.
+      </p>
+
+      <div class="action-row">
+        <a href="#quickstart" class="btn btn-primary">INSTALL VIA NPM / CARGO &rarr;</a>
+        <a href="https://github.com/bhubbard/zev-rs" target="_blank" rel="noopener" class="btn btn-secondary">VIEW REPOSITORY</a>
+        <a href="https://huggingface.co/spaces/bkhubbard/zev" target="_blank" rel="noopener" class="btn btn-secondary">HUGGING FACE DEMO</a>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-cell">
+          <div class="metric-val">0.371 <span>ms</span></div>
+          <div class="metric-label">p50 Latency (Pure Rust SIMD)</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-val">70.13 <span>%</span></div>
+          <div class="metric-label">JevBench Public Accuracy</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-val">0.0 <span>%</span></div>
+          <div class="metric-label">Order Flip Rate (Isolated Attention)</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-val">1,369<span>×</span></div>
+          <div class="metric-label">Speedup vs. PyTorch / ModernBERT</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Benchmarks section -->
+  <section id="benchmarks" class="container">
+    <div class="kicker">EMPIRICAL VERIFICATION</div>
+    <h2 class="section-title">JevBench Benchmark: Zev vs. Original Python Projects</h2>
+    <p class="section-desc">
+      Evaluated across all 231 frozen public benchmark tasks from JevBench comparing Zev against the original upstream reference projects (Laya ModernBERT-large 421M and Kev Qwen2.5/Qwen3 LoRA).
+    </p>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>System</th>
+            <th>Backbone / Architecture</th>
+            <th>Public Tasks</th>
+            <th>Accuracy</th>
+            <th>p50 Latency</th>
+            <th>Margin vs. Laya</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight">
+            <td><strong>Zev-Apfel</strong></td>
+            <td>Pure Rust SIMD + Apple Neural Cascade</td>
+            <td class="mono">162 / 231</td>
+            <td class="mono"><strong>70.13%</strong></td>
+            <td class="mono">0.469 ms</td>
+            <td class="tag-win">+11.7% (1,083× faster)</td>
+          </tr>
+          <tr class="highlight">
+            <td><strong>Zev-Default</strong></td>
+            <td>Pure Rust SIMD (Zero-Rescan Index)</td>
+            <td class="mono">160 / 231</td>
+            <td class="mono"><strong>69.26%</strong></td>
+            <td class="mono"><strong>0.371 ms</strong></td>
+            <td class="tag-win">+10.8% (1,369× faster)</td>
+          </tr>
+          <tr class="highlight">
+            <td><strong>Zev-CLM</strong></td>
+            <td>Contrastive Head Decision Verifier</td>
+            <td class="mono">156 / 231</td>
+            <td class="mono"><strong>67.53%</strong></td>
+            <td class="mono">0.406 ms</td>
+            <td class="tag-win">+9.1% (1,251× faster)</td>
+          </tr>
+          <tr>
+            <td>Kev 8B (Python)</td>
+            <td>Qwen3-8B + LoRA Pointer Head</td>
+            <td class="mono">165 / 231</td>
+            <td class="mono">71.43%</td>
+            <td class="mono">591.0 ms</td>
+            <td>Reference (8 Billion Params)</td>
+          </tr>
+          <tr>
+            <td>Kev 0.6B (Python)</td>
+            <td>Qwen3-0.6B + LoRA Pointer Head</td>
+            <td class="mono">154 / 231</td>
+            <td class="mono">66.67%</td>
+            <td class="mono">587.0 ms</td>
+            <td>Zev wins +6 tasks (1,582× faster)</td>
+          </tr>
+          <tr>
+            <td>Kev 4B (Python)</td>
+            <td>Qwen3-4B + LoRA Pointer Head</td>
+            <td class="mono">153 / 231</td>
+            <td class="mono">66.23%</td>
+            <td class="mono">586.0 ms</td>
+            <td>Zev wins +7 tasks (1,579× faster)</td>
+          </tr>
+          <tr>
+            <td>Laya (Python)</td>
+            <td>ModernBERT-large 421M (PyTorch)</td>
+            <td class="mono">135 / 231</td>
+            <td class="mono">58.44%</td>
+            <td class="mono">508.0 ms</td>
+            <td>Baseline reference</td>
+          </tr>
+          <tr>
+            <td>Kev 0.5B (Python)</td>
+            <td>Qwen2.5-0.5B + LoRA Pointer Head</td>
+            <td class="mono">114 / 231</td>
+            <td class="mono">49.35%</td>
+            <td class="mono">576.0 ms</td>
+            <td>Zev wins +46 tasks</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Key highlights breakdown -->
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-num">01 // RECOGNITION</div>
+        <h3>100% Intent Classification</h3>
+        <p>Clean sweep on all 24 intent tasks (24/24, 100.0%) using morphological negation and actionable request verb isolation.</p>
+      </div>
+      <div class="card">
+        <div class="card-num">02 // EXTRACTION</div>
+        <h3>95.8% Extraction Parity</h3>
+        <p>Achieves 23/24 on complex entity extraction, outperforming Laya's 20/24 through word-boundary token matching.</p>
+      </div>
+      <div class="card">
+        <div class="card-num">03 // FOOTPRINT</div>
+        <h3>0 MB External Weights</h3>
+        <p>Runs entirely in pure Rust CPU instructions without multi-hundred megabyte transformer weights, CUDA, or PyTorch.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture section -->
+  <section id="architecture" class="container" style="border-top: 1px solid var(--concrete);">
+    <div class="kicker">SYSTEM DESIGN</div>
+    <h2 class="section-title">Architectural Principles</h2>
+    <p class="section-desc">
+      Engineered for extreme reliability, strict guardrails, and deterministic outcomes in high-throughput production environments.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-num">01 // CANONICAL ISOLATION</div>
+        <h3>0.0% Order Flip Rate</h3>
+        <p>Isolated premise-option attention slots eliminate option order bias completely. Permuting candidate options produces 100% identical calibrated logits.</p>
+      </div>
+      <div class="card">
+        <div class="card-num">02 // SAFETY GUARDRAILS</div>
+        <h3>Strict Abstention</h3>
+        <p>Refuses to hallucinate when evidence is missing (<code>__insufficient__</code>) or when continuous estimates exceed calibrated bounds (<code>out_of_range</code>).</p>
+      </div>
+      <div class="card">
+        <div class="card-num">03 // MOMENT STATISTICS</div>
+        <h3>Continuous Moments</h3>
+        <p>For ordinal ratings and numeric rubrics, computes expected mean (&sum; v<sub>i</sub> p<sub>i</sub>), variance, standard deviation, and quantiles (p10, p90).</p>
+      </div>
+      <div class="card">
+        <div class="card-num">04 // WIRE COMPATIBILITY</div>
+        <h3>Multi-Protocol REST</h3>
+        <p>Drop-in compatibility for native <code>/v1/decisions</code>, TypeSafe <code>/v1/systemone</code>, and Together AI <code>/v1/tev1</code> schemas.</p>
+      </div>
+      <div class="card">
+        <div class="card-num">05 // ZERO-RESCAN INDEXING</div>
+        <h3>Single-Pass Tokenizer</h3>
+        <p>Pre-indexes byte positions into an in-memory token map in <code>PremiseContext</code>, evaluating bounded queries in O(1) without repeated scans.</p>
+      </div>
+      <div class="card">
+        <div class="card-num">06 // HYBRID CASCADE</div>
+        <h3>Speculative Fallback</h3>
+        <p>Sub-millisecond SIMD runs first; automatically cascades to on-device Apple Intelligence (<code>apfel-rs</code>) or Candle BLAS tensors when uncertainty is detected.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quickstart section -->
+  <section id="quickstart" class="container" style="border-top: 1px solid var(--concrete);">
+    <div class="kicker">GETTING STARTED</div>
+    <h2 class="section-title">Quick Installation & Usage</h2>
+    <p class="section-desc">
+      Use Zev via npx for instant zero-install CLI execution, install via Cargo, or launch the high-performance REST microservice.
+    </p>
+
+    <div class="code-box">
+<span class="comment"># 1. Instant zero-install CLI execution with npx</span>
+npx -y zev-rs route \
+  --state <span class="str">"Critical: production database is down with 500 connection refused errors"</span> \
+  --routes <span class="str">'{"billing": "Invoices", "infra": "Database outages", "sales": "Enterprise"}'</span>
+
+<span class="comment"># 2. Or install globally via Cargo</span>
+cargo install zev-rs
+
+<span class="comment"># 3. Launch high-performance REST daemon</span>
+npx -y zev-rs serve --port 8080
+    </div>
+
+    <div class="code-box">
+<span class="comment">// 4. Embed in your Rust Cargo.toml</span>
+<span class="keyword">[dependencies]</span>
+zev-rs = <span class="str">"0.2"</span>
+
+<span class="comment">// 5. Evaluate decisions in microsecond scale</span>
+<span class="keyword">use</span> zev::ZevEngine;
+
+<span class="keyword">fn</span> main() -> Result&lt;(), Box&lt;<span class="keyword">dyn</span> std::error::Error&gt;&gt; {
+    <span class="keyword">let</span> engine = ZevEngine::default();
+    <span class="keyword">let</span> (dest, conf) = engine.route(
+        <span class="str">"Refund request for order #1084; item arrived broken"</span>,
+        [(<span class="str">"billing"</span>.into(), <span class="str">"Refunds and invoices"</span>.into())].into_iter().collect(),
+    )?;
+    println!(<span class="str">"Routed to: {} (confidence: {:.2})"</span>, dest, conf);
+    Ok(())
+}
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <div>
+        <div style="font-weight: 700; color: var(--titanium); margin-bottom: 4px;">ZEV-RS</div>
+        <div>Created by <a href="https://brandonhubbard.com" style="color: inherit; text-decoration: underline;" target="_blank" rel="noopener">Brandon Hubbard</a> &bull; MIT License</div>
+      </div>
+      <ul class="footer-links">
+        <li><a href="https://github.com/bhubbard/zev-rs" target="_blank" rel="noopener">GITHUB</a></li>
+        <li><a href="https://crates.io/crates/zev-rs" target="_blank" rel="noopener">CRATES.IO</a></li>
+        <li><a href="https://www.npmjs.com/package/zev-rs" target="_blank" rel="noopener">NPM</a></li>
+        <li><a href="https://huggingface.co/spaces/bkhubbard/zev" target="_blank" rel="noopener">HUGGING FACE</a></li>
+        <li><a href="https://brandonhubbard.com/branding/" target="_blank" rel="noopener">BRANDING</a></li>
+      </ul>
+    </div>
+  </footer>
+
+</body>
+</html>
