@@ -44,22 +44,31 @@ impl ApfelNeuralBackend {
         candidates: &[Candidate],
     ) -> Result<ZevAnswer> {
         let mut prompt = format!(
-            "You are an on-device decision classifier. Evaluate the following context and select the best matching option.\n\nContext:\n{}\n\nQuestion:\n{}\n\nAvailable Options:\n",
-            state.trim(),
+            "You are a strict classifier. Classify the input context into EXACTLY one of the candidate IDs, or '__insufficient__' if the context is unrelated, out-of-domain, or lacks evidence.\n\n\
+            Example 1:\n\
+            Context: Preheat oven to 350 degrees and bake almond cookies for 10 minutes.\n\
+            Decision: [__insufficient__]\n\n\
+            Example 2:\n\
+            Context: Customer requested a refund for invoice INV-9042 and wants to cancel subscription.\n\
+            Decision: [billing]\n\n\
+            Question:\n{}\n\nCandidate Options:\n",
             question.instructions()
         );
 
-        for c in candidates {
-            prompt.push_str(&format!("- [{}] {}\n", c.id, c.description));
+        for (i, c) in candidates.iter().enumerate() {
+            prompt.push_str(&format!("{}. [{}] {}\n", i + 1, c.id, c.description));
         }
 
-        prompt.push_str("\nRespond strictly with the option ID that best matches. If the context is unrelated or insufficient, respond with '__insufficient__'. Output only the option ID and nothing else.");
+        prompt.push_str(&format!(
+            "\nContext to Classify:\n{}\n\nDecision (respond ONLY with the option ID inside brackets like [id] or [__insufficient__], no explanation):",
+            state.trim()
+        ));
 
         let req = GenerateRequest {
             prompt,
-            system_prompt: Some("You are an accurate, deterministic on-device classifier.".into()),
+            system_prompt: Some("You are an accurate, deterministic on-device classifier. Respond strictly with [id] or [__insufficient__].".into()),
             messages: None,
-            temperature: Some(0.1),
+            temperature: Some(0.0),
             top_p: Some(0.9),
             max_tokens: Some(16),
             permissive: true,
@@ -69,21 +78,8 @@ impl ApfelNeuralBackend {
         let resp = self.engine.generate(&req)
             .map_err(|e| ZevError::Evaluation(format!("Apfel neural generation failed: {e}")))?;
 
-        let raw_decision = resp.content.trim().trim_matches(|c| c == '"' || c == '\'' || c == '[' || c == ']');
-
-        // Match against candidate IDs
-        let matched_id = candidates
-            .iter()
-            .find(|c| c.id.eq_ignore_ascii_case(raw_decision))
-            .map(|c| c.id.clone())
-            .unwrap_or_else(|| {
-                // Fallback to substring search in response
-                candidates
-                    .iter()
-                    .find(|c| raw_decision.to_lowercase().contains(&c.id.to_lowercase()))
-                    .map(|c| c.id.clone())
-                    .unwrap_or_else(|| "__insufficient__".into())
-            });
+        let raw = resp.content.trim();
+        let matched_id = parse_candidate_choice(raw, candidates);
 
         let mut probabilities = std::collections::BTreeMap::new();
         let mut logits = std::collections::BTreeMap::new();
@@ -132,3 +128,65 @@ impl ApfelNeuralBackend {
         })
     }
 }
+
+#[cfg(feature = "neural")]
+fn parse_candidate_choice(raw: &str, candidates: &[Candidate]) -> String {
+    let trimmed = raw.trim();
+
+    // 1. Bracket extraction: [id]
+    if let Some(start) = trimmed.find('[') {
+        if let Some(end) = trimmed[start..].find(']') {
+            let inside = trimmed[start + 1..start + end].trim();
+            if inside.eq_ignore_ascii_case("__insufficient__")
+                || inside.eq_ignore_ascii_case("insufficient")
+                || inside.eq_ignore_ascii_case("none")
+            {
+                return "__insufficient__".to_string();
+            }
+            if let Some(c) = candidates.iter().find(|c| c.id.eq_ignore_ascii_case(inside)) {
+                return c.id.clone();
+            }
+        }
+    }
+
+    let lower = trimmed.to_lowercase();
+
+    // 2. Insufficient / out-of-domain indicators
+    if lower.contains("__insufficient__")
+        || lower.contains("insufficient")
+        || lower.contains("unrelated")
+        || lower.contains("out of domain")
+        || lower.contains("none of the")
+    {
+        return "__insufficient__".to_string();
+    }
+
+    // 3. Numbered choice prefix (e.g., "1.", "1", "Option 1")
+    for (i, c) in candidates.iter().enumerate() {
+        let idx = i + 1;
+        if trimmed == format!("{idx}")
+            || trimmed.starts_with(&format!("{idx}."))
+            || trimmed.starts_with(&format!("{idx} "))
+            || lower.starts_with(&format!("option {idx}"))
+        {
+            return c.id.clone();
+        }
+    }
+
+    // 4. Exact ID match
+    for c in candidates {
+        if c.id.eq_ignore_ascii_case(trimmed) {
+            return c.id.clone();
+        }
+    }
+
+    // 5. Keyword presence in output
+    for c in candidates {
+        if lower.contains(&c.id.to_lowercase()) {
+            return c.id.clone();
+        }
+    }
+
+    "__insufficient__".to_string()
+}
+
