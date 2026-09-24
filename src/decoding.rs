@@ -119,9 +119,9 @@ pub fn decode_decision(
     }
 
     let n = candidates.len();
-    let mut probs_buf = [0.0; 32];
+    let mut probs_buf = [0.0; 128];
     let mut probs_vec;
-    let probs: &[f64] = if n <= 32 {
+    let probs: &[f64] = if n <= 128 {
         scaled_softmax_slice(logits, temperature, &mut probs_buf[..n])?;
         &probs_buf[..n]
     } else {
@@ -186,18 +186,31 @@ pub fn decode_decision(
         1.0
     };
 
-    if unavailable_ids.contains(&winner.id.as_str()) || unavailable_prob >= policy.max_unavailable_probability {
-        let below_prob = prob_map.get(BELOW).copied().unwrap_or(0.0);
-        let above_prob = prob_map.get(ABOVE).copied().unwrap_or(0.0);
-        let unknown_prob = prob_map.get(UNKNOWN).copied().unwrap_or(0.0);
+    // Entropy-scaled dynamic confidence threshold:
+    let effective_min_top_prob = if policy.min_top_probability > 0.0 {
+        let uniform_prior = 1.0 / (candidates.len().max(1) as f64);
+        let n_scale = (4.0 / (candidates.len() as f64 + 3.0)).sqrt();
+        (policy.min_top_probability * n_scale).max(uniform_prior * 1.5)
+    } else {
+        0.0
+    };
 
-        status = if (below_prob + above_prob) > unknown_prob {
-            "out_of_range".into()
-        } else {
-            "insufficient_evidence".into()
-        };
-    } else if top_prob < policy.min_top_probability || (candidates.len() > 2 && margin < 0.12 && top_prob < 0.58) {
-        status = "uncertain".into();
+    if policy.allow_abstain {
+        if unavailable_ids.contains(&winner.id.as_str()) || unavailable_prob >= policy.max_unavailable_probability {
+            let below_prob = prob_map.get(BELOW).copied().unwrap_or(0.0);
+            let above_prob = prob_map.get(ABOVE).copied().unwrap_or(0.0);
+            let unknown_prob = prob_map.get(UNKNOWN).copied().unwrap_or(0.0);
+
+            status = if (below_prob + above_prob) > unknown_prob {
+                "out_of_range".into()
+            } else {
+                "insufficient_evidence".into()
+            };
+        } else if (policy.min_top_probability > 0.0 && top_prob < effective_min_top_prob)
+            || (policy.min_top_probability > 0.0 && candidates.len() > 2 && margin < 0.10 && top_prob < effective_min_top_prob + 0.10)
+        {
+            status = "uncertain".into();
+        }
     }
 
     let valid_cands: Vec<(&Candidate, f64)> = candidates

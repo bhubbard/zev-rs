@@ -107,8 +107,8 @@ impl ZevEngine {
         let mut wire_answers = BTreeMap::new();
         let mut input_tokens = preprocessed_state.len() / 4;
 
-        let mut logits_buf = [0.0; 16];
-        let mut probs_buf = [0.0; 16];
+        let mut logits_buf = [0.0; 64];
+        let mut probs_buf = [0.0; 64];
 
         for (key, q) in &req.questions {
             input_tokens += 20; // branch overhead
@@ -150,7 +150,7 @@ impl ZevEngine {
                     let mut best_prob = -1.0;
                     let mut second_prob = -1.0;
 
-                    if n <= 16 {
+                    if n <= 64 {
                         let mut idx = 0;
                         for (name, detail) in &c.criteria {
                             let desc = detail.as_ref().and_then(|d| d.as_str()).unwrap_or(name.as_str());
@@ -209,7 +209,7 @@ impl ZevEngine {
 
                     const DIGITS: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
-                    if n <= 16 {
+                    if n <= 64 {
                         for (idx, lvl) in s.criteria.iter().enumerate() {
                             let desc = lvl.as_str().unwrap_or("");
                             let id_str = if idx < 10 { DIGITS[idx] } else { "" };
