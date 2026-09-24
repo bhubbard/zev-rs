@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use crate::calibration::scaled_softmax;
+use crate::calibration::scaled_softmax_slice;
 use crate::error::{Result, ZevError};
 use crate::types::{
     Candidate, DecisionStatistics, Question, UncertaintyMetrics, ZevAnswer,
@@ -118,7 +118,17 @@ pub fn decode_decision(
         )));
     }
 
-    let probs = scaled_softmax(logits, temperature)?;
+    let n = candidates.len();
+    let mut probs_buf = [0.0; 32];
+    let mut probs_vec;
+    let probs: &[f64] = if n <= 32 {
+        scaled_softmax_slice(logits, temperature, &mut probs_buf[..n])?;
+        &probs_buf[..n]
+    } else {
+        probs_vec = vec![0.0; n];
+        scaled_softmax_slice(logits, temperature, &mut probs_vec)?;
+        &probs_vec
+    };
 
     let mut prob_map = BTreeMap::new();
     let mut logit_map = BTreeMap::new();

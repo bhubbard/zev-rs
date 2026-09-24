@@ -19,15 +19,38 @@ pub fn scaled_softmax(logits: &[f64], temperature: f64) -> Result<Vec<f64>> {
         return Err(ZevError::CalibrationError("Temperature must be positive and finite".into()));
     }
 
+    let mut out = vec![0.0; logits.len()];
+    scaled_softmax_slice(logits, temperature, &mut out)?;
+    Ok(out)
+}
+
+#[inline(always)]
+pub fn scaled_softmax_slice(logits: &[f64], temperature: f64, out: &mut [f64]) -> Result<()> {
+    if logits.is_empty() || logits.len() != out.len() {
+        return Err(ZevError::DecodingError("Logits array cannot be empty".into()));
+    }
+    if !temperature.is_finite() || temperature <= 0.0 {
+        return Err(ZevError::CalibrationError("Temperature must be positive and finite".into()));
+    }
+
     let max_logit = logits.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let scaled: Vec<f64> = logits.iter().map(|&x| ((x - max_logit) / temperature).exp()).collect();
-    let sum: f64 = scaled.iter().sum();
+    let inv_temp = 1.0 / temperature;
+    let mut sum = 0.0;
+    for (i, &x) in logits.iter().enumerate() {
+        let w = ((x - max_logit) * inv_temp).exp();
+        out[i] = w;
+        sum += w;
+    }
 
     if sum <= 0.0 || !sum.is_finite() {
         return Err(ZevError::DecodingError("Softmax normalization encountered non-finite sum".into()));
     }
 
-    Ok(scaled.iter().map(|&v| v / sum).collect())
+    let inv_sum = 1.0 / sum;
+    for v in out.iter_mut() {
+        *v *= inv_sum;
+    }
+    Ok(())
 }
 
 /// Computes Expected Calibration Error (ECE) across M equal-width bins
