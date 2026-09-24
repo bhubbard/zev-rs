@@ -1,0 +1,39 @@
+{
+  "name": "zev-rs",
+  "version": "0.1.0",
+  "description": "High-performance Rust zero-token LLM decision engine combining order-invariance, calibrated temperature, candidate-only projection, and guardrails",
+  "main": "bin/zev.js",
+  "bin": {
+    "zev": "bin/zev.js",
+    "zev-rs": "bin/zev.js"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prepublishOnly": "cargo build --release && strip -x target/release/zev && cp target/release/zev bin/zev-bin",
+    "test": "node bin/zev.js --help"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bhubbard/zev-rs.git"
+  },
+  "keywords": [
+    "zev",
+    "jev",
+    "decision-engine",
+    "zero-token",
+    "order-invariance",
+    "calibration",
+    "llm",
+    "cli"
+  ],
+  "author": "Brandon Hubbard",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/bhubbard/zev-rs/issues"
+  },
+  "homepage": "https://github.com/bhubbard/zev-rs#readme"
+}

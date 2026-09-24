@@ -26,6 +26,7 @@ pub fn create_router(engine: Arc<ZevEngine>) -> Router {
         .route("/v1/limits", get(limits_handler))
         .route("/v1/decisions", post(decisions_handler))
         .route("/v1/systemone", post(systemone_handler))
+        .route("/v1/tev1", post(tev1_handler))
         .with_state(state)
 }
 
@@ -97,3 +98,15 @@ async fn systemone_handler(
         .map(Json)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))
 }
+
+async fn tev1_handler(
+    State(state): State<ServerState>,
+    Json(req): Json<crate::tev1::Tev1Request>,
+) -> Result<Json<crate::tev1::Tev1Response>, (StatusCode, String)> {
+    state
+        .engine
+        .evaluate_tev1(&req)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))
+}
+

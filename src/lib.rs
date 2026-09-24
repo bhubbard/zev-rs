@@ -6,6 +6,7 @@ pub mod order_invariant;
 pub mod calibration;
 pub mod decoding;
 pub mod engine;
+pub mod tev1;
 
 #[cfg(feature = "server")]
 pub mod server;
@@ -20,6 +21,7 @@ pub use order_invariant::{
 pub use calibration::{compute_ece, fit_temperature, resolve_temperature, scaled_softmax};
 pub use decoding::{decode_decision, generate_candidates, summarize_moments};
 pub use engine::ZevEngine;
+pub use tev1::{Tev1Request, Tev1Response};
 
 #[cfg(feature = "server")]
 pub use server::create_router;

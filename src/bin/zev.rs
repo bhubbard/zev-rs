@@ -61,6 +61,25 @@ enum Commands {
         routes: String,
     },
 
+    /// Evaluate a Tev1 decision request from JSON, raw prompt text, or CLI flags
+    Tev1 {
+        /// Path to Tev1 JSON request file or prompt text (stdin if omitted)
+        #[arg(short, long)]
+        file: Option<String>,
+
+        /// State context (when specifying via CLI flags)
+        #[arg(short, long)]
+        state: Option<String>,
+
+        /// Question prompt (when specifying via CLI flags)
+        #[arg(short, long)]
+        question: Option<String>,
+
+        /// Comma-separated options (e.g. "A: Yes, B: No, C: Maybe")
+        #[arg(short, long)]
+        options: Option<String>,
+    },
+
     /// Start the Zev HTTP API server
     Serve {
         #[arg(long, default_value = "127.0.0.1")]
@@ -117,6 +136,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let req: SystemOneRequest = serde_json::from_str(&content)?;
             let engine = ZevEngine::default();
             let resp = engine.evaluate_system_one(&req)?;
+            println!("{}", serde_json::to_string_pretty(&resp)?);
+        }
+
+        Commands::Tev1 { file, state, question, options } => {
+            let engine = ZevEngine::default();
+            let req = if let (Some(s), Some(q), Some(opts_str)) = (state, question, options) {
+                let opts: Vec<String> = if opts_str.starts_with('[') {
+                    serde_json::from_str(&opts_str)?
+                } else {
+                    opts_str.split(',').map(|s| s.trim().to_string()).collect()
+                };
+                zev::Tev1Request {
+                    state: s,
+                    question: q,
+                    options: opts,
+                    model: None,
+                }
+            } else {
+                let content = match file {
+                    Some(f) => fs::read_to_string(f)?,
+                    None => {
+                        let mut buf = String::new();
+                        io::stdin().read_to_string(&mut buf)?;
+                        buf
+                    }
+                };
+
+                if let Ok(json_req) = serde_json::from_str::<zev::Tev1Request>(&content) {
+                    json_req
+                } else {
+                    zev::Tev1Request::parse_prompt(&content)?
+                }
+            };
+
+            let resp = engine.evaluate_tev1(&req)?;
             println!("{}", serde_json::to_string_pretty(&resp)?);
         }
 

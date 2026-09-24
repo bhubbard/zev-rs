@@ -2,11 +2,30 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-edition%202021-orange.svg)](Cargo.toml)
-[![crates.io](https://img.shields.io/badge/crates.io-apfel--rs-green.svg)](https://crates.io/crates/apfel-rs)
+[![crates.io](https://img.shields.io/crates/v/zev-rs.svg)](https://crates.io/crates/zev-rs)
+[![npm](https://img.shields.io/npm/v/zev-rs.svg)](https://www.npmjs.com/package/zev-rs)
 
-**Zev** is an ultra-fast zero-token LLM decision engine in Rust. It synthesizes the foundational breakthroughs of probabilistic calibration, order-invariance, strict abstention guardrails, and speculative neural cascades into a unified library and service.
+**Zev** is an ultra-fast zero-token LLM decision engine in Rust. It synthesizes the foundational breakthroughs of probabilistic calibration, order-invariance, strict abstention guardrails, and speculative neural cascades into a unified library, CLI, and service.
 
 By default, Zev evaluates complex schemas in **5.8 microseconds** with zero model weights and zero heap allocations. For nuanced semantic reasoning, Zev seamlessly cascades to on-device neural backends (**[`apfel-rs`](https://crates.io/crates/apfel-rs)** on Apple Silicon, or **`Candle`** for cross-platform tensor execution).
+
+---
+
+## Installation
+
+### Via Cargo
+```bash
+cargo install zev-rs
+```
+
+### Via npm / npx
+```bash
+# Run instantly with zero install
+npx zev-rs --help
+
+# Or install globally
+npm install -g zev-rs
+```
 
 ---
 
@@ -21,7 +40,7 @@ By default, Zev evaluates complex schemas in **5.8 microseconds** with zero mode
 | **Dynamic Shortlisting** | [NandhaKishorM/laya](https://github.com/NandhaKishorM/laya) | Scales to schemas with hundreds of options using SIMD token-set cosine shortlisting to prune large taxonomies down to the top slots in microseconds. |
 | **Temporal Fact Grounding** | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) | Automatically injects factual ISO reference dates so relative expressions ("yesterday", "3 days ago") are evaluated without date confusion. |
 | **Negation & Resolution Scope** | *Zev Original* | Inverts negated symptoms ("no fever", "without outage") and applies recency position weighting to recognize incident resolutions ("rolled back and resolved"). |
-| **Dual Wire Compatibility** | [TypeSafe Jev](https://typesafe.ai) | Supports both native `ZevRequest` and drop-in TypeSafe `/v1/systemone` format. |
+| **Multi-Wire Compatibility** | [TypeSafe Jev](https://typesafe.ai) & [Together AI Tev1](https://github.com/togethercomputer/tev1) | Supports native `ZevRequest`, drop-in TypeSafe `/v1/systemone`, and Together AI `/v1/tev1` & `zev tev1` formats. |
 
 ---
 
@@ -145,6 +164,27 @@ let apfel = ApfelNeuralBackend::new();
 let response = engine.evaluate_speculative_hybrid(&request, 0.75, &apfel)?;
 ```
 
+### Example 4: Together AI `tev1` Drop-In Mode (CLI & API)
+
+Zev provides drop-in compatibility for **Together AI's `tev1-4B-experimental`** prompt and JSON schemas, evaluating them in **< 100 microseconds** instead of 300 ms on a GPU:
+
+```bash
+# 1. Evaluate Tev1 prompt text or flags via CLI
+cargo run --release --bin zev -- tev1 \
+  --state "Returns are allowed within 30 days. This purchase was 12 days ago." \
+  --question "Is this return within the allowed window?" \
+  --options "A: Yes, B: No, C: Not enough information"
+
+# 2. Or post directly to the /v1/tev1 HTTP REST endpoint
+curl -X POST http://127.0.0.1:8080/v1/tev1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": "Returns are allowed within 30 days. This purchase was 12 days ago.",
+    "question": "Is this return within the allowed window?",
+    "options": ["A: Yes", "B: No", "C: Not enough information"]
+  }'
+```
+
 ---
 
 ## Tough Adversarial Benchmark Suite: 14 Exhaustive Tests
@@ -191,21 +231,21 @@ We benchmarked **Default SIMD**, **Candle (Neural MatMul)**, and **`apfel-rs` (A
 
 The table below compares **`zev-rs`** directly against the **original upstream reference projects** and **TypeSafe Jev**:
 
-| Capability / Feature | `zev-rs` (Apex) | `TypeSafe Jev` | `laya` (Python) | `von` (Python) | `rizzo-flow` (Python) | `nimble` (Python) | `semif` (Python) | `kev` (TypeScript) | `NanoJev` (Python) | `needle` (Python/C++) |
+| Capability / Feature | `zev-rs` (Apex) | `TypeSafe Jev` | `tev1` (Together AI) | `laya` (Python) | `von` (Python) | `rizzo-flow` (Python) | `nimble` (Python) | `semif` (Python) | `kev` (TypeScript) | `NanoJev` (Python) | `needle` (Python/C++) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Upstream Project** | [bhubbard/zev-rs](https://github.com/bhubbard/zev-rs) | [typesafe.ai](https://typesafe.ai) | [NandhaKishorM/laya](https://github.com/NandhaKishorM/laya) | [wfzyx/von](https://github.com/wfzyx/von) | [Rizzo-AI/rizzo-flow](https://github.com/Rizzo-AI-Academy/rizzo-flow) | [bespokelabs/nimble](https://github.com/bespokelabsai/nimble) | [theoleecj/semif](https://github.com/theoleecj/semif) | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) | [TianyuCodings/NanoJev](https://github.com/TianyuCodings/NanoJev) | [cactus-compute/needle](https://github.com/cactus-compute/needle) |
-| **100% Order-Invariance (0% Flip Rate)** | ✅ Yes | ❌ No (~10% flip) | ✅ Yes | ✅ Yes (Inventor) | ⚠️ Logit only | ❌ No | ❌ No | ❌ No | ⚠️ Partial | ⚠️ Partial |
-| **Abstention & Out-of-Range Guardrails** | ✅ Yes | ❌ No (Forced) | ❌ No | ❌ No | ✅ Yes (Inventor) | ❌ No | ❌ No | ❌ No | ⚠️ Threshold | ⚠️ Date check |
-| **Calibrated Temperature Scaling (ECE)** | ✅ Yes | ❌ No | ❌ No | ❌ No | ⚠️ Fixed user T | ✅ Yes (Fitted) | ✅ Yes (Platt/NLL) | ❌ No | ❌ No | ❌ No |
-| **Continuous Moment Statistics (Mean/Var)** | ✅ Yes | ⚠️ Basic score | ❌ No | ❌ No | ✅ Yes (Inventor) | ⚠️ Mean only | ❌ No | ⚠️ Basic sum | ⚠️ Basic score | ❌ No |
-| **Candidate Shortlisting (Scales to 100+)** | ✅ Yes | ❌ No (~5-7 cap) | ✅ Yes (Inventor) | ❌ No | ❌ No | ⚠️ Truncation | ❌ No ($O(N^2)$) | ❌ No | ❌ No | ❌ No |
-| **Temporal Fact Grounding & Cleaning** | ✅ Yes | ❌ No (Cutoff bug)| ⚠️ Normalizer | ❌ No | ❌ No | ⚠️ Template | ❌ No | ✅ Yes (Inventor) | ❌ No | ⚠️ Date ground |
-| **Negation & Incident Resolution Scope** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No |
-| **Zero Output-Token Generation** | ✅ Yes | ✅ Yes (Inventor) | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No (Loop) |
-| **Drop-in `/v1/systemone` REST API** | ✅ Yes | ✅ Native SaaS | ❌ No | ❌ No | ⚠️ Custom AST | ⚠️ Custom JSON | ❌ No (JSONL) | ⚠️ Express app | ❌ No (Custom) | ❌ No |
-| **Implementation Language** | **Native Rust** | Closed SaaS | Python / PyTorch | Python / PyTorch | Python / NumPy | Python / vLLM | Python / PyTorch | TypeScript / Node | Python / PyTorch | Python / C++ |
-| **Evaluation Latency** | **5.86 µs** | 50 – 150 ms | 30 – 60 ms | 20 – 50 ms | 2 – 5 ms | 40 – 100 ms | 20 – 50 ms | 30 – 70 ms | 15 – 40 ms | 40 – 80 ms |
-| **Deployment License** | **MIT** | Proprietary | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | MIT | MIT | MIT | Apache-2.0 |
+| **Upstream Project** | [bhubbard/zev-rs](https://github.com/bhubbard/zev-rs) | [typesafe.ai](https://typesafe.ai) | [togethercomputer/tev1](https://github.com/togethercomputer/tev1) | [NandhaKishorM/laya](https://github.com/NandhaKishorM/laya) | [wfzyx/von](https://github.com/wfzyx/von) | [Rizzo-AI/rizzo-flow](https://github.com/Rizzo-AI-Academy/rizzo-flow) | [bespokelabs/nimble](https://github.com/bespokelabsai/nimble) | [theoleecj/semif](https://github.com/theoleecj/semif) | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) | [TianyuCodings/NanoJev](https://github.com/TianyuCodings/NanoJev) | [cactus-compute/needle](https://github.com/cactus-compute/needle) |
+| **100% Order-Invariance (0% Flip Rate)** | ✅ Yes | ❌ No (~10% flip) | ❌ No (Prompt-order bias) | ✅ Yes | ✅ Yes (Inventor) | ⚠️ Logit only | ❌ No | ❌ No | ❌ No | ⚠️ Partial | ⚠️ Partial |
+| **Abstention & Out-of-Range Guardrails** | ✅ Yes | ❌ No (Forced) | ⚠️ Manual option | ❌ No | ❌ No | ✅ Yes (Inventor) | ❌ No | ❌ No | ❌ No | ⚠️ Threshold | ⚠️ Date check |
+| **Calibrated Temperature Scaling (ECE)** | ✅ Yes | ❌ No | ❌ No (Raw Qwen) | ❌ No | ❌ No | ⚠️ Fixed user T | ✅ Yes (Fitted) | ✅ Yes (Platt/NLL) | ❌ No | ❌ No | ❌ No |
+| **Continuous Moment Statistics (Mean/Var)** | ✅ Yes | ⚠️ Basic score | ❌ No (Letters A-X) | ❌ No | ❌ No | ✅ Yes (Inventor) | ⚠️ Mean only | ❌ No | ⚠️ Basic sum | ⚠️ Basic score | ❌ No |
+| **Candidate Shortlisting (Scales to 100+)** | ✅ Yes | ❌ No (~5-7 cap) | ❌ No (2-24 cap) | ✅ Yes (Inventor) | ❌ No | ❌ No | ⚠️ Truncation | ❌ No ($O(N^2)$) | ❌ No | ❌ No | ❌ No |
+| **Temporal Fact Grounding & Cleaning** | ✅ Yes | ❌ No (Cutoff bug)| ❌ No | ⚠️ Normalizer | ❌ No | ❌ No | ⚠️ Template | ❌ No | ✅ Yes (Inventor) | ❌ No | ⚠️ Date ground |
+| **Negation & Incident Resolution Scope** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Zero Output-Token Generation** | ✅ Yes | ✅ Yes (Inventor) | ⚠️ Single letter token | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No (Loop) |
+| **Drop-in REST API Support** | ✅ `/v1/decisions`<br>`/v1/systemone`<br>`/v1/tev1` | ✅ Native SaaS | ⚠️ Python script | ❌ No | ❌ No | ⚠️ Custom AST | ⚠️ Custom JSON | ❌ No (JSONL) | ⚠️ Express app | ❌ No (Custom) | ❌ No |
+| **Implementation / Model Base** | **Native Rust** | Closed SaaS | Qwen3.5-4B LoRA | Python / PyTorch | Python / PyTorch | Python / NumPy | Python / vLLM | Python / PyTorch | TypeScript / Node | Python / PyTorch | Python / C++ |
+| **Evaluation Latency** | **5.86 µs** | 50 – 150 ms | **300.5 ms** | 30 – 60 ms | 20 – 50 ms | 2 – 5 ms | 40 – 100 ms | 20 – 50 ms | 30 – 70 ms | 15 – 40 ms | 40 – 80 ms |
+| **Deployment License** | **MIT** | Proprietary | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 | MIT | MIT | MIT | Apache-2.0 |
 
 ---
 

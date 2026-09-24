@@ -6,6 +6,8 @@ authors = ["Brandon Hubbard", "zev-rs contributors"]
 license = "MIT"
 description = "Zev: The ultimate zero-token LLM decision engine combining order-invariance, calibrated temperature, candidate-only projection, and guardrails"
 repository = "https://github.com/bhubbard/zev-rs"
+homepage = "https://github.com/bhubbard/zev-rs"
+readme = "README.md"
 keywords = ["zev", "jev", "decision-model", "order-invariant", "calibration"]
 categories = ["science", "web-programming::http-server"]
 
