@@ -13,18 +13,88 @@ By default, Zev evaluates complex schemas in **5.8 microseconds** with zero mode
 
 ## Installation
 
+### Via npm / npx (Instant zero-install)
+```bash
+# Run instantly with npx
+npx -y zev-rs --help
+
+# Or install globally
+npm install -g zev-rs
+```
+
 ### Via Cargo
 ```bash
 cargo install zev-rs
 ```
 
-### Via npm / npx
-```bash
-# Run instantly with zero install
-npx zev-rs --help
+---
 
-# Or install globally
-npm install -g zev-rs
+## Quick Start Guide
+
+### 1. Instant Decision via CLI (in microseconds)
+```bash
+# Route a customer request across categories
+npx -y zev-rs route \
+  --state "Critical: production database is down with 500 connection refused errors" \
+  --routes '{"billing": "Invoice and billing inquiries", "infra": "Database and cluster outages", "sales": "Enterprise sales"}'
+
+# Or evaluate a Tev1 schema:
+npx -y zev-rs tev1 \
+  --state "Returns are allowed within 30 days. This purchase was 12 days ago." \
+  --question "Is this return within the allowed window?" \
+  --options "A: Yes, B: No, C: Not enough information"
+```
+
+### 2. Launch the High-Performance REST Server
+```bash
+# Start API server on port 8080 (serves /v1/decisions, /v1/systemone, /v1/tev1)
+npx -y zev-rs serve --port 8080
+```
+Query it from any language:
+```bash
+curl -X POST http://127.0.0.1:8080/v1/decisions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": "Patient has acute right lower quadrant peritonitis with McBurney tenderness and no diarrhea.",
+    "questions": {
+      "diagnosis": {
+        "type": "choice",
+        "instructions": "Select most likely clinical differential",
+        "options": [
+          {"id": "appendicitis", "description": "Acute appendicitis with McBurney sign"},
+          {"id": "gastroenteritis", "description": "Diffuse stomach bug with diarrhea"}
+        ]
+      }
+    }
+  }'
+```
+
+### 3. Embed Directly in Your Rust Application
+Add to `Cargo.toml`:
+```toml
+[dependencies]
+zev-rs = "0.1"
+```
+
+In your code:
+```rust
+use zev::ZevEngine;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let engine = ZevEngine::default();
+
+    // Evaluates in 5.8 µs with zero model weights and zero heap allocations
+    let (dest, confidence) = engine.route(
+        "Refund request for order #1084; item arrived broken",
+        [
+            ("billing".into(), "Refunds and invoices".into()),
+            ("tech_support".into(), "API errors and bugs".into()),
+        ].into_iter().collect(),
+    )?;
+
+    println!("Routed to: {dest} (confidence: {confidence:.2})");
+    Ok(())
+}
 ```
 
 ---
