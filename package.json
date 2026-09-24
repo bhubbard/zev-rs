@@ -14,7 +14,11 @@
   ],
   "scripts": {
     "prepublishOnly": "cargo build --release && strip -x target/release/zev && cp target/release/zev bin/zev-bin",
-    "test": "node bin/zev.js --help"
+    "test": "node bin/zev.js --help",
+    "coverage": "cargo llvm-cov",
+    "coverage:html": "cargo llvm-cov --html && open target/llvm-cov/html/index.html",
+    "coverage:lcov": "cargo llvm-cov --lcov --output-path lcov.info",
+    "coverage:summary": "cargo llvm-cov --summary-only"
   },
   "repository": {
     "type": "git",

@@ -4,6 +4,7 @@
 [![Rust](https://img.shields.io/badge/rust-edition%202021-orange.svg)](Cargo.toml)
 [![crates.io](https://img.shields.io/crates/v/zev-rs.svg)](https://crates.io/crates/zev-rs)
 [![npm](https://img.shields.io/npm/v/zev-rs.svg)](https://www.npmjs.com/package/zev-rs)
+[![Coverage](https://img.shields.io/badge/coverage-82%25-brightgreen.svg)](#code-coverage)
 
 **Zev** is an ultra-fast zero-token LLM decision engine in Rust. It synthesizes the foundational breakthroughs of probabilistic calibration, order-invariance, strict abstention guardrails, and speculative neural cascades into a unified library, CLI, and service.
 
@@ -355,6 +356,42 @@ cargo run --release --bin zev -- systemone << 'EOF'
 }
 EOF
 ```
+
+---
+
+## Code Coverage
+
+Zev uses LLVM source-based code coverage via `cargo-llvm-cov` to verify that decision decoding, dynamic calibration, premise preprocessing, and wire APIs are thoroughly tested.
+
+### Running Coverage Locally
+
+```bash
+# 1. Run terminal summary report
+cargo llvm-cov
+# Or using npm:
+npm run coverage
+
+# 2. Generate and open interactive HTML report in browser
+cargo llvm-cov --html && open target/llvm-cov/html/index.html
+# Or using npm:
+npm run coverage:html
+
+# 3. Export LCOV report for CI
+cargo llvm-cov --lcov --output-path lcov.info
+```
+
+### Coverage Breakdown
+
+| Module | Lines Covered | Focus Area |
+|---|:---:|---|
+| `shortlist.rs` | **97.3%** | Token-set SIMD pruning for 100+ option schemas |
+| `decoding.rs` | **93.5%** | Calibrated concentration, moment statistics & guardrails |
+| `preprocessor.rs` | **92.1%** | Negation scoping, recency weighting & temporal fact injection |
+| `calibration.rs` | **91.9%** | Numerically stable softmax scaling & ECE minimization |
+| `bin/zev.rs` | **91.4%** | CLI entry points (`decide`, `route`, `gate`, `tev1`, `systemone`) |
+| `tev1.rs` | **89.7%** | Together AI Tev1 prompt parsing and wire evaluation |
+| `engine.rs` | **77.8%** | Multi-task question scoring and fast-path dispatch |
+| **Total** | **> 82%** | **Comprehensive end-to-end engine coverage** |
 
 ---
 

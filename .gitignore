@@ -2,3 +2,6 @@
 Cargo.lock
 **/*.rs.bk
 bin/*-bin
+lcov.info
+coverage/
+target/llvm-cov*
