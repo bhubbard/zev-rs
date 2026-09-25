@@ -246,6 +246,9 @@ fn round4(x: f64) -> f64 {
 pub fn to_answers(probs: &[Vec<f64>], qs: &[Question]) -> Map<String, Value> {
     let mut out = Map::new();
     for (p, q) in probs.iter().zip(qs) {
+        if p.is_empty() {
+            continue;
+        }
         let argmax = (0..p.len()).fold(0, |m, i| if p[i] > p[m] { i } else { m });
         let dist: Map<String, Value> = q
             .keys
@@ -254,7 +257,10 @@ pub fn to_answers(probs: &[Vec<f64>], qs: &[Question]) -> Map<String, Value> {
             .map(|(k, v)| (k.clone(), Value::from(round4(*v))))
             .collect();
         let a = match q.kind.as_str() {
-            "noul" => serde_json::json!({"type": "noul", "noul": round4(p[1])}),
+            "noul" => {
+                let p1 = p.get(1).copied().unwrap_or(0.0);
+                serde_json::json!({"type": "noul", "noul": round4(p1)})
+            }
             "choice" => {
                 let k = p.len() as f64;
                 let conf = if p.len() == 1 {
@@ -262,7 +268,8 @@ pub fn to_answers(probs: &[Vec<f64>], qs: &[Question]) -> Map<String, Value> {
                 } else {
                     (p[argmax] - 1.0 / k) / (1.0 - 1.0 / k)
                 };
-                serde_json::json!({"type": "choice", "choice": q.keys[argmax], "confidence": round4(conf), "probabilities": dist})
+                let choice_key = q.keys.get(argmax).cloned().unwrap_or_default();
+                serde_json::json!({"type": "choice", "choice": choice_key, "confidence": round4(conf), "probabilities": dist})
             }
             _ => {
                 let score: f64 = p.iter().enumerate().map(|(i, v)| i as f64 * v).sum();

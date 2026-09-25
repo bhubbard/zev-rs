@@ -23,10 +23,13 @@ const CELLS: usize = 2 << 20;
 const MAX_ROWS: usize = 64;
 const MAX_QUEUE_DEPTH: usize = 1024;
 
+type JobReply =
+    tokio::sync::oneshot::Sender<std::result::Result<(Vec<Vec<f64>>, f64, bool), String>>;
+
 struct Job {
     state: Vec<u32>,
     rows: Vec<RowSpec>,
-    reply: tokio::sync::oneshot::Sender<std::result::Result<(Vec<Vec<f64>>, f64, bool), String>>,
+    reply: JobReply,
 }
 
 /// A state's cache, batch size 1: attention k/v [1, kv, S, hd] and DeltaNet conv/recurrent states.
@@ -498,4 +501,3 @@ mod tests {
         assert_eq!(cache.get(&[5, 6]).unwrap().len, 3);
     }
 }
-

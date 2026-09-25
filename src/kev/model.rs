@@ -203,7 +203,9 @@ impl Model {
             .map_err(candle_core::Error::wrap)?;
         if cfg.linear_key_head_dim != DK
             || cfg.linear_value_head_dim != DV
-            || cfg.linear_num_value_heads % cfg.linear_num_key_heads != 0
+            || !cfg
+                .linear_num_value_heads
+                .is_multiple_of(cfg.linear_num_key_heads)
         {
             candle_core::bail!("DeltaNet kernel supports {DK}x{DV} heads only, got {cfg:?}");
         }
@@ -287,8 +289,12 @@ impl Model {
         let head_w = Tensor::cat(&[hw("q.weight")?, hw("k.weight")?], 0)?;
         let head_b = Tensor::cat(&[hw("q.bias")?, hw("k.bias")?], 0)?;
         let head_dim = hw("q.bias")?.dims1()?;
-        let temperature =
-            temperature.unwrap_or_else(|| meta["temperature"].as_f64().unwrap_or(1.0));
+        let temp = temperature.unwrap_or_else(|| meta["temperature"].as_f64().unwrap_or(1.0));
+        let temperature = if temp.is_finite() && temp > 1e-4 {
+            temp
+        } else {
+            1.0
+        };
         eprintln!("kev: merged {} LoRA pairs (scale {scale}), head dp={head_dim}, temperature {temperature:.4}, dtype {dt:?}", ld.merged.get());
         Ok(Self {
             embed: ld.raw("embed_tokens.weight")?.to_dtype(dt)?,
@@ -397,6 +403,7 @@ impl Model {
         Tensor::cat(&[&r1, &r2, &x.narrow(3, 2 * half, d - 2 * half)?], 3)?.contiguous()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn attn(
         &self,
         a: &Attn,
@@ -551,6 +558,13 @@ impl Model {
         let mut at = 0;
         let mut out = Vec::with_capacity(ks.len());
         for &k in ks {
+            if at + 1 + k > proj.len() {
+                candle_core::bail!(
+                    "mismatched head picks count: need at least {} rows, have {}",
+                    at + 1 + k,
+                    proj.len()
+                );
+            }
             let q = &proj[at][..dp];
             let z: Vec<f64> = (0..k)
                 .map(|j| {
@@ -562,7 +576,8 @@ impl Model {
             let m = z.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
             let e: Vec<f64> = z.iter().map(|v| (v - m).exp()).collect();
             let s: f64 = e.iter().sum();
-            out.push(e.into_iter().map(|v| v / s).collect());
+            let norm = if s.is_finite() && s > 0.0 { s } else { 1.0 };
+            out.push(e.into_iter().map(|v| v / norm).collect());
             at += 1 + k;
         }
         Ok(out)
