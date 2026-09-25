@@ -27,7 +27,7 @@ Only the latest active minor release receives active security patches. We recomm
    Navigate to the [Security Advisory page](https://github.com/bhubbard/zev-rs/security/advisories) on GitHub and select **"Report a vulnerability"**. This creates a confidential workspace where we can collaborate directly on the triage, validation, and fix.
 
 2. **Direct Contact:**
-   If GitHub Private Reporting is unavailable, send an encrypted or direct email to `brandon@bhubbard.dev` with the subject tag `[SECURITY: zev-rs]`.
+   If GitHub Private Reporting is unavailable, send an encrypted or direct email to `hello@brandonhubbard.com` with the subject tag `[SECURITY: zev-rs]`.
 
 ### What to Include in Your Report
 
