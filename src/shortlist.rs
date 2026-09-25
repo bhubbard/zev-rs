@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use crate::types::OptionDef;
+use std::collections::HashSet;
 
 /// Shortlists candidate options using lightweight token-set overlap with ID boost and canonical tie-breaking.
 /// If options <= max_slots, returns the list unchanged.
@@ -49,7 +49,9 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
                 }
             }
 
-            let denom = ((state_tokens.len().max(1) * opt_token_count.max(1)) as f64).sqrt().max(1.0);
+            let denom = ((state_tokens.len().max(1) * opt_token_count.max(1)) as f64)
+                .sqrt()
+                .max(1.0);
             let score = matches / denom;
 
             (score, opt)
@@ -64,5 +66,9 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
     });
 
     // Keep top max_slots
-    scored.into_iter().take(max_slots).map(|(_, opt)| opt.clone()).collect()
+    scored
+        .into_iter()
+        .take(max_slots)
+        .map(|(_, opt)| opt.clone())
+        .collect()
 }

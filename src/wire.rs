@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
-use serde::{Deserialize, Serialize};
 use crate::error::{Result, ZevError};
 use crate::types::{
     BooleanQuestion, ChoiceQuestion, OptionDef, Policy, Question, ScoreQuestion, ZevAnswer,
     MODEL_ALIAS,
 };
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 // -------------------------------------------------------------------------------------------------
 // TypeSafe / OpenJev Compatibility Wire Types
@@ -170,9 +170,13 @@ pub fn wire_to_question(wire: &WireQuestion) -> Result<Question> {
                 .criteria
                 .iter()
                 .map(|lvl| {
-                    lvl.as_str()
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| lvl.to_string())
+                    if lvl.is_null() {
+                        String::new()
+                    } else if let Some(s) = lvl.as_str() {
+                        s.to_string()
+                    } else {
+                        lvl.to_string()
+                    }
                 })
                 .collect();
             Ok(Question::Score(ScoreQuestion {
@@ -188,10 +192,7 @@ pub fn wire_to_question(wire: &WireQuestion) -> Result<Question> {
 }
 
 /// Converts a evaluated core ZevAnswer back into the wire WireAnswer
-pub fn wire_answer_from_zev_answer(
-    wire_q: &WireQuestion,
-    ans: &ZevAnswer,
-) -> WireAnswer {
+pub fn wire_answer_from_zev_answer(wire_q: &WireQuestion, ans: &ZevAnswer) -> WireAnswer {
     match wire_q {
         WireQuestion::Noul(_) => {
             let p_true = ans.probabilities.get("true").copied().unwrap_or(0.0);
@@ -222,10 +223,13 @@ pub fn wire_answer_from_zev_answer(
             let mut legend = BTreeMap::new();
             for (idx, lvl) in s.criteria.iter().enumerate() {
                 let id_str = idx.to_string();
-                let desc = lvl
-                    .as_str()
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| lvl.to_string());
+                let desc = if lvl.is_null() {
+                    String::new()
+                } else if let Some(s) = lvl.as_str() {
+                    s.to_string()
+                } else {
+                    lvl.to_string()
+                };
                 legend.insert(id_str, desc);
             }
             let score = ans.expected_value.unwrap_or(0.0);

@@ -1,14 +1,12 @@
+use clap::{Parser, Subcommand};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Read};
 #[cfg(feature = "server")]
 use std::sync::Arc;
-use clap::{Parser, Subcommand};
 #[cfg(feature = "server")]
 use zev::create_router;
-use zev::{
-    SystemOneRequest, ZevEngine, ZevRequest,
-};
+use zev::{SystemOneRequest, ZevEngine, ZevRequest};
 
 #[derive(Parser)]
 #[command(name = "zev")]
@@ -122,7 +120,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let resp = engine.evaluate_system_one(&sys1_req)?;
                 println!("{}", serde_json::to_string_pretty(&resp)?);
             } else {
-                eprintln!("Error: Input JSON does not match ZevRequest or SystemOneRequest format.");
+                eprintln!(
+                    "Error: Input JSON does not match ZevRequest or SystemOneRequest format."
+                );
                 std::process::exit(1);
             }
         }
@@ -143,7 +143,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", serde_json::to_string_pretty(&resp)?);
         }
 
-        Commands::Tev1 { file, state, question, options } => {
+        Commands::Tev1 {
+            file,
+            state,
+            question,
+            options,
+        } => {
             let engine = ZevEngine::default();
             let req = if let (Some(s), Some(q), Some(opts_str)) = (state, question, options) {
                 let opts: Vec<String> = if opts_str.starts_with('[') {
@@ -178,35 +183,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", serde_json::to_string_pretty(&resp)?);
         }
 
-        Commands::Gate { state, instructions, threshold } => {
+        Commands::Gate {
+            state,
+            instructions,
+            threshold,
+        } => {
             let engine = ZevEngine::default();
             let q = zev::Question::Boolean(zev::BooleanQuestion {
                 instructions: instructions.clone(),
                 true_description: format!("Yes. Confirms {}", instructions),
                 false_description: format!("No. Contradicts or lacks {}", instructions),
-                policy: zev::Policy { allow_abstain: false, ..Default::default() },
+                policy: zev::Policy {
+                    allow_abstain: false,
+                    ..Default::default()
+                },
             });
             let (passed, ans) = engine.confidence_gate(&state, q, threshold)?;
-            println!("{}", serde_json::json!({
-                "passed": passed,
-                "confidence": ans.confidence,
-                "status": ans.status,
-                "decision": ans.decision,
-            }));
+            println!(
+                "{}",
+                serde_json::json!({
+                    "passed": passed,
+                    "confidence": ans.confidence,
+                    "status": ans.status,
+                    "decision": ans.decision,
+                })
+            );
         }
 
         Commands::Route { state, routes } => {
             let map: BTreeMap<String, String> = serde_json::from_str(&routes)?;
             let engine = ZevEngine::default();
             let (dest, prob) = engine.route(&state, map)?;
-            println!("{}", serde_json::json!({
-                "destination": dest,
-                "probability": prob,
-            }));
+            println!(
+                "{}",
+                serde_json::json!({
+                    "destination": dest,
+                    "probability": prob,
+                })
+            );
         }
 
         #[cfg(feature = "server")]
-        Commands::Serve { host, port, temperature } => {
+        Commands::Serve {
+            host,
+            port,
+            temperature,
+        } => {
             let engine = Arc::new(ZevEngine::new(temperature));
             let router = create_router(engine);
             let addr = format!("{}:{}", host, port);

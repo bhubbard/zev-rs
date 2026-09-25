@@ -4,13 +4,13 @@
 //! or ambiguous inputs.
 
 #[cfg(feature = "neural")]
-use std::sync::Arc;
-#[cfg(feature = "neural")]
-use apfel::{default_engine, BackendEngine, GenerateRequest};
-#[cfg(feature = "neural")]
 use crate::error::{Result, ZevError};
 #[cfg(feature = "neural")]
 use crate::types::{Candidate, Question, ZevAnswer};
+#[cfg(feature = "neural")]
+use apfel::{default_engine, BackendEngine, GenerateRequest};
+#[cfg(feature = "neural")]
+use std::sync::Arc;
 
 #[cfg(feature = "neural")]
 pub struct ApfelNeuralBackend {
@@ -97,7 +97,9 @@ impl ApfelNeuralBackend {
             seed: Some(42),
         };
 
-        let resp = self.engine.generate(&req)
+        let resp = self
+            .engine
+            .generate(&req)
             .map_err(|e| ZevError::Evaluation(format!("Apfel neural generation failed: {e}")))?;
 
         let raw = resp.content.trim();
@@ -127,7 +129,11 @@ impl ApfelNeuralBackend {
             entropy_nats: 0.1,
             concentration: 0.9,
             margin: if status == "ok" { Some(0.90) } else { None },
-            unavailable_probability: if matched_id == "__insufficient__" { 0.95 } else { 0.0 },
+            unavailable_probability: if matched_id == "__insufficient__" {
+                0.95
+            } else {
+                0.0
+            },
         };
 
         let q_type = match question {
@@ -140,7 +146,11 @@ impl ApfelNeuralBackend {
         Ok(ZevAnswer {
             question_type: q_type.to_string(),
             status: status.clone(),
-            decision: if status == "ok" { Some(serde_json::Value::String(matched_id)) } else { None },
+            decision: if status == "ok" {
+                Some(serde_json::Value::String(matched_id))
+            } else {
+                None
+            },
             confidence: if status == "ok" { 0.95 } else { 0.0 },
             probabilities,
             logits,
@@ -167,7 +177,10 @@ fn parse_candidate_choice(raw: &str, candidates: &[Candidate]) -> String {
             {
                 return "__insufficient__".to_string();
             }
-            if let Some(c) = candidates.iter().find(|c| c.id.eq_ignore_ascii_case(inside)) {
+            if let Some(c) = candidates
+                .iter()
+                .find(|c| c.id.eq_ignore_ascii_case(inside))
+            {
                 return c.id.clone();
             }
         }
@@ -213,4 +226,3 @@ fn parse_candidate_choice(raw: &str, candidates: &[Candidate]) -> String {
 
     "__insufficient__".to_string()
 }
-

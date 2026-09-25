@@ -1,11 +1,11 @@
-use std::collections::BTreeMap;
-use std::time::Instant;
-use serde::{Deserialize, Serialize};
 use crate::calibration::scaled_softmax;
 use crate::error::{Result, ZevError};
 use crate::order_invariant::{compute_order_invariant_logits_with_context, PremiseContext};
 use crate::preprocessor::preprocess_state;
 use crate::types::Candidate;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::time::Instant;
 
 /// Tev1 Request format (compatible with Together AI's Tev1-4B-experimental decision model)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -45,11 +45,15 @@ impl Tev1Request {
             }
 
             let lower = line.to_lowercase();
-            if lower.starts_with("state") && (line.contains(':') || line.contains("   ") || line.contains('\t')) {
+            if lower.starts_with("state")
+                && (line.contains(':') || line.contains("   ") || line.contains('\t'))
+            {
                 current_section = "state";
                 let content = extract_header_content(line, "state");
                 state.push_str(content);
-            } else if lower.starts_with("question") && (line.contains(':') || line.contains("   ") || line.contains('\t')) {
+            } else if lower.starts_with("question")
+                && (line.contains(':') || line.contains("   ") || line.contains('\t'))
+            {
                 current_section = "question";
                 let content = extract_header_content(line, "question");
                 question.push_str(content);
@@ -64,11 +68,15 @@ impl Tev1Request {
             } else {
                 match current_section {
                     "state" => {
-                        if !state.is_empty() { state.push(' '); }
+                        if !state.is_empty() {
+                            state.push(' ');
+                        }
                         state.push_str(line);
                     }
                     "question" => {
-                        if !question.is_empty() { question.push(' '); }
+                        if !question.is_empty() {
+                            question.push(' ');
+                        }
                         question.push_str(line);
                     }
                     "options" => {
@@ -80,13 +88,19 @@ impl Tev1Request {
         }
 
         if state.is_empty() {
-            return Err(ZevError::InvalidRequest("Missing 'State' in Tev1 prompt".into()));
+            return Err(ZevError::InvalidRequest(
+                "Missing 'State' in Tev1 prompt".into(),
+            ));
         }
         if question.is_empty() {
-            return Err(ZevError::InvalidRequest("Missing 'Question' in Tev1 prompt".into()));
+            return Err(ZevError::InvalidRequest(
+                "Missing 'Question' in Tev1 prompt".into(),
+            ));
         }
         if options.len() < 2 {
-            return Err(ZevError::InvalidRequest("Tev1 requires at least 2 options".into()));
+            return Err(ZevError::InvalidRequest(
+                "Tev1 requires at least 2 options".into(),
+            ));
         }
         if options.len() > 26 {
             return Err(ZevError::InvalidRequest(format!(
@@ -164,7 +178,9 @@ pub fn evaluate_tev1_request(req: &Tev1Request, default_temp: f64) -> Result<Tev
     }
 
     if req.options.len() < 2 {
-        return Err(ZevError::InvalidRequest("Tev1 requests require at least 2 options".into()));
+        return Err(ZevError::InvalidRequest(
+            "Tev1 requests require at least 2 options".into(),
+        ));
     }
     if req.options.len() > 26 {
         return Err(ZevError::InvalidRequest(format!(
@@ -225,7 +241,8 @@ pub fn evaluate_tev1_request(req: &Tev1Request, default_temp: f64) -> Result<Tev
         "choice"
     };
     let family_temp = crate::calibration::family_calibrated_temperature(family, default_temp);
-    let effective_temp = crate::calibration::dampen_temperature_by_margin(&logits, family_temp, 0.40);
+    let effective_temp =
+        crate::calibration::dampen_temperature_by_margin(&logits, family_temp, 0.40);
 
     // Dynamic calibrated temperature softmax
     let probs = scaled_softmax(&logits, effective_temp)?;
@@ -275,7 +292,10 @@ Options     A: Yes   B: No   C: Not enough information
 Answer      A
 "#;
         let req = Tev1Request::parse_prompt(prompt).expect("parsing failed");
-        assert_eq!(req.state, "Returns are allowed within 30 days. This purchase was 12 days ago.");
+        assert_eq!(
+            req.state,
+            "Returns are allowed within 30 days. This purchase was 12 days ago."
+        );
         assert_eq!(req.question, "Is this return within the allowed window?");
         assert_eq!(req.options.len(), 3);
         assert_eq!(req.options[0], "A: Yes");
@@ -435,4 +455,3 @@ Answer: A
         assert!(evaluate_tev1_request(&req_200, 1.0).is_err());
     }
 }
-

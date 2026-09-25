@@ -1,10 +1,9 @@
-use std::collections::BTreeMap;
 use crate::calibration::scaled_softmax_slice;
 use crate::error::{Result, ZevError};
 use crate::types::{
-    Candidate, DecisionStatistics, Question, UncertaintyMetrics, ZevAnswer,
-    ABOVE, BELOW, UNKNOWN,
+    Candidate, DecisionStatistics, Question, UncertaintyMetrics, ZevAnswer, ABOVE, BELOW, UNKNOWN,
 };
+use std::collections::BTreeMap;
 
 pub fn generate_candidates(question: &Question) -> Vec<Candidate> {
     let mut list = match question {
@@ -50,12 +49,20 @@ pub fn generate_candidates(question: &Question) -> Vec<Candidate> {
             }
             items.push(Candidate {
                 id: BELOW.into(),
-                description: format!("The value is below {} {}.", n.anchors.first().unwrap().value, n.unit),
+                description: format!(
+                    "The value is below {} {}.",
+                    n.anchors.first().unwrap().value,
+                    n.unit
+                ),
                 value: None,
             });
             items.push(Candidate {
                 id: ABOVE.into(),
-                description: format!("The value is above {} {}.", n.anchors.last().unwrap().value, n.unit),
+                description: format!(
+                    "The value is above {} {}.",
+                    n.anchors.last().unwrap().value,
+                    n.unit
+                ),
                 value: None,
             });
             items
@@ -65,7 +72,8 @@ pub fn generate_candidates(question: &Question) -> Vec<Candidate> {
     if question.policy().allow_abstain {
         list.push(Candidate {
             id: UNKNOWN.into(),
-            description: "Cannot determine the answer: evidence is contradictory or missing.".into(),
+            description: "Cannot determine the answer: evidence is contradictory or missing."
+                .into(),
             value: None,
         });
     }
@@ -217,14 +225,19 @@ pub fn decode_decision(
     if winner.id == BELOW || winner.id == ABOVE || out_of_range_prob > available_prob {
         status = "out_of_range".into();
     } else if policy.allow_abstain {
-        if unavailable_ids.contains(&winner.id.as_str()) || unavailable_prob >= policy.max_unavailable_probability {
+        if unavailable_ids.contains(&winner.id.as_str())
+            || unavailable_prob >= policy.max_unavailable_probability
+        {
             status = if out_of_range_prob > unknown_prob {
                 "out_of_range".into()
             } else {
                 "insufficient_evidence".into()
             };
         } else if (policy.min_top_probability > 0.0 && top_prob < effective_min_top_prob)
-            || (policy.min_top_probability > 0.0 && candidates.len() > 2 && margin < 0.10 && top_prob < effective_min_top_prob + 0.10)
+            || (policy.min_top_probability > 0.0
+                && candidates.len() > 2
+                && margin < 0.10
+                && top_prob < effective_min_top_prob + 0.10)
         {
             status = "uncertain".into();
         }
@@ -238,7 +251,12 @@ pub fn decode_decision(
         .collect();
 
     let cond_probs: Option<Vec<f64>> = if available_prob > 0.0 {
-        Some(valid_cands.iter().map(|(_, p)| p / available_prob).collect())
+        Some(
+            valid_cands
+                .iter()
+                .map(|(_, p)| p / available_prob)
+                .collect(),
+        )
     } else {
         None
     };
@@ -305,8 +323,14 @@ mod tests {
         let q = Question::Choice(ChoiceQuestion {
             instructions: "test".into(),
             options: vec![
-                OptionDef { id: "a".into(), description: "A".into() },
-                OptionDef { id: "b".into(), description: "B".into() },
+                OptionDef {
+                    id: "a".into(),
+                    description: "A".into(),
+                },
+                OptionDef {
+                    id: "b".into(),
+                    description: "B".into(),
+                },
             ],
             policy: Default::default(),
         });
@@ -317,12 +341,18 @@ mod tests {
     #[test]
     fn test_decoding_large_option_buffer() {
         let options: Vec<OptionDef> = (0..130)
-            .map(|i| OptionDef { id: format!("opt_{i}"), description: format!("option {i}") })
+            .map(|i| OptionDef {
+                id: format!("opt_{i}"),
+                description: format!("option {i}"),
+            })
             .collect();
         let q = Question::Choice(ChoiceQuestion {
             instructions: "test".into(),
             options,
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         });
         let cands = generate_candidates(&q);
         let logits = vec![0.5; cands.len()];
@@ -335,9 +365,18 @@ mod tests {
         let q = Question::Choice(ChoiceQuestion {
             instructions: "test".into(),
             options: vec![
-                OptionDef { id: "a".into(), description: "Option A".into() },
-                OptionDef { id: "b".into(), description: "Option B".into() },
-                OptionDef { id: "c".into(), description: "Option C".into() },
+                OptionDef {
+                    id: "a".into(),
+                    description: "Option A".into(),
+                },
+                OptionDef {
+                    id: "b".into(),
+                    description: "Option B".into(),
+                },
+                OptionDef {
+                    id: "c".into(),
+                    description: "Option C".into(),
+                },
             ],
             policy: Policy {
                 allow_abstain: true,
@@ -370,8 +409,14 @@ mod tests {
             instructions: "Estimate valuation".into(),
             unit: "M_USD".into(),
             anchors: vec![
-                Anchor { value: 0.0, description: "Seed stage".into() },
-                Anchor { value: 100.0, description: "Growth stage".into() },
+                Anchor {
+                    value: 0.0,
+                    description: "Seed stage".into(),
+                },
+                Anchor {
+                    value: 100.0,
+                    description: "Growth stage".into(),
+                },
             ],
             policy: Policy {
                 allow_abstain: false,
@@ -397,8 +442,14 @@ mod tests {
             instructions: "Estimate valuation".into(),
             unit: "M_USD".into(),
             anchors: vec![
-                Anchor { value: 10.0, description: "Seed".into() },
-                Anchor { value: 50.0, description: "Series A".into() },
+                Anchor {
+                    value: 10.0,
+                    description: "Seed".into(),
+                },
+                Anchor {
+                    value: 50.0,
+                    description: "Series A".into(),
+                },
             ],
             policy: Policy {
                 allow_abstain: false,
@@ -424,8 +475,14 @@ mod tests {
             instructions: "Estimate valuation".into(),
             unit: "M_USD".into(),
             anchors: vec![
-                Anchor { value: 10.0, description: "Seed".into() },
-                Anchor { value: 50.0, description: "Series A".into() },
+                Anchor {
+                    value: 10.0,
+                    description: "Seed".into(),
+                },
+                Anchor {
+                    value: 50.0,
+                    description: "Series A".into(),
+                },
             ],
             policy: Policy {
                 allow_abstain: false,
@@ -446,4 +503,3 @@ mod tests {
         assert!(ans.expected_value.is_none());
     }
 }
-

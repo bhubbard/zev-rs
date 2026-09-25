@@ -13,10 +13,14 @@ pub fn resolve_temperature(user_temp: Option<f64>) -> Result<f64> {
 
 pub fn scaled_softmax(logits: &[f64], temperature: f64) -> Result<Vec<f64>> {
     if logits.is_empty() {
-        return Err(ZevError::DecodingError("Logits array cannot be empty".into()));
+        return Err(ZevError::DecodingError(
+            "Logits array cannot be empty".into(),
+        ));
     }
     if !temperature.is_finite() || temperature <= 0.0 {
-        return Err(ZevError::CalibrationError("Temperature must be positive and finite".into()));
+        return Err(ZevError::CalibrationError(
+            "Temperature must be positive and finite".into(),
+        ));
     }
 
     let mut out = vec![0.0; logits.len()];
@@ -27,10 +31,14 @@ pub fn scaled_softmax(logits: &[f64], temperature: f64) -> Result<Vec<f64>> {
 #[inline(always)]
 pub fn scaled_softmax_slice(logits: &[f64], temperature: f64, out: &mut [f64]) -> Result<()> {
     if logits.is_empty() || logits.len() != out.len() {
-        return Err(ZevError::DecodingError("Logits array cannot be empty".into()));
+        return Err(ZevError::DecodingError(
+            "Logits array cannot be empty".into(),
+        ));
     }
     if !temperature.is_finite() || temperature <= 0.0 {
-        return Err(ZevError::CalibrationError("Temperature must be positive and finite".into()));
+        return Err(ZevError::CalibrationError(
+            "Temperature must be positive and finite".into(),
+        ));
     }
 
     let max_logit = logits.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
@@ -43,7 +51,9 @@ pub fn scaled_softmax_slice(logits: &[f64], temperature: f64, out: &mut [f64]) -
     }
 
     if sum <= 0.0 || !sum.is_finite() {
-        return Err(ZevError::DecodingError("Softmax normalization encountered non-finite sum".into()));
+        return Err(ZevError::DecodingError(
+            "Softmax normalization encountered non-finite sum".into(),
+        ));
     }
 
     let inv_sum = 1.0 / sum;
@@ -113,7 +123,9 @@ pub fn compute_ece(confidences: &[f64], accuracies: &[bool], num_bins: usize) ->
         let mut sum_conf = 0.0;
 
         for (&conf, &acc) in confidences.iter().zip(accuracies.iter()) {
-            if (conf >= bin_lower && conf < bin_upper) || (i == num_bins - 1 && conf >= bin_lower && conf <= 1.0) {
+            if (conf >= bin_lower && conf < bin_upper)
+                || (i == num_bins - 1 && conf >= bin_lower && conf <= 1.0)
+            {
                 in_bin_count += 1;
                 sum_conf += conf;
                 if acc {
@@ -134,7 +146,12 @@ pub fn compute_ece(confidences: &[f64], accuracies: &[bool], num_bins: usize) ->
 }
 
 /// Fits temperature T minimizing NLL using golden-section search
-pub fn fit_temperature(pairs: &[(Vec<f64>, usize)], min_t: f64, max_t: f64, max_iters: usize) -> f64 {
+pub fn fit_temperature(
+    pairs: &[(Vec<f64>, usize)],
+    min_t: f64,
+    max_t: f64,
+    max_iters: usize,
+) -> f64 {
     let phi = (1.0 + 5.0_f64.sqrt()) / 2.0;
     let inv_phi = 1.0 / phi;
 
@@ -221,4 +238,3 @@ mod tests {
         assert!(dampened > base);
     }
 }
-

@@ -1,4 +1,8 @@
-use std::sync::Arc;
+use crate::engine::ZevEngine;
+use crate::types::{
+    SystemOneRequest, SystemOneResponse, ZevRequest, ZevResponse, DEFAULT_MODEL, MAX_QUESTIONS,
+    MAX_SLOTS, MODEL_ALIAS,
+};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -6,11 +10,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use crate::engine::ZevEngine;
-use crate::types::{
-    SystemOneRequest, SystemOneResponse, ZevRequest, ZevResponse,
-    DEFAULT_MODEL, MAX_QUESTIONS, MAX_SLOTS, MODEL_ALIAS,
-};
+use std::sync::Arc;
 
 const INDEX_HTML: &str = include_str!("../assets/index.html");
 
@@ -24,6 +24,7 @@ pub fn create_router(engine: Arc<ZevEngine>) -> Router {
 
     Router::new()
         .route("/health", get(health_handler))
+        .route("/ready", get(ready_handler))
         .route("/", get(home_handler))
         .route("/v1/models", get(models_handler))
         .route("/v1/limits", get(limits_handler))
@@ -45,6 +46,15 @@ async fn health_handler() -> Json<serde_json::Value> {
         "model": DEFAULT_MODEL,
         "order_invariant": true,
         "calibrated": true,
+    }))
+}
+
+async fn ready_handler() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "status": "ok",
+        "ready": true,
+        "engine": "zev",
+        "checkpoints_resident": true,
     }))
 }
 
@@ -83,33 +93,80 @@ async fn limits_handler() -> Json<serde_json::Value> {
 async fn decisions_handler(
     State(state): State<ServerState>,
     Json(req): Json<ZevRequest>,
-) -> Result<Json<ZevResponse>, (StatusCode, String)> {
-    state
+) -> Result<([(axum::http::HeaderName, String); 2], Json<ZevResponse>), (StatusCode, String)> {
+    let start = std::time::Instant::now();
+    let resp = state
         .engine
         .evaluate(&req)
-        .map(Json)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let eval_ms = start.elapsed().as_secs_f64() * 1000.0;
+    let headers = [
+        (
+            axum::http::HeaderName::from_static("server-timing"),
+            format!("eval;dur={eval_ms:.3}"),
+        ),
+        (
+            axum::http::HeaderName::from_static("x-inference-time-ms"),
+            format!("{eval_ms:.3}"),
+        ),
+    ];
+    Ok((headers, Json(resp)))
 }
 
 async fn systemone_handler(
     State(state): State<ServerState>,
     Json(req): Json<SystemOneRequest>,
-) -> Result<Json<SystemOneResponse>, (StatusCode, String)> {
-    state
+) -> Result<
+    (
+        [(axum::http::HeaderName, String); 2],
+        Json<SystemOneResponse>,
+    ),
+    (StatusCode, String),
+> {
+    let start = std::time::Instant::now();
+    let resp = state
         .engine
         .evaluate_system_one(&req)
-        .map(Json)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let eval_ms = start.elapsed().as_secs_f64() * 1000.0;
+    let headers = [
+        (
+            axum::http::HeaderName::from_static("server-timing"),
+            format!("eval;dur={eval_ms:.3}"),
+        ),
+        (
+            axum::http::HeaderName::from_static("x-inference-time-ms"),
+            format!("{eval_ms:.3}"),
+        ),
+    ];
+    Ok((headers, Json(resp)))
 }
 
 async fn tev1_handler(
     State(state): State<ServerState>,
     Json(req): Json<crate::tev1::Tev1Request>,
-) -> Result<Json<crate::tev1::Tev1Response>, (StatusCode, String)> {
-    state
+) -> Result<
+    (
+        [(axum::http::HeaderName, String); 2],
+        Json<crate::tev1::Tev1Response>,
+    ),
+    (StatusCode, String),
+> {
+    let start = std::time::Instant::now();
+    let resp = state
         .engine
         .evaluate_tev1(&req)
-        .map(Json)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let eval_ms = start.elapsed().as_secs_f64() * 1000.0;
+    let headers = [
+        (
+            axum::http::HeaderName::from_static("server-timing"),
+            format!("eval;dur={eval_ms:.3}"),
+        ),
+        (
+            axum::http::HeaderName::from_static("x-inference-time-ms"),
+            format!("{eval_ms:.3}"),
+        ),
+    ];
+    Ok((headers, Json(resp)))
 }
-

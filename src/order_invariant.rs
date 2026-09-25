@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use smallvec::SmallVec;
 use crate::types::Candidate;
+use smallvec::SmallVec;
+use std::collections::HashMap;
 
 const PREFIX_NEGATORS: &[&str] = &[
     "not under any circumstances",
@@ -198,7 +198,9 @@ impl PremiseContext {
             "enabled" if self.contains_bounded("disabled") => return true,
             "active" if self.contains_bounded("inactive") => return true,
             "present" if self.contains_bounded("absent") => return true,
-            "able" if self.contains_bounded("unable") || self.contains_bounded("cannot") => return true,
+            "able" if self.contains_bounded("unable") || self.contains_bounded("cannot") => {
+                return true
+            }
             _ => {}
         }
 
@@ -422,11 +424,18 @@ impl PremiseContext {
                             logit += 3.5 * w;
                         }
                     } else {
-                        const GENERIC_PARTS: [&str; 10] = ["order", "question", "action", "task", "service", "item", "query", "info", "type", "call"];
+                        const GENERIC_PARTS: [&str; 10] = [
+                            "order", "question", "action", "task", "service", "item", "query",
+                            "info", "type", "call",
+                        ];
                         for part in id_lower.split(['_', '-']) {
                             if part.len() > 3 && self.contains_bounded(part) {
                                 let w = self.recency_weight(part);
-                                let weight_scale = if GENERIC_PARTS.contains(&part) { 0.6 } else { 2.2 };
+                                let weight_scale = if GENERIC_PARTS.contains(&part) {
+                                    0.6
+                                } else {
+                                    2.2
+                                };
                                 if self.is_negated(part) {
                                     logit -= 1.8 * w;
                                 } else {
@@ -538,7 +547,8 @@ impl PremiseContext {
             if char_count <= 2 {
                 // Word-boundary isolation for short/single-character options (length <= 2)
                 const COMMON_STOPWORDS: [&str; 18] = [
-                    "a", "an", "in", "on", "at", "to", "is", "it", "or", "of", "by", "as", "if", "be", "do", "we", "he", "so"
+                    "a", "an", "in", "on", "at", "to", "is", "it", "or", "of", "by", "as", "if",
+                    "be", "do", "we", "he", "so",
                 ];
                 if !COMMON_STOPWORDS.contains(&word_str) && self.contains_bounded(word_str) {
                     let w = self.recency_weight(word_str);
@@ -590,17 +600,14 @@ impl PremiseContext {
 /// Evaluates all candidates with guaranteed order-invariance using pre-tokenized premise
 pub fn compute_order_invariant_logits(premise: &str, candidates: &[Candidate]) -> Vec<f64> {
     let ctx = PremiseContext::new(premise);
-    candidates
-        .iter()
-        .map(|c| ctx.score_candidate(c))
-        .collect()
+    candidates.iter().map(|c| ctx.score_candidate(c)).collect()
 }
 
-pub fn compute_order_invariant_logits_with_context(ctx: &PremiseContext, candidates: &[Candidate]) -> Vec<f64> {
-    candidates
-        .iter()
-        .map(|c| ctx.score_candidate(c))
-        .collect()
+pub fn compute_order_invariant_logits_with_context(
+    ctx: &PremiseContext,
+    candidates: &[Candidate],
+) -> Vec<f64> {
+    candidates.iter().map(|c| ctx.score_candidate(c)).collect()
 }
 
 #[cfg(test)]
@@ -610,22 +617,41 @@ mod tests {
     #[test]
     fn test_order_invariant_logits_direct() {
         let candidates = vec![
-            Candidate { id: "db_outage".into(), description: "database failure".into(), value: None },
-            Candidate { id: "billing_issue".into(), description: "invoice problem".into(), value: None },
+            Candidate {
+                id: "db_outage".into(),
+                description: "database failure".into(),
+                value: None,
+            },
+            Candidate {
+                id: "billing_issue".into(),
+                description: "invoice problem".into(),
+                value: None,
+            },
         ];
-        let logits = compute_order_invariant_logits("there is a db outage and database failure", &candidates);
+        let logits = compute_order_invariant_logits(
+            "there is a db outage and database failure",
+            &candidates,
+        );
         assert!(logits[0] > logits[1]);
     }
 
     #[test]
     fn test_order_invariant_negation_branches() {
         let ctx = PremiseContext::new("no db_outage and without connecting to database");
-        let cand1 = Candidate { id: "db_outage".into(), description: "connection established".into(), value: None };
+        let cand1 = Candidate {
+            id: "db_outage".into(),
+            description: "connection established".into(),
+            value: None,
+        };
         let score1 = ctx.score_candidate(&cand1);
         assert!(score1 < 0.0);
 
         let ctx2 = PremiseContext::new("client reports no payment-processing whatsoever");
-        let cand2 = Candidate { id: "payment-processing".into(), description: "".into(), value: None };
+        let cand2 = Candidate {
+            id: "payment-processing".into(),
+            description: "".into(),
+            value: None,
+        };
         let score2 = ctx2.score_candidate(&cand2);
         assert!(score2 < 0.0);
     }
@@ -636,29 +662,61 @@ mod tests {
         // Option 'M' should match "size M,"
         // Option 'L' should NOT match inside "blue" or "please"
         let ctx = PremiseContext::new("Could I get the blue shirt in size M, please?");
-        let cand_m = Candidate { id: "M".into(), description: "Medium".into(), value: None };
-        let cand_l = Candidate { id: "L".into(), description: "Large".into(), value: None };
-        let cand_s = Candidate { id: "S".into(), description: "Small".into(), value: None };
+        let cand_m = Candidate {
+            id: "M".into(),
+            description: "Medium".into(),
+            value: None,
+        };
+        let cand_l = Candidate {
+            id: "L".into(),
+            description: "Large".into(),
+            value: None,
+        };
+        let cand_s = Candidate {
+            id: "S".into(),
+            description: "Small".into(),
+            value: None,
+        };
 
         let score_m = ctx.score_candidate(&cand_m);
         let score_l = ctx.score_candidate(&cand_l);
         let score_s = ctx.score_candidate(&cand_s);
 
-        assert!(score_m > score_l, "M ({score_m}) must score higher than L ({score_l})");
-        assert!(score_m > score_s, "M ({score_m}) must score higher than S ({score_s})");
-        assert!(!ctx.contains_bounded("l"), "L must not match inside blue or please");
-        assert!(ctx.contains_bounded("m"), "M must match isolated word boundary");
+        assert!(
+            score_m > score_l,
+            "M ({score_m}) must score higher than L ({score_l})"
+        );
+        assert!(
+            score_m > score_s,
+            "M ({score_m}) must score higher than S ({score_s})"
+        );
+        assert!(
+            !ctx.contains_bounded("l"),
+            "L must not match inside blue or please"
+        );
+        assert!(
+            ctx.contains_bounded("m"),
+            "M must match isolated word boundary"
+        );
     }
 
     #[test]
     fn test_morphological_negation_normalization() {
         let ctx_unpaid = PremiseContext::new("Invoice 2026-045. Payment status: unpaid.");
         assert!(ctx_unpaid.is_negated("paid"));
-        let cand_paid = Candidate { id: "paid".into(), description: "Invoice paid".into(), value: None };
+        let cand_paid = Candidate {
+            id: "paid".into(),
+            description: "Invoice paid".into(),
+            value: None,
+        };
         let score_paid = ctx_unpaid.score_candidate(&cand_paid);
-        assert!(score_paid < 0.0, "paid score should be penalized under unpaid: {score_paid}");
+        assert!(
+            score_paid < 0.0,
+            "paid score should be penalized under unpaid: {score_paid}"
+        );
 
-        let ctx_disabled = PremiseContext::new("Account settings: two-factor authentication is disabled.");
+        let ctx_disabled =
+            PremiseContext::new("Account settings: two-factor authentication is disabled.");
         assert!(ctx_disabled.is_negated("enabled"));
 
         let ctx_absent = PremiseContext::new("Proof of purchase is absent.");
@@ -676,37 +734,69 @@ mod tests {
         // P03 probe cases:
         // 1. "ticket unresolved: database outage" -> "database" must NOT be negated
         let ctx1 = PremiseContext::new("ticket unresolved: database outage");
-        assert!(!ctx1.is_negated("database"), "'unresolved' must not negate 'database'");
+        assert!(
+            !ctx1.is_negated("database"),
+            "'unresolved' must not negate 'database'"
+        );
 
         // 2. "refund for the casino deposit" -> "deposit" must NOT be negated
         let ctx2 = PremiseContext::new("refund for the casino deposit");
-        assert!(!ctx2.is_negated("deposit"), "'casino' must not negate 'deposit'");
+        assert!(
+            !ctx2.is_negated("deposit"),
+            "'casino' must not negate 'deposit'"
+        );
 
         // 3. "the prefixed invoice number" -> "invoice" must NOT be negated
         let ctx3 = PremiseContext::new("the prefixed invoice number");
-        assert!(!ctx3.is_negated("invoice"), "'prefixed' must not negate 'invoice'");
+        assert!(
+            !ctx3.is_negated("invoice"),
+            "'prefixed' must not negate 'invoice'"
+        );
 
         // Clause boundaries: '.', ';', 'but'
         let ctx_dot = PremiseContext::new("ticket resolved. database outage ongoing");
-        assert!(!ctx_dot.is_negated("database"), "sentence boundary '.' must stop negation");
+        assert!(
+            !ctx_dot.is_negated("database"),
+            "sentence boundary '.' must stop negation"
+        );
 
         let ctx_semi = PremiseContext::new("ticket resolved; database outage ongoing");
-        assert!(!ctx_semi.is_negated("database"), "clause boundary ';' must stop negation");
+        assert!(
+            !ctx_semi.is_negated("database"),
+            "clause boundary ';' must stop negation"
+        );
 
         let ctx_but = PremiseContext::new("ticket was resolved, but database outage still ongoing");
-        assert!(!ctx_but.is_negated("database"), "clause boundary 'but' must stop negation");
+        assert!(
+            !ctx_but.is_negated("database"),
+            "clause boundary 'but' must stop negation"
+        );
 
         // Legitimate negation within same clause
         let ctx_neg = PremiseContext::new("ticket was not resolved; no database access");
-        assert!(ctx_neg.is_negated("database"), "'no database' must be negated");
+        assert!(
+            ctx_neg.is_negated("database"),
+            "'no database' must be negated"
+        );
 
         // End-to-end P03: "ticket unresolved: database outage still ongoing"
         // database_outage must score higher than billing
         let candidates = vec![
-            Candidate { id: "database_outage".into(), description: "database outage".into(), value: None },
-            Candidate { id: "billing".into(), description: "billing issue".into(), value: None },
+            Candidate {
+                id: "database_outage".into(),
+                description: "database outage".into(),
+                value: None,
+            },
+            Candidate {
+                id: "billing".into(),
+                description: "billing issue".into(),
+                value: None,
+            },
         ];
-        let logits = compute_order_invariant_logits("ticket unresolved: database outage still ongoing", &candidates);
+        let logits = compute_order_invariant_logits(
+            "ticket unresolved: database outage still ongoing",
+            &candidates,
+        );
         assert!(
             logits[0] > logits[1],
             "database_outage ({}) must win over billing ({}) when issue is unresolved",
@@ -720,8 +810,16 @@ mod tests {
         let ctx = PremiseContext::new("please escalate this ticket");
 
         // P04: "Normal priority" should NOT be penalized as negative
-        let cand_normal = Candidate { id: "normal".into(), description: "Normal priority".into(), value: None };
-        let cand_standard = Candidate { id: "standard".into(), description: "Standard priority".into(), value: None };
+        let cand_normal = Candidate {
+            id: "normal".into(),
+            description: "Normal priority".into(),
+            value: None,
+        };
+        let cand_standard = Candidate {
+            id: "standard".into(),
+            description: "Standard priority".into(),
+            value: None,
+        };
         let score_normal = ctx.score_candidate(&cand_normal);
         let score_standard = ctx.score_candidate(&cand_standard);
         assert_eq!(
@@ -731,8 +829,16 @@ mod tests {
         assert_eq!(score_normal, 0.5);
 
         // P04: "Yesterday's orders" should NOT be boosted as affirmative
-        let cand_yesterday = Candidate { id: "yesterday".into(), description: "Yesterday's orders".into(), value: None };
-        let cand_recent = Candidate { id: "recent".into(), description: "Recent orders".into(), value: None };
+        let cand_yesterday = Candidate {
+            id: "yesterday".into(),
+            description: "Yesterday's orders".into(),
+            value: None,
+        };
+        let cand_recent = Candidate {
+            id: "recent".into(),
+            description: "Recent orders".into(),
+            value: None,
+        };
         let score_yesterday = ctx.score_candidate(&cand_yesterday);
         let score_recent = ctx.score_candidate(&cand_recent);
         assert_eq!(
@@ -742,8 +848,16 @@ mod tests {
         assert_eq!(score_yesterday, 0.5);
 
         // Actual boolean candidates still get polarity scoring
-        let cand_true = Candidate { id: "true".into(), description: "Yes".into(), value: None };
-        let cand_false = Candidate { id: "false".into(), description: "No".into(), value: None };
+        let cand_true = Candidate {
+            id: "true".into(),
+            description: "Yes".into(),
+            value: None,
+        };
+        let cand_false = Candidate {
+            id: "false".into(),
+            description: "No".into(),
+            value: None,
+        };
         let score_true = ctx.score_candidate(&cand_true);
         let score_false = ctx.score_candidate(&cand_false);
         assert!(
@@ -769,5 +883,3 @@ mod tests {
         assert!(!empty_ctx.is_negated("test"));
     }
 }
-
-

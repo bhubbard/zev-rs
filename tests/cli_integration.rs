@@ -98,7 +98,12 @@ Options     A: Yes   B: No   C: Not enough information
 Answer      A
 "#;
 
-    child.stdin.as_mut().unwrap().write_all(prompt.as_bytes()).unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(prompt.as_bytes())
+        .unwrap();
     let output = child.wait_with_output().unwrap();
 
     assert!(output.status.success());
@@ -131,7 +136,12 @@ fn test_cli_decide_native() {
       }
     }"#;
 
-    child.stdin.as_mut().unwrap().write_all(req.as_bytes()).unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(req.as_bytes())
+        .unwrap();
     let output = child.wait_with_output().unwrap();
 
     assert!(output.status.success());
@@ -160,7 +170,12 @@ fn test_cli_systemone() {
       }
     }"#;
 
-    child.stdin.as_mut().unwrap().write_all(req.as_bytes()).unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(req.as_bytes())
+        .unwrap();
     let output = child.wait_with_output().unwrap();
 
     assert!(output.status.success());

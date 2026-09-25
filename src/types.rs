@@ -1,6 +1,6 @@
-use std::collections::BTreeMap;
-use serde::{Deserialize, Serialize};
 use crate::error::{Result, ZevError};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 pub const DEFAULT_MODEL: &str = "zev-apex-v1";
 pub const MODEL_ALIAS: &str = "zev-latest";
@@ -25,9 +25,15 @@ pub struct Policy {
     pub max_slots: Option<usize>,
 }
 
-fn default_allow_abstain() -> bool { true }
-fn default_max_unavailable_prob() -> f64 { 0.5 }
-fn default_min_top_prob() -> f64 { 0.0 }
+fn default_allow_abstain() -> bool {
+    true
+}
+fn default_max_unavailable_prob() -> f64 {
+    0.5
+}
+fn default_min_top_prob() -> f64 {
+    0.0
+}
 
 impl Default for Policy {
     fn default() -> Self {
@@ -131,7 +137,9 @@ impl Question {
             Question::Boolean(_) => Ok(()),
             Question::Choice(c) => {
                 if c.options.len() < 2 {
-                    return Err(ZevError::InvalidRequest(format!("{key}: choice requires at least 2 options")));
+                    return Err(ZevError::InvalidRequest(format!(
+                        "{key}: choice requires at least 2 options"
+                    )));
                 }
                 if c.options.len() + reserved > slot_limit {
                     return Err(ZevError::SlotLimitExceeded(format!(
@@ -143,7 +151,9 @@ impl Question {
             }
             Question::Score(s) => {
                 if s.levels.len() < 2 {
-                    return Err(ZevError::InvalidRequest(format!("{key}: score requires at least 2 levels")));
+                    return Err(ZevError::InvalidRequest(format!(
+                        "{key}: score requires at least 2 levels"
+                    )));
                 }
                 if s.levels.len() + reserved > slot_limit {
                     return Err(ZevError::SlotLimitExceeded(format!(
@@ -155,7 +165,9 @@ impl Question {
             }
             Question::Numeric(n) => {
                 if n.anchors.len() < 2 {
-                    return Err(ZevError::InvalidRequest(format!("{key}: numeric requires at least 2 anchors")));
+                    return Err(ZevError::InvalidRequest(format!(
+                        "{key}: numeric requires at least 2 anchors"
+                    )));
                 }
                 if n.anchors.len() + reserved + 2 > slot_limit {
                     return Err(ZevError::SlotLimitExceeded(format!(
@@ -231,7 +243,9 @@ pub struct ZevRequest {
     pub enable_temporal_facts: bool,
 }
 
-fn default_enable_temporal() -> bool { true }
+fn default_enable_temporal() -> bool {
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionTiming {
@@ -260,8 +274,14 @@ mod tests {
     #[test]
     fn test_question_instructions_and_defaults() {
         let b: BooleanQuestion = serde_json::from_str(r#"{"instructions": "is active"}"#).unwrap();
-        assert_eq!(b.true_description, "Yes. The context provides strong affirmative evidence.");
-        assert_eq!(b.false_description, "No. The context contradicts or does not support the premise.");
+        assert_eq!(
+            b.true_description,
+            "Yes. The context provides strong affirmative evidence."
+        );
+        assert_eq!(
+            b.false_description,
+            "No. The context contradicts or does not support the premise."
+        );
 
         let q_bool = Question::Boolean(b);
         assert_eq!(q_bool.instructions(), "is active");
@@ -269,8 +289,14 @@ mod tests {
         let q_choice = Question::Choice(ChoiceQuestion {
             instructions: "pick one".into(),
             options: vec![
-                OptionDef { id: "a".into(), description: "desc a".into() },
-                OptionDef { id: "b".into(), description: "desc b".into() },
+                OptionDef {
+                    id: "a".into(),
+                    description: "desc a".into(),
+                },
+                OptionDef {
+                    id: "b".into(),
+                    description: "desc b".into(),
+                },
             ],
             policy: Default::default(),
         });
@@ -287,8 +313,14 @@ mod tests {
             instructions: "estimate temp".into(),
             unit: "F".into(),
             anchors: vec![
-                Anchor { value: 0.0, description: "freezing".into() },
-                Anchor { value: 100.0, description: "boiling".into() },
+                Anchor {
+                    value: 0.0,
+                    description: "freezing".into(),
+                },
+                Anchor {
+                    value: 100.0,
+                    description: "boiling".into(),
+                },
             ],
             policy: Default::default(),
         });
@@ -307,7 +339,10 @@ mod tests {
         let q_many = Question::Score(ScoreQuestion {
             instructions: "rate".into(),
             levels: (0..30).map(|i| format!("lvl_{i}")).collect(),
-            policy: Policy { allow_abstain: true, ..Default::default() },
+            policy: Policy {
+                allow_abstain: true,
+                ..Default::default()
+            },
         });
         assert!(q_many.validate("test").is_err());
     }
@@ -317,7 +352,10 @@ mod tests {
         let q_few = Question::Numeric(NumericQuestion {
             instructions: "num".into(),
             unit: "x".into(),
-            anchors: vec![Anchor { value: 1.0, description: "one".into() }],
+            anchors: vec![Anchor {
+                value: 1.0,
+                description: "one".into(),
+            }],
             policy: Default::default(),
         });
         assert!(q_few.validate("test").is_err());
@@ -326,8 +364,14 @@ mod tests {
             instructions: "num".into(),
             unit: "x".into(),
             anchors: vec![
-                Anchor { value: 10.0, description: "ten".into() },
-                Anchor { value: 5.0, description: "five".into() },
+                Anchor {
+                    value: 10.0,
+                    description: "ten".into(),
+                },
+                Anchor {
+                    value: 5.0,
+                    description: "five".into(),
+                },
             ],
             policy: Default::default(),
         });
@@ -336,10 +380,17 @@ mod tests {
         let q_many = Question::Numeric(NumericQuestion {
             instructions: "num".into(),
             unit: "x".into(),
-            anchors: (0..30).map(|i| Anchor { value: i as f64, description: format!("a{i}") }).collect(),
-            policy: Policy { allow_abstain: true, ..Default::default() },
+            anchors: (0..30)
+                .map(|i| Anchor {
+                    value: i as f64,
+                    description: format!("a{i}"),
+                })
+                .collect(),
+            policy: Policy {
+                allow_abstain: true,
+                ..Default::default()
+            },
         });
         assert!(q_many.validate("test").is_err());
     }
 }
-

@@ -1,8 +1,8 @@
-use std::collections::{HashMap, VecDeque};
+use crate::decoding::decode_decision;
 use crate::error::Result;
 use crate::shortlist::shortlist_options;
 use crate::types::{ChoiceQuestion, Question, ZevAnswer};
-use crate::decoding::decode_decision;
+use std::collections::{HashMap, VecDeque};
 
 /// Configuration for the Contrastive Language Model (CLM) projection head.
 #[derive(Debug, Clone)]
@@ -114,8 +114,14 @@ impl VectorArena {
             slot
         } else {
             // Evict least-recently used slot
-            let lru_key = self.lru_order.pop_front().expect("Arena is full but no LRU items");
-            let evicted_slot = self.slots.remove(&lru_key).expect("LRU key missing from slot map");
+            let lru_key = self
+                .lru_order
+                .pop_front()
+                .expect("Arena is full but no LRU items");
+            let evicted_slot = self
+                .slots
+                .remove(&lru_key)
+                .expect("LRU key missing from slot map");
             self.evictions += 1;
             evicted_slot
         };
@@ -136,9 +142,7 @@ impl VectorArena {
             dest[i] = raw[i];
             norm_sq += raw[i] * raw[i];
         }
-        for i in copy_len..self.dim {
-            dest[i] = 0.0;
-        }
+        dest[copy_len..self.dim].fill(0.0);
 
         let norm = norm_sq.sqrt().max(1e-12);
         for x in dest.iter_mut() {
@@ -231,7 +235,10 @@ impl ContrastiveHead {
         for i in 0..copy_len {
             // Apply lightweight non-linear activation (GELU approximation)
             let x = raw[i];
-            let activated = 0.5 * x * (1.0 + ((2.0f32 / std::f32::consts::PI).sqrt() * (x + 0.044715 * x * x * x)).tanh());
+            let activated = 0.5
+                * x
+                * (1.0
+                    + ((2.0f32 / std::f32::consts::PI).sqrt() * (x + 0.044715 * x * x * x)).tanh());
             proj[i] = activated;
             norm_sq += activated * activated;
         }
@@ -275,7 +282,11 @@ pub fn embed_text(text: &str, dim: usize) -> Vec<f32> {
             h = h.wrapping_mul(16777619);
         }
         let idx = (h as usize) % dim;
-        let sign = if (h & 0x80000000) != 0 { 1.0f32 } else { -1.0f32 };
+        let sign = if (h & 0x80000000) != 0 {
+            1.0f32
+        } else {
+            -1.0f32
+        };
         vec[idx] += sign * 2.0;
 
         // Subword 3-grams
@@ -288,7 +299,11 @@ pub fn embed_text(text: &str, dim: usize) -> Vec<f32> {
                     sh = sh.wrapping_mul(16777619);
                 }
                 let sidx = (sh as usize) % dim;
-                let ssign = if (sh & 0x80000000) != 0 { 1.0f32 } else { -1.0f32 };
+                let ssign = if (sh & 0x80000000) != 0 {
+                    1.0f32
+                } else {
+                    -1.0f32
+                };
                 vec[sidx] += ssign;
             }
         }
@@ -472,10 +487,19 @@ mod tests {
         verifier.register_action_embedding("route_auth", &emb_b);
 
         let mut options = Vec::new();
-        options.push(OptionDef { id: "route_billing".into(), description: "Handle customer invoices and charges".into() });
-        options.push(OptionDef { id: "route_auth".into(), description: "Handle login authentication and tokens".into() });
+        options.push(OptionDef {
+            id: "route_billing".into(),
+            description: "Handle customer invoices and charges".into(),
+        });
+        options.push(OptionDef {
+            id: "route_auth".into(),
+            description: "Handle login authentication and tokens".into(),
+        });
         for i in 2..20 {
-            options.push(OptionDef { id: format!("route_{i}"), description: format!("Generic worker {i}") });
+            options.push(OptionDef {
+                id: format!("route_{i}"),
+                description: format!("Generic worker {i}"),
+            });
         }
 
         let question = ChoiceQuestion {
@@ -488,23 +512,30 @@ mod tests {
         let mut state_emb = vec![0.0f32; 512];
         state_emb[0] = 0.95;
 
-        let res = verifier.evaluate_hybrid(
-            "Customer asks about unpaid invoice and credit card charge",
-            Some(&state_emb),
-            &question,
-            1.0,
-        ).unwrap();
+        let res = verifier
+            .evaluate_hybrid(
+                "Customer asks about unpaid invoice and credit card charge",
+                Some(&state_emb),
+                &question,
+                1.0,
+            )
+            .unwrap();
 
-        assert_eq!(res.decision, Some(serde_json::Value::String("route_billing".into())));
+        assert_eq!(
+            res.decision,
+            Some(serde_json::Value::String("route_billing".into()))
+        );
         assert_eq!(res.status, "ok");
 
         // Fallback without state embedding
-        let res_fallback = verifier.evaluate_hybrid(
-            "Customer asks about unpaid invoice and credit card charge",
-            None,
-            &question,
-            1.0,
-        ).unwrap();
+        let res_fallback = verifier
+            .evaluate_hybrid(
+                "Customer asks about unpaid invoice and credit card charge",
+                None,
+                &question,
+                1.0,
+            )
+            .unwrap();
         assert!(res_fallback.decision.is_some());
     }
 

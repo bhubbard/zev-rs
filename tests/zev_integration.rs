@@ -1,15 +1,18 @@
+#[cfg(feature = "server")]
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+};
 use std::collections::BTreeMap;
 #[cfg(feature = "server")]
 use std::sync::Arc;
 #[cfg(feature = "server")]
-use axum::{body::Body, http::{Request, StatusCode}};
-#[cfg(feature = "server")]
 use tower::ServiceExt;
 
 use zev::{
-    compute_ece, fit_temperature, shortlist_options, BooleanQuestion, ChoiceQuestion,
-    OptionDef, Policy, Question, SystemOneRequest, WireChoiceQuestion, WireNoulQuestion,
-    WireQuestion, ZevEngine, ZevError, ZevRequest,
+    compute_ece, fit_temperature, shortlist_options, BooleanQuestion, ChoiceQuestion, OptionDef,
+    Policy, Question, SystemOneRequest, WireChoiceQuestion, WireNoulQuestion, WireQuestion,
+    ZevEngine, ZevError, ZevRequest,
 };
 
 #[test]
@@ -17,49 +20,73 @@ fn test_order_invariance() {
     let engine = ZevEngine::default();
     let state = "Customer calls about credit card charge dispute and wants a refund.";
 
-    let opt1 = OptionDef { id: "billing".into(), description: "Payment processing and refund".into() };
-    let opt2 = OptionDef { id: "tech_support".into(), description: "Server and API error".into() };
-    let opt3 = OptionDef { id: "sales".into(), description: "New subscriptions and upgrades".into() };
+    let opt1 = OptionDef {
+        id: "billing".into(),
+        description: "Payment processing and refund".into(),
+    };
+    let opt2 = OptionDef {
+        id: "tech_support".into(),
+        description: "Server and API error".into(),
+    };
+    let opt3 = OptionDef {
+        id: "sales".into(),
+        description: "New subscriptions and upgrades".into(),
+    };
 
     // Order 1: [billing, tech_support, sales]
     let q1 = Question::Choice(ChoiceQuestion {
         instructions: "Route customer".into(),
         options: vec![opt1.clone(), opt2.clone(), opt3.clone()],
-        policy: Policy { allow_abstain: false, ..Default::default() },
+        policy: Policy {
+            allow_abstain: false,
+            ..Default::default()
+        },
     });
 
     // Order 2: [sales, tech_support, billing] (inverted)
     let q2 = Question::Choice(ChoiceQuestion {
         instructions: "Route customer".into(),
         options: vec![opt3.clone(), opt2.clone(), opt1.clone()],
-        policy: Policy { allow_abstain: false, ..Default::default() },
+        policy: Policy {
+            allow_abstain: false,
+            ..Default::default()
+        },
     });
 
-    let mut map1 = BTreeMap::new(); map1.insert("route".into(), q1);
-    let mut map2 = BTreeMap::new(); map2.insert("route".into(), q2);
+    let mut map1 = BTreeMap::new();
+    map1.insert("route".into(), q1);
+    let mut map2 = BTreeMap::new();
+    map2.insert("route".into(), q2);
 
-    let resp1 = engine.evaluate(&ZevRequest {
-        state: serde_json::json!(state),
-        questions: map1,
-        model: None,
-        temperature: None,
-        enable_temporal_facts: false,
-    }).unwrap();
+    let resp1 = engine
+        .evaluate(&ZevRequest {
+            state: serde_json::json!(state),
+            questions: map1,
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+        })
+        .unwrap();
 
-    let resp2 = engine.evaluate(&ZevRequest {
-        state: serde_json::json!(state),
-        questions: map2,
-        model: None,
-        temperature: None,
-        enable_temporal_facts: false,
-    }).unwrap();
+    let resp2 = engine
+        .evaluate(&ZevRequest {
+            state: serde_json::json!(state),
+            questions: map2,
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+        })
+        .unwrap();
 
     let ans1 = resp1.answers.get("route").unwrap();
     let ans2 = resp2.answers.get("route").unwrap();
 
     // 100% Order-Invariance: top decision and exact probabilities are identical!
     assert_eq!(ans1.decision, ans2.decision);
-    assert_eq!(ans1.decision, Some(serde_json::Value::String("billing".into())));
+    assert_eq!(
+        ans1.decision,
+        Some(serde_json::Value::String("billing".into()))
+    );
     assert!((ans1.probabilities["billing"] - ans2.probabilities["billing"]).abs() < 1e-9);
 }
 
@@ -71,8 +98,14 @@ fn test_abstention_guardrails() {
     let q = Question::Choice(ChoiceQuestion {
         instructions: "What is the capital of the moon?".into(),
         options: vec![
-            OptionDef { id: "crater_alpha".into(), description: "Crater Alpha".into() },
-            OptionDef { id: "crater_beta".into(), description: "Crater Beta".into() },
+            OptionDef {
+                id: "crater_alpha".into(),
+                description: "Crater Alpha".into(),
+            },
+            OptionDef {
+                id: "crater_beta".into(),
+                description: "Crater Beta".into(),
+            },
         ],
         policy: Policy {
             allow_abstain: true,
@@ -85,13 +118,15 @@ fn test_abstention_guardrails() {
     let mut map = BTreeMap::new();
     map.insert("moon".into(), q);
 
-    let resp = engine.evaluate(&ZevRequest {
-        state: serde_json::json!(state),
-        questions: map,
-        model: None,
-        temperature: None,
-        enable_temporal_facts: false,
-    }).unwrap();
+    let resp = engine
+        .evaluate(&ZevRequest {
+            state: serde_json::json!(state),
+            questions: map,
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+        })
+        .unwrap();
 
     let ans = resp.answers.get("moon").unwrap();
     assert_ne!(ans.status, "ok"); // Abstention triggered (uncertain or insufficient_evidence)
@@ -188,6 +223,19 @@ async fn test_http_server_endpoints() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
+    // 1b. Ready probe
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
     // 2. Limits
     let response = app
         .clone()
@@ -225,6 +273,8 @@ async fn test_http_server_endpoints() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+    assert!(response.headers().contains_key("server-timing"));
+    assert!(response.headers().contains_key("x-inference-time-ms"));
 
     // 4. Home root "/"
     let response = app
@@ -237,7 +287,12 @@ async fn test_http_server_endpoints() {
     // 5. Models "/v1/models"
     let response = app
         .clone()
-        .oneshot(Request::builder().uri("/v1/models").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/v1/models")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -289,6 +344,30 @@ async fn test_http_server_endpoints() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+
+    // 8. Null state rejected
+    let null_state_body = serde_json::json!({
+        "state": null,
+        "questions": {
+            "test": {
+                "type": "noul",
+                "instructions": "Is this ok?"
+            }
+        }
+    });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/systemone")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&null_state_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[test]
@@ -349,7 +428,10 @@ fn test_engine_shortlisting_in_evaluate() {
     let q = Question::Choice(ChoiceQuestion {
         instructions: "Diagnose".into(),
         options,
-        policy: Policy { allow_abstain: true, ..Default::default() },
+        policy: Policy {
+            allow_abstain: true,
+            ..Default::default()
+        },
     });
 
     let mut map = BTreeMap::new();
@@ -365,7 +447,10 @@ fn test_engine_shortlisting_in_evaluate() {
 
     let resp = engine.evaluate(&req).unwrap();
     let ans = resp.answers.get("diag").unwrap();
-    assert_eq!(ans.decision, Some(serde_json::Value::String("opt_42".into())));
+    assert_eq!(
+        ans.decision,
+        Some(serde_json::Value::String("opt_42".into()))
+    );
 }
 
 // =========================================================================
@@ -378,7 +463,11 @@ fn test_exact_softmax_parity() {
     let logits = vec![22.0, 26.375, 24.375];
     let probs = zev::scaled_softmax(&logits, 1.0).unwrap();
 
-    let expected = [0.010966012254357338, 0.8711382150650024, 0.11789573729038239];
+    let expected = [
+        0.010966012254357338,
+        0.8711382150650024,
+        0.11789573729038239,
+    ];
     for (p, e) in probs.iter().zip(expected.iter()) {
         assert!((p - e).abs() < 1e-7, "Softmax parity mismatch: {p} vs {e}");
     }
@@ -391,13 +480,20 @@ fn test_ece_reduction_under_temperature_scaling() {
     let mut pairs = Vec::new();
     for i in 0..100 {
         let is_correct = i % 4 != 0;
-        let logits = if is_correct { vec![12.0, 2.0] } else { vec![12.0, 2.0] };
+        let logits = if is_correct {
+            vec![12.0, 2.0]
+        } else {
+            vec![12.0, 2.0]
+        };
         let true_idx = if is_correct { 0 } else { 1 };
         pairs.push((logits, true_idx));
     }
 
     let optimal_t = fit_temperature(&pairs, 0.5, 5.0, 30);
-    assert!(optimal_t > 1.0, "Optimal temperature for overconfident model must be > 1.0, got {optimal_t}");
+    assert!(
+        optimal_t > 1.0,
+        "Optimal temperature for overconfident model must be > 1.0, got {optimal_t}"
+    );
 }
 
 // --- 3. From von-rs: Multi-Permutation Mathematical Order Invariance ---
@@ -413,12 +509,7 @@ fn test_multi_permutation_order_invariance() {
 
     let state = "Portfolio shows massive directional equity exposure with steep delta shifts.";
 
-    let permutations = [
-        [0, 1, 2, 3],
-        [3, 2, 1, 0],
-        [2, 0, 3, 1],
-        [1, 3, 0, 2],
-    ];
+    let permutations = [[0, 1, 2, 3], [3, 2, 1, 0], [2, 0, 3, 1], [1, 3, 0, 2]];
 
     let mut first_delta_prob = None;
 
@@ -434,19 +525,24 @@ fn test_multi_permutation_order_invariance() {
         let q = Question::Choice(ChoiceQuestion {
             instructions: "Classify risk profile".into(),
             options: opts,
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         });
 
         let mut questions = BTreeMap::new();
         questions.insert("risk".into(), q);
 
-        let resp = engine.evaluate(&ZevRequest {
-            state: serde_json::json!(state),
-            questions,
-            model: None,
-            temperature: None,
-            enable_temporal_facts: false,
-        }).unwrap();
+        let resp = engine
+            .evaluate(&ZevRequest {
+                state: serde_json::json!(state),
+                questions,
+                model: None,
+                temperature: None,
+                enable_temporal_facts: false,
+            })
+            .unwrap();
 
         let ans = resp.answers.get("risk").unwrap();
         assert_eq!(
@@ -477,10 +573,19 @@ fn test_candidate_generation_with_reserved_slots() {
     let choice_q = Question::Choice(ChoiceQuestion {
         instructions: "Pick one".into(),
         options: vec![
-            OptionDef { id: "a".into(), description: "Option A".into() },
-            OptionDef { id: "b".into(), description: "Option B".into() },
+            OptionDef {
+                id: "a".into(),
+                description: "Option A".into(),
+            },
+            OptionDef {
+                id: "b".into(),
+                description: "Option B".into(),
+            },
         ],
-        policy: Policy { allow_abstain: true, ..Default::default() },
+        policy: Policy {
+            allow_abstain: true,
+            ..Default::default()
+        },
     });
     let choice_cands = zev::generate_candidates(&choice_q);
     assert_eq!(choice_cands.len(), 3);
@@ -491,11 +596,23 @@ fn test_candidate_generation_with_reserved_slots() {
         instructions: "Estimate price".into(),
         unit: "USD".into(),
         anchors: vec![
-            zev::Anchor { value: 10.0, description: "Budget".into() },
-            zev::Anchor { value: 50.0, description: "Midrange".into() },
-            zev::Anchor { value: 100.0, description: "Premium".into() },
+            zev::Anchor {
+                value: 10.0,
+                description: "Budget".into(),
+            },
+            zev::Anchor {
+                value: 50.0,
+                description: "Midrange".into(),
+            },
+            zev::Anchor {
+                value: 100.0,
+                description: "Premium".into(),
+            },
         ],
-        policy: Policy { allow_abstain: true, ..Default::default() },
+        policy: Policy {
+            allow_abstain: true,
+            ..Default::default()
+        },
     });
     let num_cands = zev::generate_candidates(&num_q);
     assert_eq!(num_cands.len(), 6); // 3 anchors + below + above + unknown
@@ -509,8 +626,16 @@ fn test_candidate_generation_with_reserved_slots() {
 fn test_score_monotonicity_and_moment_statistics() {
     let q = Question::Score(zev::ScoreQuestion {
         instructions: "Rate quality 0 to 3".into(),
-        levels: vec!["Poor".into(), "Fair".into(), "Good".into(), "Excellent".into()],
-        policy: Policy { allow_abstain: false, ..Default::default() },
+        levels: vec![
+            "Poor".into(),
+            "Fair".into(),
+            "Good".into(),
+            "Excellent".into(),
+        ],
+        policy: Policy {
+            allow_abstain: false,
+            ..Default::default()
+        },
     });
 
     let candidates = zev::generate_candidates(&q);
@@ -522,7 +647,10 @@ fn test_score_monotonicity_and_moment_statistics() {
     assert!(ans.expected_value.is_some());
     let score = ans.expected_value.unwrap();
     // With higher logits on higher levels, expected mean MUST be > 1.5
-    assert!(score > 1.5, "Expected mean {score} should be > 1.5 due to logit weighting");
+    assert!(
+        score > 1.5,
+        "Expected mean {score} should be > 1.5 due to logit weighting"
+    );
     assert!(ans.statistics.is_some());
     let stats = ans.statistics.unwrap();
     assert!(stats.stddev >= 0.0);
@@ -537,9 +665,18 @@ fn test_out_of_range_guardrail() {
         instructions: "Estimate valuation".into(),
         unit: "M_USD".into(),
         anchors: vec![
-            zev::Anchor { value: 1.0, description: "Seed stage".into() },
-            zev::Anchor { value: 10.0, description: "Series A".into() },
-            zev::Anchor { value: 50.0, description: "Series B".into() },
+            zev::Anchor {
+                value: 1.0,
+                description: "Seed stage".into(),
+            },
+            zev::Anchor {
+                value: 10.0,
+                description: "Series A".into(),
+            },
+            zev::Anchor {
+                value: 50.0,
+                description: "Series B".into(),
+            },
         ],
         policy: Policy {
             allow_abstain: true,
@@ -564,7 +701,10 @@ fn test_question_schema_validation() {
     // 1. Choice with <2 options must fail
     let choice_too_few = Question::Choice(ChoiceQuestion {
         instructions: "Choose".into(),
-        options: vec![OptionDef { id: "lone".into(), description: "Single option".into() }],
+        options: vec![OptionDef {
+            id: "lone".into(),
+            description: "Single option".into(),
+        }],
         policy: Policy::default(),
     });
     assert!(choice_too_few.validate("test_q").is_err());
@@ -572,12 +712,18 @@ fn test_question_schema_validation() {
     // 2. Choice with options exceeding MAX_SLOTS must fail
     let mut too_many = Vec::new();
     for i in 0..30 {
-        too_many.push(OptionDef { id: format!("opt_{i}"), description: format!("Desc {i}") });
+        too_many.push(OptionDef {
+            id: format!("opt_{i}"),
+            description: format!("Desc {i}"),
+        });
     }
     let choice_excess = Question::Choice(ChoiceQuestion {
         instructions: "Choose".into(),
         options: too_many,
-        policy: Policy { allow_abstain: true, ..Default::default() },
+        policy: Policy {
+            allow_abstain: true,
+            ..Default::default()
+        },
     });
     assert!(choice_excess.validate("excess_q").is_err());
 
@@ -586,8 +732,14 @@ fn test_question_schema_validation() {
         instructions: "Measure".into(),
         unit: "kg".into(),
         anchors: vec![
-            zev::Anchor { value: 50.0, description: "Anchor 1".into() },
-            zev::Anchor { value: 30.0, description: "Anchor 2 (invalid decreasing)".into() },
+            zev::Anchor {
+                value: 50.0,
+                description: "Anchor 1".into(),
+            },
+            zev::Anchor {
+                value: 30.0,
+                description: "Anchor 2 (invalid decreasing)".into(),
+            },
         ],
         policy: Policy::default(),
     });
@@ -609,24 +761,41 @@ fn test_multitask_gameplay_combat_decision() {
     let action_q = Question::Choice(ChoiceQuestion {
         instructions: "Select next combat action".into(),
         options: vec![
-            OptionDef { id: "turn_left".into(), description: "Turn weapon crosshairs left".into() },
-            OptionDef { id: "turn_right".into(), description: "Turn weapon crosshairs right".into() },
-            OptionDef { id: "fire".into(), description: "Target centered, discharge rocket".into() },
-            OptionDef { id: "wait".into(), description: "Hold position".into() },
+            OptionDef {
+                id: "turn_left".into(),
+                description: "Turn weapon crosshairs left".into(),
+            },
+            OptionDef {
+                id: "turn_right".into(),
+                description: "Turn weapon crosshairs right".into(),
+            },
+            OptionDef {
+                id: "fire".into(),
+                description: "Target centered, discharge rocket".into(),
+            },
+            OptionDef {
+                id: "wait".into(),
+                description: "Hold position".into(),
+            },
         ],
-        policy: Policy { allow_abstain: false, ..Default::default() },
+        policy: Policy {
+            allow_abstain: false,
+            ..Default::default()
+        },
     });
 
     let mut questions = BTreeMap::new();
     questions.insert("action".into(), action_q);
 
-    let resp = engine.evaluate(&ZevRequest {
-        state: combat_state,
-        questions,
-        model: None,
-        temperature: None,
-        enable_temporal_facts: false,
-    }).unwrap();
+    let resp = engine
+        .evaluate(&ZevRequest {
+            state: combat_state,
+            questions,
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+        })
+        .unwrap();
 
     let ans = resp.answers.get("action").unwrap();
     assert_eq!(ans.decision, Some(serde_json::Value::String("fire".into())));
@@ -643,7 +812,8 @@ fn test_preprocessor_signature_cleaning_and_date_grounding() {
     assert!(cleaned.contains("password reset"));
 
     // 2. Dynamic temporal facts injection
-    let text_with_relative_time = "I requested a payout today, but my account has been locked since yesterday.";
+    let text_with_relative_time =
+        "I requested a payout today, but my account has been locked since yesterday.";
     let grounded = zev::inject_temporal_facts(text_with_relative_time);
     assert!(grounded.contains("Temporal Facts: reference_date="));
     assert!(grounded.contains("yesterday="));
@@ -658,16 +828,28 @@ fn test_confidence_gating_helper() {
     let q = Question::Choice(ChoiceQuestion {
         instructions: "Is this a critical outage?".into(),
         options: vec![
-            OptionDef { id: "critical".into(), description: "Critical server incident production down".into() },
-            OptionDef { id: "routine".into(), description: "Routine general inquiry".into() },
+            OptionDef {
+                id: "critical".into(),
+                description: "Critical server incident production down".into(),
+            },
+            OptionDef {
+                id: "routine".into(),
+                description: "Routine general inquiry".into(),
+            },
         ],
-        policy: Policy { allow_abstain: false, ..Default::default() },
+        policy: Policy {
+            allow_abstain: false,
+            ..Default::default()
+        },
     });
 
     // High confidence threshold (0.50) should pass for clear match
     let (passed, ans) = engine.confidence_gate(state, q, 0.40).unwrap();
     assert!(passed);
-    assert_eq!(ans.decision, Some(serde_json::Value::String("critical".into())));
+    assert_eq!(
+        ans.decision,
+        Some(serde_json::Value::String("critical".into()))
+    );
 }
 
 // --- 11. Optional Neural Backend with apfel-rs (Apple Intelligence / FoundationModels) ---
@@ -681,8 +863,14 @@ fn test_apfel_neural_speculative_hybrid() {
     let q = Question::Choice(ChoiceQuestion {
         instructions: "Assess priority".into(),
         options: vec![
-            OptionDef { id: "critical".into(), description: "Critical outage database degradation".into() },
-            OptionDef { id: "low".into(), description: "Routine question".into() },
+            OptionDef {
+                id: "critical".into(),
+                description: "Critical outage database degradation".into(),
+            },
+            OptionDef {
+                id: "low".into(),
+                description: "Routine question".into(),
+            },
         ],
         policy: Policy::default(),
     });
@@ -698,9 +886,14 @@ fn test_apfel_neural_speculative_hybrid() {
         enable_temporal_facts: false,
     };
 
-    let resp = engine.evaluate_speculative_hybrid(&req, 0.70, &backend).unwrap();
+    let resp = engine
+        .evaluate_speculative_hybrid(&req, 0.70, &backend)
+        .unwrap();
     let ans = resp.answers.get("priority").unwrap();
-    assert_eq!(ans.decision, Some(serde_json::Value::String("critical".into())));
+    assert_eq!(
+        ans.decision,
+        Some(serde_json::Value::String("critical".into()))
+    );
 }
 
 // --- 12. R10 Request Limits Enforcement ---
@@ -711,12 +904,15 @@ fn test_r10_request_limits_enforcement() {
     // 1. More than 64 questions on evaluate
     let mut too_many_q = BTreeMap::new();
     for i in 0..65 {
-        too_many_q.insert(format!("q_{i}"), Question::Boolean(BooleanQuestion {
-            instructions: "Is this valid?".into(),
-            true_description: "Yes".into(),
-            false_description: "No".into(),
-            policy: Policy::default(),
-        }));
+        too_many_q.insert(
+            format!("q_{i}"),
+            Question::Boolean(BooleanQuestion {
+                instructions: "Is this valid?".into(),
+                true_description: "Yes".into(),
+                false_description: "No".into(),
+                policy: Policy::default(),
+            }),
+        );
     }
     let req_q_limit = ZevRequest {
         state: serde_json::json!("State text"),
@@ -736,10 +932,13 @@ fn test_r10_request_limits_enforcement() {
     // 2. More than 64 questions on evaluate_system_one
     let mut too_many_wire = BTreeMap::new();
     for i in 0..65 {
-        too_many_wire.insert(format!("q_{i}"), WireQuestion::Noul(WireNoulQuestion {
-            instructions: serde_json::json!("Is this valid?"),
-            criteria: None,
-        }));
+        too_many_wire.insert(
+            format!("q_{i}"),
+            WireQuestion::Noul(WireNoulQuestion {
+                instructions: serde_json::json!("Is this valid?"),
+                criteria: None,
+            }),
+        );
     }
     let req_wire_q_limit = SystemOneRequest {
         state: serde_json::json!("State text"),
@@ -757,12 +956,15 @@ fn test_r10_request_limits_enforcement() {
     // 3. State > 2MB on evaluate
     let big_state = "a".repeat(2 * 1024 * 1024 + 1);
     let mut single_q = BTreeMap::new();
-    single_q.insert("q".into(), Question::Boolean(BooleanQuestion {
-        instructions: "Test".into(),
-        true_description: "Yes".into(),
-        false_description: "No".into(),
-        policy: Policy::default(),
-    }));
+    single_q.insert(
+        "q".into(),
+        Question::Boolean(BooleanQuestion {
+            instructions: "Test".into(),
+            true_description: "Yes".into(),
+            false_description: "No".into(),
+            policy: Policy::default(),
+        }),
+    );
     let req_state_limit = ZevRequest {
         state: serde_json::json!(big_state),
         questions: single_q,
@@ -780,10 +982,13 @@ fn test_r10_request_limits_enforcement() {
 
     // 4. State > 2MB on evaluate_system_one
     let mut wire_single = BTreeMap::new();
-    wire_single.insert("q".into(), WireQuestion::Noul(WireNoulQuestion {
-        instructions: serde_json::json!("Test"),
-        criteria: None,
-    }));
+    wire_single.insert(
+        "q".into(),
+        WireQuestion::Noul(WireNoulQuestion {
+            instructions: serde_json::json!("Test"),
+            criteria: None,
+        }),
+    );
     let req_wire_state = SystemOneRequest {
         state: serde_json::json!(big_state),
         questions: wire_single,
@@ -819,15 +1024,24 @@ fn test_o1_r8_protocol_unification_and_confidence() {
     let engine = ZevEngine::default();
 
     let mut questions = BTreeMap::new();
-    questions.insert("refund".into(), WireQuestion::Choice(WireChoiceQuestion {
-        instructions: serde_json::json!("Select the primary requested action."),
-        criteria: {
-            let mut m = BTreeMap::new();
-            m.insert("refund".into(), Some(serde_json::json!("Customer wants their money back")));
-            m.insert("support".into(), Some(serde_json::json!("Customer needs technical assistance")));
-            m
-        },
-    }));
+    questions.insert(
+        "refund".into(),
+        WireQuestion::Choice(WireChoiceQuestion {
+            instructions: serde_json::json!("Select the primary requested action."),
+            criteria: {
+                let mut m = BTreeMap::new();
+                m.insert(
+                    "refund".into(),
+                    Some(serde_json::json!("Customer wants their money back")),
+                );
+                m.insert(
+                    "support".into(),
+                    Some(serde_json::json!("Customer needs technical assistance")),
+                );
+                m
+            },
+        }),
+    );
 
     let req = SystemOneRequest {
         state: serde_json::json!("I want a full refund for my purchase!"),
@@ -844,7 +1058,10 @@ fn test_o1_r8_protocol_unification_and_confidence() {
     assert_eq!(ans.get("source").unwrap(), "native");
 
     let conf = ans.get("confidence").unwrap().as_f64().unwrap();
-    assert!(conf > 0.0 && conf <= 1.0, "Confidence must be calibrated in (0, 1], got {conf}");
+    assert!(
+        conf > 0.0 && conf <= 1.0,
+        "Confidence must be calibrated in (0, 1], got {conf}"
+    );
 
     let probs = ans.get("probabilities").unwrap().as_object().unwrap();
     let p_refund = probs.get("refund").unwrap().as_f64().unwrap();
@@ -852,4 +1069,3 @@ fn test_o1_r8_protocol_unification_and_confidence() {
     assert!(p_refund > p_support);
     assert!((p_refund + p_support - 1.0).abs() < 1e-4);
 }
-

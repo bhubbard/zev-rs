@@ -27,8 +27,8 @@
 
 use std::collections::BTreeMap;
 use zev::types::{
-    BooleanQuestion, ChoiceQuestion, OptionDef, Policy, Question, ScoreQuestion,
-    SystemOneRequest, WireNoulCriteria, WireNoulQuestion, WireQuestion, ZevRequest,
+    BooleanQuestion, ChoiceQuestion, OptionDef, Policy, Question, ScoreQuestion, SystemOneRequest,
+    WireNoulCriteria, WireNoulQuestion, WireQuestion, ZevRequest,
 };
 use zev::DecisionEngine;
 
@@ -90,12 +90,27 @@ fn test_easy_extraction_06_short_token_size() {
         Question::Choice(ChoiceQuestion {
             instructions: "Which shirt size does the customer ask for?".into(),
             options: vec![
-                OptionDef { id: "S".into(), description: "Small".into() },
-                OptionDef { id: "M".into(), description: "Medium".into() },
-                OptionDef { id: "L".into(), description: "Large".into() },
-                OptionDef { id: "XL".into(), description: "Extra large".into() },
+                OptionDef {
+                    id: "S".into(),
+                    description: "Small".into(),
+                },
+                OptionDef {
+                    id: "M".into(),
+                    description: "Medium".into(),
+                },
+                OptionDef {
+                    id: "L".into(),
+                    description: "Large".into(),
+                },
+                OptionDef {
+                    id: "XL".into(),
+                    description: "Extra large".into(),
+                },
             ],
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         }),
     );
 
@@ -135,15 +150,21 @@ fn test_easy_fact_03_morphological_negation_unpaid() {
     questions.insert(
         "easy-fact-03".to_string(),
         Question::Boolean(BooleanQuestion {
-            instructions: "Is the invoice paid? Answer strictly from the facts stated in the text.".into(),
+            instructions: "Is the invoice paid? Answer strictly from the facts stated in the text."
+                .into(),
             true_description: "The text states that this is so".into(),
             false_description: "The text states that this is not so".into(),
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         }),
     );
 
     let req = ZevRequest {
-        state: serde_json::json!("Invoice 2026-045. Amount: 80 EUR. Payment status: unpaid, overdue since 1 August."),
+        state: serde_json::json!(
+            "Invoice 2026-045. Amount: 80 EUR. Payment status: unpaid, overdue since 1 August."
+        ),
         questions,
         model: None,
         temperature: None,
@@ -559,7 +580,9 @@ fn test_original_ordinal_04_0_severity_irreversible_loss() {
     );
 
     let req = ZevRequest {
-        state: serde_json::json!("Backups and original customer records have been irreversibly deleted."),
+        state: serde_json::json!(
+            "Backups and original customer records have been irreversibly deleted."
+        ),
         questions,
         model: None,
         temperature: None,
@@ -584,18 +607,38 @@ fn test_easy_intent_04_billing_question() {
         Question::Choice(ChoiceQuestion {
             instructions: "Which intent does the user's message express?".into(),
             options: vec![
-                OptionDef { id: "track_order".into(), description: "Track order".into() },
-                OptionDef { id: "cancel_order".into(), description: "Cancel order".into() },
-                OptionDef { id: "change_address".into(), description: "Change address".into() },
-                OptionDef { id: "report_damage".into(), description: "Report damage".into() },
-                OptionDef { id: "billing_question".into(), description: "Billing question".into() },
+                OptionDef {
+                    id: "track_order".into(),
+                    description: "Track order".into(),
+                },
+                OptionDef {
+                    id: "cancel_order".into(),
+                    description: "Cancel order".into(),
+                },
+                OptionDef {
+                    id: "change_address".into(),
+                    description: "Change address".into(),
+                },
+                OptionDef {
+                    id: "report_damage".into(),
+                    description: "Report damage".into(),
+                },
+                OptionDef {
+                    id: "billing_question".into(),
+                    description: "Billing question".into(),
+                },
             ],
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         }),
     );
 
     let req = ZevRequest {
-        state: serde_json::json!("Why was I charged twice on my credit card statement for one order?"),
+        state: serde_json::json!(
+            "Why was I charged twice on my credit card statement for one order?"
+        ),
         questions,
         model: None,
         temperature: None,
@@ -616,13 +659,31 @@ fn test_easy_intent_08_weather() {
         Question::Choice(ChoiceQuestion {
             instructions: "Which intent does the user's message express?".into(),
             options: vec![
-                OptionDef { id: "set_alarm".into(), description: "Set alarm".into() },
-                OptionDef { id: "play_music".into(), description: "Play music".into() },
-                OptionDef { id: "weather".into(), description: "Weather".into() },
-                OptionDef { id: "send_message".into(), description: "Send message".into() },
-                OptionDef { id: "turn_off_lights".into(), description: "Turn off lights".into() },
+                OptionDef {
+                    id: "set_alarm".into(),
+                    description: "Set alarm".into(),
+                },
+                OptionDef {
+                    id: "play_music".into(),
+                    description: "Play music".into(),
+                },
+                OptionDef {
+                    id: "weather".into(),
+                    description: "Weather".into(),
+                },
+                OptionDef {
+                    id: "send_message".into(),
+                    description: "Send message".into(),
+                },
+                OptionDef {
+                    id: "turn_off_lights".into(),
+                    description: "Turn off lights".into(),
+                },
             ],
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         }),
     );
 
@@ -659,7 +720,9 @@ fn test_original_intent_04_0_cancel_imperative() {
     );
 
     let req = ZevRequest {
-        state: serde_json::json!("Stop renewing my subscription after this month; I am not asking for money back."),
+        state: serde_json::json!(
+            "Stop renewing my subscription after this month; I am not asking for money back."
+        ),
         questions,
         model: None,
         temperature: None,
@@ -722,7 +785,9 @@ fn test_original_extraction_01_1_depot_pickup_replacing_courier() {
     );
 
     let req = ZevRequest {
-        state: serde_json::json!("The final arrangement is depot pickup, replacing the earlier courier idea."),
+        state: serde_json::json!(
+            "The final arrangement is depot pickup, replacing the earlier courier idea."
+        ),
         questions,
         model: None,
         temperature: None,
@@ -763,4 +828,44 @@ fn test_original_extraction_02_0_unknown_delivery_hypothetical() {
     let resp = engine.eval(&req).expect("evaluation failed");
     let decision = get_choice_decision(&resp, "decision");
     assert_eq!(decision, Some("unknown".to_string()));
+}
+
+#[test]
+fn test_laya_377_cancellation_negation_inversion() {
+    let engine = DecisionEngine::new();
+    let mut questions = BTreeMap::new();
+    questions.insert(
+        "q".to_string(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "What does the user want?".into(),
+            options: vec![
+                OptionDef {
+                    id: "no_action".into(),
+                    description: "keep the account as it is".into(),
+                },
+                OptionDef {
+                    id: "cancel_account".into(),
+                    description: "close the account".into(),
+                },
+            ],
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
+        }),
+    );
+
+    let req = ZevRequest {
+        state: serde_json::json!(
+            "I do not want to cancel my subscription. Please keep the account as it is."
+        ),
+        questions,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+    };
+
+    let resp = engine.eval(&req).expect("evaluation failed");
+    let decision = get_choice_decision(&resp, "q");
+    assert_eq!(decision, Some("no_action".to_string()));
 }

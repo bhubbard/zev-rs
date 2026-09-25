@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-use std::time::Instant;
 use crate::calibration::resolve_temperature;
 use crate::decoding::{decode_decision, generate_candidates};
 use crate::error::{Result, ZevError};
@@ -7,10 +5,11 @@ use crate::order_invariant::{compute_order_invariant_logits_with_context, Premis
 use crate::preprocessor::preprocess_state;
 use crate::shortlist::shortlist_options;
 use crate::types::{
-    ChoiceQuestion, ExecutionTiming, OptionDef, Policy, Question,
-    SystemOneRequest, SystemOneResponse, WireUsage, ZevAnswer,
-    ZevRequest, ZevResponse, DEFAULT_MODEL, MAX_SLOTS,
+    ChoiceQuestion, ExecutionTiming, OptionDef, Policy, Question, SystemOneRequest,
+    SystemOneResponse, WireUsage, ZevAnswer, ZevRequest, ZevResponse, DEFAULT_MODEL, MAX_SLOTS,
 };
+use std::collections::BTreeMap;
+use std::time::Instant;
 
 pub trait Evaluable {
     type Output;
@@ -81,10 +80,12 @@ fn detect_constraint_violation(state_text: &str) -> bool {
     }
 
     // 3. Completeness constraint ("name both" / "return both" but only 1 given)
-    if lower.contains("name both") || lower.contains("return both") {
-        if lower.contains("gives only ") || lower.contains("only red") || lower.contains("response:red") {
-            return true;
-        }
+    if (lower.contains("name both") || lower.contains("return both"))
+        && (lower.contains("gives only ")
+            || lower.contains("only red")
+            || lower.contains("response:red"))
+    {
+        return true;
     }
 
     false
@@ -126,7 +127,7 @@ pub fn detect_policy_precondition_violation(state_text: &str, instr_text: &str) 
             let actual_pos = start + pos + phrase.len();
             if actual_pos < combined.len() {
                 let rest = &combined[actual_pos..];
-                if rest.chars().next().map_or(false, |c| c.is_alphabetic()) {
+                if rest.chars().next().is_some_and(|c| c.is_alphabetic()) {
                     return true;
                 }
             }
@@ -172,20 +173,23 @@ pub fn apply_mention_vs_request_intent_filter(state_text: &str, instr_text: &str
     }
 
     // Check if the message is purely declarative gratitude or comprehension
-    let is_declarative = state_lower.contains("thanks for explaining")
+
+    state_lower.contains("thanks for explaining")
         || state_lower.contains("thank you")
         || state_lower.contains("thanks")
         || state_lower.contains("understand the policy")
         || state_lower.contains("understand")
         || state_lower.contains("clearer now")
         || state_lower.contains("clear now")
-        || state_lower.contains("makes sense now");
-
-    is_declarative
+        || state_lower.contains("makes sense now")
 }
 
 /// Confirmed delivery extraction (handles superseded alternatives, hypothetical methods)
-pub fn detect_confirmed_delivery_extraction(state_text: &str, instr_text: &str, options: &[&str]) -> Option<String> {
+pub fn detect_confirmed_delivery_extraction(
+    state_text: &str,
+    instr_text: &str,
+    options: &[&str],
+) -> Option<String> {
     let instr_lower = instr_text.to_lowercase();
     if !instr_lower.contains("delivery method") && !instr_lower.contains("confirmed") {
         return None;
@@ -205,7 +209,8 @@ pub fn detect_confirmed_delivery_extraction(state_text: &str, instr_text: &str, 
         return Some("unknown".to_string());
     }
 
-    if state_lower.contains("replacing the earlier courier") || state_lower.contains("depot pickup") {
+    if state_lower.contains("replacing the earlier courier") || state_lower.contains("depot pickup")
+    {
         return Some("pickup".to_string());
     }
 
@@ -217,7 +222,11 @@ pub fn detect_confirmed_delivery_extraction(state_text: &str, instr_text: &str, 
 }
 
 /// Actionable intent classification (handles billing semantics, weather, cancellation imperative vs gratitude, status)
-pub fn detect_customer_intent_action(state_text: &str, instr_text: &str, options: &[&str]) -> Option<String> {
+pub fn detect_customer_intent_action(
+    state_text: &str,
+    instr_text: &str,
+    options: &[&str],
+) -> Option<String> {
     let instr_lower = instr_text.to_lowercase();
     let is_intent_task = instr_lower.contains("intent")
         || instr_lower.contains("primary requested action")
@@ -230,37 +239,36 @@ pub fn detect_customer_intent_action(state_text: &str, instr_text: &str, options
 
     let state_lower = state_text.to_lowercase();
 
-    if options.contains(&"billing_question") {
-        if state_lower.contains("why was i charged")
+    if options.contains(&"billing_question")
+        && (state_lower.contains("why was i charged")
             || state_lower.contains("credit card statement")
             || state_lower.contains("charged twice")
             || state_lower.contains("charged")
-            || state_lower.contains("billing")
-        {
-            return Some("billing_question".to_string());
-        }
+            || state_lower.contains("billing"))
+    {
+        return Some("billing_question".to_string());
     }
 
-    if options.contains(&"weather") {
-        if state_lower.contains("rain in")
+    if options.contains(&"weather")
+        && (state_lower.contains("rain in")
             || state_lower.contains("will it rain")
             || state_lower.contains("forecast")
             || state_lower.contains("snow in")
             || state_lower.contains("temperature")
-            || state_lower.contains("weather")
-        {
-            return Some("weather".to_string());
-        }
+            || state_lower.contains("weather"))
+    {
+        return Some("weather".to_string());
     }
 
-    if options.contains(&"cancel") {
-        if state_lower.contains("stop renewing") || state_lower.contains("end the membership") {
-            return Some("cancel".to_string());
-        }
+    if options.contains(&"cancel")
+        && (state_lower.contains("stop renewing") || state_lower.contains("end the membership"))
+    {
+        return Some("cancel".to_string());
     }
 
     if options.contains(&"status") {
-        if (state_lower.contains("cancelled yesterday") || state_lower.contains("cancellation is already done"))
+        if (state_lower.contains("cancelled yesterday")
+            || state_lower.contains("cancellation is already done"))
             && (state_lower.contains("was the parcel delivered")
                 || state_lower.contains("has arrived")
                 || state_lower.contains("where is")
@@ -268,25 +276,30 @@ pub fn detect_customer_intent_action(state_text: &str, instr_text: &str, options
         {
             return Some("status".to_string());
         }
-        if state_lower.contains("keep the delivery address as it is") && state_lower.contains("where is the parcel") {
+        if state_lower.contains("keep the delivery address as it is")
+            && state_lower.contains("where is the parcel")
+        {
             return Some("status".to_string());
         }
     }
 
-    if options.contains(&"change_address") {
-        if state_lower.contains("send it to my new office instead")
+    if options.contains(&"change_address")
+        && (state_lower.contains("send it to my new office instead")
             || state_lower.contains("send it to my new")
-            || state_lower.contains("ship to my new")
-        {
-            return Some("change_address".to_string());
-        }
+            || state_lower.contains("ship to my new"))
+    {
+        return Some("change_address".to_string());
     }
 
     None
 }
 
 /// Ordinal Severity Ladder for incident rating tasks (Fix 5)
-pub fn evaluate_ordinal_severity_ladder(state_text: &str, instr_text: &str, criteria_len: usize) -> Option<usize> {
+pub fn evaluate_ordinal_severity_ladder(
+    state_text: &str,
+    instr_text: &str,
+    criteria_len: usize,
+) -> Option<usize> {
     if criteria_len != 4 {
         return None;
     }
@@ -402,16 +415,25 @@ pub fn determine_question_family(question: &Question) -> &'static str {
     let instr_lower = question.instructions().to_lowercase();
     match question {
         Question::Boolean(_) => {
-            if instr_lower.contains("policy") || instr_lower.contains("rule") || instr_lower.contains("term") {
+            if instr_lower.contains("policy")
+                || instr_lower.contains("rule")
+                || instr_lower.contains("term")
+            {
                 "policy"
             } else {
                 "boolean"
             }
         }
         Question::Choice(_) => {
-            if instr_lower.contains("intent") || instr_lower.contains("action") || instr_lower.contains("route") {
+            if instr_lower.contains("intent")
+                || instr_lower.contains("action")
+                || instr_lower.contains("route")
+            {
                 "intent"
-            } else if instr_lower.contains("policy") || instr_lower.contains("rule") || instr_lower.contains("term") {
+            } else if instr_lower.contains("policy")
+                || instr_lower.contains("rule")
+                || instr_lower.contains("term")
+            {
                 "policy"
             } else if instr_lower.contains("trap") || instr_lower.contains("adversar") {
                 "trap"
@@ -455,6 +477,11 @@ impl ZevEngine {
         }
 
         let state_borrowed: std::borrow::Cow<str> = match &req.state {
+            serde_json::Value::Null => {
+                return Err(crate::error::ZevError::InvalidRequest(
+                    "Request state cannot be null or omitted".into(),
+                ));
+            }
             serde_json::Value::String(s) => std::borrow::Cow::Borrowed(s.as_str()),
             other => std::borrow::Cow::Owned(serde_json::to_string(other)?),
         };
@@ -490,7 +517,8 @@ impl ZevEngine {
                         slot_limit.max(2)
                     };
                     if c.options.len() > max_keep {
-                        let shortlisted = shortlist_options(&c.options, &preprocessed_state, max_keep);
+                        let shortlisted =
+                            shortlist_options(&c.options, &preprocessed_state, max_keep);
                         shortlisted_storage = Some(Question::Choice(ChoiceQuestion {
                             instructions: c.instructions.clone(),
                             options: shortlisted,
@@ -522,33 +550,47 @@ impl ZevEngine {
             match final_question {
                 Question::Boolean(b) => {
                     // Fix 3: Policy Precondition Violation Detector for [no, yes]
-                    if detect_policy_precondition_violation(&preprocessed_state, &b.instructions) {
-                        if candidates.len() >= 2 {
-                            logits[0] = (logits[0] + 6.0).max(logits[1] + 6.0); // false / no
-                            logits[1] = logits[1].min(logits[0] - 6.0); // true / yes
-                        }
+                    if detect_policy_precondition_violation(&preprocessed_state, &b.instructions)
+                        && candidates.len() >= 2
+                    {
+                        logits[0] = (logits[0] + 6.0).max(logits[1] + 6.0); // false / no
+                        logits[1] = logits[1].min(logits[0] - 6.0); // true / yes
                     }
                 }
                 Question::Choice(c) => {
                     // Fix 3: Policy Precondition Violation Detector
-                    let is_boolean_choice = c.options.len() == 2 &&
-                        ((c.options[0].id == "false" && c.options[1].id == "true")
-                         || (c.options[0].id == "no" && c.options[1].id == "yes")
-                         || (c.options[0].id == "true" && c.options[1].id == "false")
-                         || (c.options[0].id == "yes" && c.options[1].id == "no"));
-                    if is_boolean_choice && detect_policy_precondition_violation(&preprocessed_state, &c.instructions) {
-                        let false_idx = if c.options[0].id == "false" || c.options[0].id == "no" { 0 } else { 1 };
+                    let is_boolean_choice = c.options.len() == 2
+                        && ((c.options[0].id == "false" && c.options[1].id == "true")
+                            || (c.options[0].id == "no" && c.options[1].id == "yes")
+                            || (c.options[0].id == "true" && c.options[1].id == "false")
+                            || (c.options[0].id == "yes" && c.options[1].id == "no"));
+                    if is_boolean_choice
+                        && detect_policy_precondition_violation(
+                            &preprocessed_state,
+                            &c.instructions,
+                        )
+                    {
+                        let false_idx = if c.options[0].id == "false" || c.options[0].id == "no" {
+                            0
+                        } else {
+                            1
+                        };
                         let true_idx = 1 - false_idx;
                         logits[false_idx] = (logits[false_idx] + 6.0).max(logits[true_idx] + 6.0);
                         logits[true_idx] = logits[true_idx].min(logits[false_idx] - 6.0);
                     }
 
                     // Fix 4: 'Mention vs Request' Intent Filter
-                    if apply_mention_vs_request_intent_filter(&preprocessed_state, &c.instructions) {
+                    if apply_mention_vs_request_intent_filter(&preprocessed_state, &c.instructions)
+                    {
                         for (idx, opt) in c.options.iter().enumerate() {
                             let id_lower = opt.id.to_lowercase();
                             let desc_lower = opt.description.to_lowercase();
-                            if id_lower == "other" || id_lower == "neutral" || id_lower == "none" || desc_lower.contains("none of these") {
+                            if id_lower == "other"
+                                || id_lower == "neutral"
+                                || id_lower == "none"
+                                || desc_lower.contains("none of these")
+                            {
                                 logits[idx] += 6.0;
                             } else {
                                 logits[idx] -= 6.0;
@@ -558,7 +600,11 @@ impl ZevEngine {
 
                     // Fix 6: Confirmed Delivery Extraction & Customer Intent Actions
                     let opt_ids: Vec<&str> = c.options.iter().map(|o| o.id.as_str()).collect();
-                    if let Some(target) = detect_confirmed_delivery_extraction(&preprocessed_state, &c.instructions, &opt_ids) {
+                    if let Some(target) = detect_confirmed_delivery_extraction(
+                        &preprocessed_state,
+                        &c.instructions,
+                        &opt_ids,
+                    ) {
                         for (idx, opt) in c.options.iter().enumerate() {
                             if opt.id == target {
                                 logits[idx] += 8.0;
@@ -566,7 +612,11 @@ impl ZevEngine {
                                 logits[idx] -= 4.0;
                             }
                         }
-                    } else if let Some(target) = detect_customer_intent_action(&preprocessed_state, &c.instructions, &opt_ids) {
+                    } else if let Some(target) = detect_customer_intent_action(
+                        &preprocessed_state,
+                        &c.instructions,
+                        &opt_ids,
+                    ) {
                         for (idx, opt) in c.options.iter().enumerate() {
                             if opt.id == target {
                                 logits[idx] += 8.0;
@@ -578,12 +628,16 @@ impl ZevEngine {
                 }
                 Question::Score(s) => {
                     // Fix 5: Ordinal Severity Ladder
-                    if let Some(target_idx) = evaluate_ordinal_severity_ladder(&preprocessed_state, &s.instructions, s.levels.len()) {
-                        for idx in 0..s.levels.len() {
+                    if let Some(target_idx) = evaluate_ordinal_severity_ladder(
+                        &preprocessed_state,
+                        &s.instructions,
+                        s.levels.len(),
+                    ) {
+                        for (idx, logit) in logits.iter_mut().enumerate().take(s.levels.len()) {
                             if idx == target_idx {
-                                logits[idx] += 8.0;
+                                *logit += 8.0;
                             } else {
-                                logits[idx] -= 4.0;
+                                *logit -= 4.0;
                             }
                         }
                     }
@@ -594,7 +648,8 @@ impl ZevEngine {
             // 4. Calibrated Decoding & Moment Statistics with family temperatures & margin dampening
             let family = determine_question_family(final_question);
             let family_temp = crate::calibration::family_calibrated_temperature(family, temp);
-            let effective_temp = crate::calibration::dampen_temperature_by_margin(&logits, family_temp, 0.40);
+            let effective_temp =
+                crate::calibration::dampen_temperature_by_margin(&logits, family_temp, 0.40);
 
             let mut answer = decode_decision(final_question, &candidates, &logits, effective_temp)?;
 
@@ -607,12 +662,16 @@ impl ZevEngine {
                         let state_emb = crate::clm::embed_text(&preprocessed_state, 512);
                         let mut clm_logits = Vec::with_capacity(c.options.len());
                         for opt in &c.options {
-                            let action_emb = crate::clm::embed_text(&format!("{} {}", opt.id, opt.description), 512);
+                            let action_emb = crate::clm::embed_text(
+                                &format!("{} {}", opt.id, opt.description),
+                                512,
+                            );
                             verifier.register_action_embedding(&opt.id, &action_emb);
                             let score = verifier.head.score(&state_emb, &action_emb);
                             clm_logits.push(score);
                         }
-                        if let Ok(clm_probs) = crate::calibration::scaled_softmax(&clm_logits, 1.0) {
+                        if let Ok(clm_probs) = crate::calibration::scaled_softmax(&clm_logits, 1.0)
+                        {
                             let mut best_idx = 0;
                             let mut best_p = -1.0;
                             let mut prob_map = BTreeMap::new();
@@ -626,7 +685,8 @@ impl ZevEngine {
                                     best_idx = idx;
                                 }
                             }
-                            answer.decision = Some(serde_json::Value::String(c.options[best_idx].id.clone()));
+                            answer.decision =
+                                Some(serde_json::Value::String(c.options[best_idx].id.clone()));
                             answer.confidence = best_p;
                             answer.probabilities = prob_map;
                             answer.logits = logit_map;
@@ -638,7 +698,9 @@ impl ZevEngine {
                 #[cfg(feature = "neural")]
                 if fallback_mode == "apfel" || fallback_mode == "neural" {
                     let backend = crate::neural::ApfelNeuralBackend::new();
-                    if let Ok(mut neural_ans) = backend.evaluate_candidates(&state_borrowed, final_question, &candidates) {
+                    if let Ok(mut neural_ans) =
+                        backend.evaluate_candidates(&state_borrowed, final_question, &candidates)
+                    {
                         neural_ans.source = Some("neural".to_string());
                         answer = neural_ans;
                     }
@@ -698,7 +760,10 @@ impl ZevEngine {
         let mut wire_answers = BTreeMap::new();
         for (key, wire_q) in &req.questions {
             if let Some(ans) = zev_resp.answers.get(key) {
-                wire_answers.insert(key.clone(), crate::wire::wire_value_from_zev_answer(wire_q, ans)?);
+                wire_answers.insert(
+                    key.clone(),
+                    crate::wire::wire_value_from_zev_answer(wire_q, ans)?,
+                );
             }
         }
 
@@ -713,7 +778,12 @@ impl ZevEngine {
     }
 
     /// Fast confidence gate helper
-    pub fn confidence_gate(&self, state: &str, question: Question, threshold: f64) -> Result<(bool, ZevAnswer)> {
+    pub fn confidence_gate(
+        &self,
+        state: &str,
+        question: Question,
+        threshold: f64,
+    ) -> Result<(bool, ZevAnswer)> {
         let mut questions = BTreeMap::new();
         questions.insert("gate".into(), question);
         let req = ZevRequest {
@@ -733,12 +803,18 @@ impl ZevEngine {
     pub fn route(&self, state: &str, routes: BTreeMap<String, String>) -> Result<(String, f64)> {
         let options = routes
             .into_iter()
-            .map(|(id, desc)| OptionDef { id, description: desc })
+            .map(|(id, desc)| OptionDef {
+                id,
+                description: desc,
+            })
             .collect();
         let question = Question::Choice(ChoiceQuestion {
             instructions: "Route to the best destination".into(),
             options,
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         });
         let mut questions = BTreeMap::new();
         questions.insert("route".into(), question);
@@ -780,7 +856,9 @@ impl ZevEngine {
             if let Some(ans) = resp.answers.get_mut(key) {
                 if ans.confidence < confidence_threshold || ans.status != "ok" {
                     let candidates = crate::decoding::generate_candidates(q);
-                    if let Ok(neural_ans) = neural_backend.evaluate_candidates(&state_str, q, &candidates) {
+                    if let Ok(neural_ans) =
+                        neural_backend.evaluate_candidates(&state_str, q, &candidates)
+                    {
                         *ans = neural_ans;
                     }
                 }
@@ -791,7 +869,10 @@ impl ZevEngine {
     }
 
     /// Evaluates a Tev1-formatted request with sub-10-microsecond latency and 100% order-invariance
-    pub fn evaluate_tev1(&self, req: &crate::tev1::Tev1Request) -> Result<crate::tev1::Tev1Response> {
+    pub fn evaluate_tev1(
+        &self,
+        req: &crate::tev1::Tev1Request,
+    ) -> Result<crate::tev1::Tev1Response> {
         if req.state.len() > crate::types::MAX_STATE_BYTES {
             return Err(ZevError::InvalidRequest(
                 "State size exceeds maximum allowed limit of 2MB".to_string(),
@@ -824,23 +905,34 @@ mod tests {
         let resp = engine.evaluate_system_one(&req).unwrap();
         let ans = resp.answers.get("decision").unwrap();
         let p_true = ans.get("noul").unwrap().as_f64().unwrap();
-        assert!(p_true < 0.2, "Dispute is open must result in low p_true (no), got {p_true}");
+        assert!(
+            p_true < 0.2,
+            "Dispute is open must result in low p_true (no), got {p_true}"
+        );
 
         // Proof of purchase is absent
         let mut questions2 = BTreeMap::new();
-        questions2.insert("decision".into(), WireQuestion::Noul(WireNoulQuestion {
-            instructions: serde_json::json!("Under policy, is refund allowed?"),
-            criteria: None,
-        }));
+        questions2.insert(
+            "decision".into(),
+            WireQuestion::Noul(WireNoulQuestion {
+                instructions: serde_json::json!("Under policy, is refund allowed?"),
+                criteria: None,
+            }),
+        );
         let req2 = SystemOneRequest {
-            state: serde_json::json!("The purchase was 12 days ago; proof of purchase is absent. May we refund?"),
+            state: serde_json::json!(
+                "The purchase was 12 days ago; proof of purchase is absent. May we refund?"
+            ),
             questions: questions2,
             model: "zev".into(),
         };
         let resp2 = engine.evaluate_system_one(&req2).unwrap();
         let ans2 = resp2.answers.get("decision").unwrap();
         let p_true2 = ans2.get("noul").unwrap().as_f64().unwrap();
-        assert!(p_true2 < 0.2, "Proof absent must result in low p_true (no), got {p_true2}");
+        assert!(
+            p_true2 < 0.2,
+            "Proof absent must result in low p_true (no), got {p_true2}"
+        );
     }
 
     #[test]
@@ -849,9 +941,18 @@ mod tests {
 
         // Mention without request: purely declarative gratitude
         let mut criteria = BTreeMap::new();
-        criteria.insert("cancel".into(), Some(serde_json::json!("End an existing subscription")));
-        criteria.insert("refund".into(), Some(serde_json::json!("Return money already charged")));
-        criteria.insert("other".into(), Some(serde_json::json!("None of these actions is requested")));
+        criteria.insert(
+            "cancel".into(),
+            Some(serde_json::json!("End an existing subscription")),
+        );
+        criteria.insert(
+            "refund".into(),
+            Some(serde_json::json!("Return money already charged")),
+        );
+        criteria.insert(
+            "other".into(),
+            Some(serde_json::json!("None of these actions is requested")),
+        );
 
         let mut questions = BTreeMap::new();
         questions.insert("decision".into(), WireQuestion::Choice(WireChoiceQuestion {
@@ -859,14 +960,19 @@ mod tests {
             criteria: criteria.clone(),
         }));
         let req = SystemOneRequest {
-            state: serde_json::json!("Your refund policy is clearer now. Thanks for explaining it."),
+            state: serde_json::json!(
+                "Your refund policy is clearer now. Thanks for explaining it."
+            ),
             questions,
             model: "zev".into(),
         };
         let resp = engine.evaluate_system_one(&req).unwrap();
         let ans = resp.answers.get("decision").unwrap();
         let choice = ans.get("choice").unwrap().as_str().unwrap();
-        assert_eq!(choice, "other", "Declarative gratitude without request must choose 'other', got {choice}");
+        assert_eq!(
+            choice, "other",
+            "Declarative gratitude without request must choose 'other', got {choice}"
+        );
 
         // Actual request: should choose refund/cancel
         let mut questions2 = BTreeMap::new();
@@ -882,7 +988,10 @@ mod tests {
         let resp2 = engine.evaluate_system_one(&req2).unwrap();
         let ans2 = resp2.answers.get("decision").unwrap();
         let choice2 = ans2.get("choice").unwrap().as_str().unwrap();
-        assert_eq!(choice2, "refund", "Direct request must choose 'refund', got {choice2}");
+        assert_eq!(
+            choice2, "refund",
+            "Direct request must choose 'refund', got {choice2}"
+        );
     }
 
     #[test]
@@ -903,12 +1012,21 @@ mod tests {
             criteria: criteria.clone(),
         }));
         let req3 = SystemOneRequest {
-            state: serde_json::json!("Backups and original customer records have been irreversibly deleted."),
+            state: serde_json::json!(
+                "Backups and original customer records have been irreversibly deleted."
+            ),
             questions: q3,
             model: "zev".into(),
         };
         let resp3 = engine.evaluate_system_one(&req3).unwrap();
-        let score3 = resp3.answers.get("decision").unwrap().get("score").unwrap().as_f64().unwrap();
+        let score3 = resp3
+            .answers
+            .get("decision")
+            .unwrap()
+            .get("score")
+            .unwrap()
+            .as_f64()
+            .unwrap();
         assert!(score3 >= 2.5, "Level 3 expected score >= 2.5, got {score3}");
 
         // Level 2: cannot sign in
@@ -923,8 +1041,18 @@ mod tests {
             model: "zev".into(),
         };
         let resp2 = engine.evaluate_system_one(&req2).unwrap();
-        let score2 = resp2.answers.get("decision").unwrap().get("score").unwrap().as_f64().unwrap();
-        assert!((score2 - 2.0).abs() < 0.5, "Level 2 expected score close to 2.0, got {score2}");
+        let score2 = resp2
+            .answers
+            .get("decision")
+            .unwrap()
+            .get("score")
+            .unwrap()
+            .as_f64()
+            .unwrap();
+        assert!(
+            (score2 - 2.0).abs() < 0.5,
+            "Level 2 expected score close to 2.0, got {score2}"
+        );
 
         // Level 0: every function works
         let mut q0 = BTreeMap::new();
@@ -933,13 +1061,21 @@ mod tests {
             criteria,
         }));
         let req0 = SystemOneRequest {
-            state: serde_json::json!("Despite a warning banner, checks find every function working and no missing data."),
+            state: serde_json::json!(
+                "Despite a warning banner, checks find every function working and no missing data."
+            ),
             questions: q0,
             model: "zev".into(),
         };
         let resp0 = engine.evaluate_system_one(&req0).unwrap();
-        let score0 = resp0.answers.get("decision").unwrap().get("score").unwrap().as_f64().unwrap();
+        let score0 = resp0
+            .answers
+            .get("decision")
+            .unwrap()
+            .get("score")
+            .unwrap()
+            .as_f64()
+            .unwrap();
         assert!(score0 < 0.5, "Level 0 expected score < 0.5, got {score0}");
     }
 }
-

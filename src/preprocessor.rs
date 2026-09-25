@@ -1,20 +1,20 @@
-use std::borrow::Cow;
 use chrono::{Duration, Utc};
+use std::borrow::Cow;
 
 /// Injects dynamic temporal reference facts to ground relative time expressions.
 /// Zero-allocation fast-path when no relative temporal words are found.
 pub fn inject_temporal_facts<'a>(text: &'a str) -> Cow<'a, str> {
     let bytes = text.as_bytes();
-    let has_relative_time = bytes.windows(5).any(|w| {
-        w.eq_ignore_ascii_case(b"today")
-            || w.eq_ignore_ascii_case(b"hours")
-    }) || bytes.windows(7).any(|w| {
-        w.eq_ignore_ascii_case(b"days ag")
-            || w.eq_ignore_ascii_case(b"yesterd")
-            || w.eq_ignore_ascii_case(b"tomorro")
-            || w.eq_ignore_ascii_case(b"last we")
-            || w.eq_ignore_ascii_case(b"last mo")
-    });
+    let has_relative_time = bytes
+        .windows(5)
+        .any(|w| w.eq_ignore_ascii_case(b"today") || w.eq_ignore_ascii_case(b"hours"))
+        || bytes.windows(7).any(|w| {
+            w.eq_ignore_ascii_case(b"days ag")
+                || w.eq_ignore_ascii_case(b"yesterd")
+                || w.eq_ignore_ascii_case(b"tomorro")
+                || w.eq_ignore_ascii_case(b"last we")
+                || w.eq_ignore_ascii_case(b"last mo")
+        });
 
     if !has_relative_time {
         return Cow::Borrowed(text);
@@ -38,8 +38,14 @@ pub fn inject_temporal_facts<'a>(text: &'a str) -> Cow<'a, str> {
 pub fn clean_text<'a>(input: &'a str) -> Cow<'a, str> {
     let has_disclaimer = input.contains("---")
         || input.contains("___")
-        || input.as_bytes().windows(15).any(|w| w.eq_ignore_ascii_case(b"confidentiality"))
-        || input.as_bytes().windows(18).any(|w| w.eq_ignore_ascii_case(b"this email and any"));
+        || input
+            .as_bytes()
+            .windows(15)
+            .any(|w| w.eq_ignore_ascii_case(b"confidentiality"))
+        || input
+            .as_bytes()
+            .windows(18)
+            .any(|w| w.eq_ignore_ascii_case(b"this email and any"));
 
     if !has_disclaimer {
         return Cow::Borrowed(input.trim());
@@ -51,7 +57,9 @@ pub fn clean_text<'a>(input: &'a str) -> Cow<'a, str> {
         if trimmed.starts_with("---")
             || trimmed.starts_with("___")
             || trimmed.to_lowercase().contains("confidentiality notice:")
-            || trimmed.to_lowercase().contains("this email and any attachments")
+            || trimmed
+                .to_lowercase()
+                .contains("this email and any attachments")
         {
             break;
         }
@@ -95,4 +103,3 @@ mod tests {
         assert!(!res2.contains("Confidentiality"));
     }
 }
-
