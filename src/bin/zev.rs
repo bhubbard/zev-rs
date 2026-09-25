@@ -92,6 +92,32 @@ enum Commands {
 
         #[arg(short, long)]
         temperature: Option<f64>,
+
+        /// Serve a Kev checkpoint on the Candle backend: the adapter snapshot (adapter_model.safetensors,
+        /// adapter_config.json, head.safetensors + head_meta.json converted from head.pt)
+        #[cfg(feature = "candle")]
+        #[arg(long)]
+        kev: Option<std::path::PathBuf>,
+
+        /// The base model snapshot (config.json, tokenizer.json, *.safetensors)
+        #[cfg(feature = "candle")]
+        #[arg(long)]
+        base: Option<std::path::PathBuf>,
+
+        /// Directory holding head.safetensors + head_meta.json (default: --kev)
+        #[cfg(feature = "candle")]
+        #[arg(long)]
+        head: Option<std::path::PathBuf>,
+
+        /// bf16 (kev.serve's default) or f32
+        #[cfg(feature = "candle")]
+        #[arg(long, default_value = "bf16")]
+        dtype: String,
+
+        /// States kept in the prefix cache
+        #[cfg(feature = "candle")]
+        #[arg(long, default_value_t = 8)]
+        prefix_cache: usize,
     },
 }
 
@@ -228,9 +254,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             host,
             port,
             temperature,
+            #[cfg(feature = "candle")]
+            kev,
+            #[cfg(feature = "candle")]
+            base,
+            #[cfg(feature = "candle")]
+            head,
+            #[cfg(feature = "candle")]
+            dtype,
+            #[cfg(feature = "candle")]
+            prefix_cache,
         } => {
-            let engine = Arc::new(ZevEngine::new(temperature));
-            let router = create_router(engine);
+            #[cfg(feature = "candle")]
+            let router = if let (Some(kev), Some(base)) = (kev, base) {
+                kev_router(
+                    &kev,
+                    &base,
+                    &head.unwrap_or(kev.clone()),
+                    &dtype,
+                    prefix_cache,
+                    temperature,
+                )?
+            } else {
+                create_router(Arc::new(ZevEngine::new(temperature)))
+            };
+            #[cfg(not(feature = "candle"))]
+            let router = create_router(Arc::new(ZevEngine::new(temperature)));
             let addr = format!("{}:{}", host, port);
             let listener = tokio::net::TcpListener::bind(&addr).await?;
             println!("Zev API server running on http://{}", addr);
@@ -239,4 +288,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(feature = "candle")]
+fn kev_router(
+    kev: &std::path::Path,
+    base: &std::path::Path,
+    head: &std::path::Path,
+    dtype: &str,
+    prefix_cache: usize,
+    temperature: Option<f64>,
+) -> Result<axum::Router, Box<dyn std::error::Error>> {
+    use zev::kev::{model::Model, serve, Encoder};
+    let dev = if cfg!(feature = "cuda") {
+        candle_core::Device::new_cuda(0)?
+    } else {
+        candle_core::Device::Cpu
+    };
+    #[cfg(feature = "cuda")]
+    zev::kev::kernels::tune(&dev)?;
+    let dt = match dtype {
+        "f32" | "fp32" => candle_core::DType::F32,
+        _ => candle_core::DType::BF16,
+    };
+    let t0 = std::time::Instant::now();
+    let model = Model::load(base, kev, head, dt, &dev, temperature)?;
+    let tok =
+        tokenizers::Tokenizer::from_file(base.join("tokenizer.json")).map_err(|e| e.to_string())?;
+    let enc = Encoder::new(tok)?;
+    eprintln!(
+        "kev: loaded {} in {:.1}s on {:?}",
+        kev.display(),
+        t0.elapsed().as_secs_f64(),
+        dev
+    );
+    let card = serde_json::json!({
+        "description": format!("Kev pointer head on {}, Candle backend, temperature {:.2}", base.display(), model.temperature),
+        "release_date": "2026-09-25", "backend": "candle", "dtype": dtype, "temperature": model.temperature,
+    });
+    Ok(serve::router(serve::spawn(model, enc, prefix_cache, card)))
 }
