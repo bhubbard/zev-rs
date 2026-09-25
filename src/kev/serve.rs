@@ -21,6 +21,7 @@ const MAX_BATCH: usize = 64; // requests the model thread takes at once
 const TOKENS: usize = 8192;
 const CELLS: usize = 2 << 20;
 const MAX_ROWS: usize = 64;
+const MAX_QUEUE_DEPTH: usize = 1024;
 
 struct Job {
     state: Vec<u32>,
@@ -46,20 +47,27 @@ struct Prefixes {
 impl Prefixes {
     fn get(&mut self, k: &[u32]) -> Option<Arc<StateCache>> {
         let v = self.map.get(k).cloned()?;
-        self.order.retain(|x| x.as_slice() != k);
-        self.order.push_back(k.to_vec());
+        if self.order.back().is_none_or(|last| last.as_slice() != k) {
+            if let Some(pos) = self.order.iter().position(|x| x.as_slice() == k) {
+                let item = self.order.remove(pos).unwrap();
+                self.order.push_back(item);
+            }
+        }
         Some(v)
     }
     fn put(&mut self, k: Vec<u32>, v: Arc<StateCache>) {
         if self.size == 0 {
             return;
         }
-        self.order.retain(|x| *x != k);
+        if let Some(pos) = self.order.iter().position(|x| *x == k) {
+            self.order.remove(pos);
+        }
         self.order.push_back(k.clone());
         self.map.insert(k, v);
         while self.order.len() > self.size {
-            let old = self.order.pop_front().unwrap();
-            self.map.remove(&old);
+            if let Some(old) = self.order.pop_front() {
+                self.map.remove(&old);
+            }
         }
     }
 }
@@ -261,29 +269,31 @@ impl Worker {
             .flat_map(|(j, c)| j.rows.iter().map(move |r| (c.as_deref().unwrap(), r)))
             .collect();
         let mut probs = self.rows(&rows)?.into_iter();
-        Ok(jobs
-            .iter()
-            .zip(hit)
-            .map(|(j, h)| {
-                (
-                    (0..j.rows.len()).map(|_| probs.next().unwrap()).collect(),
-                    h,
-                )
-            })
-            .collect())
+        let mut out = Vec::with_capacity(jobs.len());
+        for (j, h) in jobs.iter().zip(hit) {
+            let mut j_probs = Vec::with_capacity(j.rows.len());
+            for _ in 0..j.rows.len() {
+                let p = probs.next().ok_or_else(|| {
+                    candle_core::Error::Msg("mismatched row count from model head".into())
+                })?;
+                j_probs.push(p);
+            }
+            out.push((j_probs, h));
+        }
+        Ok(out)
     }
 }
 
 #[derive(Clone)]
 pub struct KevState {
-    tx: mpsc::Sender<Job>,
+    tx: mpsc::SyncSender<Job>,
     enc: Arc<Encoder>,
     api_key: Option<String>,
     card: Arc<Value>,
 }
 
 pub fn spawn(m: Model, enc: Encoder, prefix_cache: usize, card: Value) -> KevState {
-    let (tx, rx) = mpsc::channel::<Job>();
+    let (tx, rx) = mpsc::sync_channel::<Job>(MAX_QUEUE_DEPTH);
     std::thread::Builder::new()
         .name("kev-model".into())
         .spawn(move || {
@@ -350,13 +360,21 @@ fn err(code: StatusCode, msg: impl Into<String>) -> (StatusCode, Json<Value>) {
     (code, Json(json!({"detail": msg.into()})))
 }
 
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
 async fn systemone(State(s): State<KevState>, headers: HeaderMap, body: String) -> Reply {
     if let Some(key) = &s.api_key {
         let got = headers
             .get("authorization")
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
-        if got != format!("Bearer {key}") {
+        let expected = format!("Bearer {key}");
+        if !constant_time_eq(got.as_bytes(), expected.as_bytes()) {
             return Err(err(
                 StatusCode::UNAUTHORIZED,
                 "missing or invalid API key; send Authorization: Bearer <KEV_API_KEY>",
@@ -372,12 +390,20 @@ async fn systemone(State(s): State<KevState>, headers: HeaderMap, body: String) 
         .map_err(|e| err(StatusCode::UNPROCESSABLE_ENTITY, e))?;
     let tokens = ids.len() + rows.iter().map(|r| r.ids.len()).sum::<usize>();
     let (tx, rx) = tokio::sync::oneshot::channel();
-    s.tx.send(Job {
+    s.tx.try_send(Job {
         state: ids,
         rows,
         reply: tx,
     })
-    .map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "model thread stopped"))?;
+    .map_err(|e| match e {
+        mpsc::TrySendError::Full(_) => err(
+            StatusCode::TOO_MANY_REQUESTS,
+            "inference queue saturated; please retry shortly",
+        ),
+        mpsc::TrySendError::Disconnected(_) => {
+            err(StatusCode::SERVICE_UNAVAILABLE, "model thread stopped")
+        }
+    })?;
     let (probs, ms, _hit) = rx
         .await
         .map_err(|_| {
@@ -418,5 +444,58 @@ pub fn router(s: KevState) -> Router {
         )
         .route("/v1/models", get(models))
         .route("/v1/systemone", post(systemone))
+        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(s)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constant_time_eq() {
+        assert!(constant_time_eq(b"Bearer secret123", b"Bearer secret123"));
+        assert!(!constant_time_eq(b"Bearer secret123", b"Bearer secret124"));
+        assert!(!constant_time_eq(b"Bearer secret123", b"Bearer secret12"));
+        assert!(!constant_time_eq(b"Bearer secret12", b"Bearer secret123"));
+        assert!(!constant_time_eq(b"", b"Bearer secret123"));
+        assert!(constant_time_eq(b"", b""));
+    }
+
+    #[test]
+    fn test_prefixes_lru() {
+        let mut cache = Prefixes {
+            size: 2,
+            order: VecDeque::new(),
+            map: HashMap::new(),
+            hits: 0,
+            misses: 0,
+        };
+
+        let dummy_cache1 = Arc::new(StateCache {
+            len: 1,
+            layers: Vec::new(),
+        });
+        let dummy_cache2 = Arc::new(StateCache {
+            len: 2,
+            layers: Vec::new(),
+        });
+        let dummy_cache3 = Arc::new(StateCache {
+            len: 3,
+            layers: Vec::new(),
+        });
+
+        cache.put(vec![1, 2], dummy_cache1.clone());
+        cache.put(vec![3, 4], dummy_cache2.clone());
+
+        assert_eq!(cache.get(&[1, 2]).unwrap().len, 1);
+
+        // Putting 3rd item should evict [3, 4] because [1, 2] was recently accessed
+        cache.put(vec![5, 6], dummy_cache3.clone());
+
+        assert!(cache.get(&[3, 4]).is_none());
+        assert_eq!(cache.get(&[1, 2]).unwrap().len, 1);
+        assert_eq!(cache.get(&[5, 6]).unwrap().len, 3);
+    }
+}
+

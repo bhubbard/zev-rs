@@ -3,6 +3,7 @@
 usage: python convert_head.py head.pt out_dir
 """
 import json
+import os
 import pickle
 import struct
 import sys
@@ -10,7 +11,7 @@ import zipfile
 
 import numpy as np
 
-DTYPES = {"FloatStorage": (np.float32, "F32"), "BFloat16Storage": (None, "BF16"), "HalfStorage": (np.float16, "F16")}
+DTYPES = {"FloatStorage": (np.float32, "F32"), "BFloat16Storage": (np.uint16, "BF16"), "HalfStorage": (np.float16, "F16")}
 
 
 class Storage:
@@ -31,7 +32,7 @@ class Unpickler(pickle.Unpickler):
         if module == "collections" and name == "OrderedDict":
             import collections
             return collections.OrderedDict
-        return super().find_class(module, name)
+        raise pickle.UnpicklingError(f"Forbidden class in checkpoint: {module}.{name}")
 
     def persistent_load(self, pid):
         _, kind, key, _loc, _n = pid
@@ -41,12 +42,17 @@ class Unpickler(pickle.Unpickler):
 def main(path, out):
     z = zipfile.ZipFile(path)
     root = z.namelist()[0].split("/")[0]
+    if not root or ".." in root:
+        raise ValueError(f"Invalid or unsafe archive root: {root}")
     obj = Unpickler(z.open(f"{root}/data.pkl")).load()
     tensors, meta = {}, {}
 
     def materialize(t):
         _, st, off, size, stride = t
-        raw = z.read(f"{root}/data/{st.key}")
+        key_norm = os.path.normpath(str(st.key))
+        if key_norm.startswith("..") or os.path.isabs(key_norm):
+            raise ValueError(f"Unsafe storage key in checkpoint: {st.key}")
+        raw = z.read(f"{root}/data/{key_norm}")
         np_dtype, tag = DTYPES[st.kind]
         arr = np.frombuffer(raw, dtype=np_dtype)
         n = int(np.prod(size)) if size else 1
