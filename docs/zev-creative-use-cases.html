@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Zev — Decision Engine Use Cases: Graphic Design & Video Editing</title>
+  <style>
+    @page {
+      size: letter portrait;
+      margin: 10mm 12mm 10mm 12mm;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      background-color: #0a0a0a;
+      color: #e5e5e5;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 9.5pt;
+      line-height: 1.4;
+    }
+
+    /* Brand Colors */
+    :root {
+      --void: #0a0a0a;
+      --charcoal: #121212;
+      --concrete: #242424;
+      --titanium: #ffffff;
+      --steel: #909090;
+      --cobalt: #3B82F6;
+      --electric-cyan: #06B6D4;
+      --signal-emerald: #10B981;
+      --amber-gold: #F59E0B;
+      --font-mono: "SF Mono", Menlo, Monaco, Consolas, "JetBrains Mono", monospace;
+    }
+
+    .page {
+      width: 100%;
+      height: 259mm;
+      max-height: 259mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      page-break-after: always;
+    }
+    .page:last-child {
+      page-break-after: auto;
+    }
+
+    /* Header */
+    .doc-header {
+      border-bottom: 1.5px solid var(--concrete);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 10pt;
+      font-weight: 800;
+      color: var(--titanium);
+      letter-spacing: -0.3px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .brand-badge {
+      background: var(--cobalt);
+      color: #000000;
+      padding: 1px 6px;
+      font-weight: 900;
+      font-size: 8.5pt;
+      border-radius: 0px;
+    }
+    .meta-tag {
+      font-family: var(--font-mono);
+      font-size: 7.2pt;
+      color: var(--steel);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      text-align: right;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .meta-tag strong {
+      color: var(--electric-cyan);
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 7.5pt;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--electric-cyan);
+      padding: 1px 4px;
+      border: 1px solid var(--concrete);
+    }
+
+    /* Titles */
+    .title-block {
+      margin-bottom: 12px;
+    }
+    .kicker {
+      font-family: var(--font-mono);
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: var(--electric-cyan);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 3px;
+    }
+    h1 {
+      font-size: 18pt;
+      font-weight: 800;
+      color: var(--titanium);
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 9.5pt;
+      color: #cccccc;
+      line-height: 1.35;
+    }
+
+    /* Stats Strip */
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      background: var(--charcoal);
+      border: 1px solid var(--concrete);
+      padding: 8px 10px;
+      margin-bottom: 12px;
+    }
+    .stat-item {
+      border-left: 2px solid var(--cobalt);
+      padding-left: 8px;
+    }
+    .stat-item:nth-child(2) { border-left-color: var(--signal-emerald); }
+    .stat-item:nth-child(3) { border-left-color: var(--electric-cyan); }
+    .stat-item:nth-child(4) { border-left-color: var(--amber-gold); }
+    .stat-val {
+      font-family: var(--font-mono);
+      font-size: 12.5pt;
+      font-weight: 800;
+      color: var(--titanium);
+      line-height: 1.1;
+    }
+    .stat-lbl {
+      font-size: 6.8pt;
+      color: var(--steel);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 1px;
+    }
+
+    /* Callout Box */
+    .callout-box {
+      border: 1px solid var(--cobalt);
+      background: rgba(59, 130, 246, 0.04);
+      padding: 9px 11px;
+      margin-bottom: 12px;
+    }
+    .callout-title {
+      font-family: var(--font-mono);
+      font-size: 8pt;
+      font-weight: 700;
+      color: var(--cobalt);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .callout-body {
+      font-size: 8.3pt;
+      color: #cccccc;
+      line-height: 1.35;
+    }
+
+    /* Section Styling */
+    .section-title {
+      font-size: 11pt;
+      font-weight: 800;
+      color: var(--titanium);
+      letter-spacing: -0.3px;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--concrete);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .section-num {
+      color: var(--cobalt);
+      font-family: var(--font-mono);
+      font-size: 9.5pt;
+    }
+
+    /* 2-Column Grid for Scenario Cards */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    /* Case Study / Scenario Cards */
+    .scenario-card {
+      background: var(--charcoal);
+      border: 1px solid var(--concrete);
+      padding: 8px 10px;
+    }
+    .scenario-card.highlight {
+      border-left: 2.5px solid var(--electric-cyan);
+    }
+    .scenario-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .scenario-name {
+      font-size: 8.8pt;
+      font-weight: 700;
+      color: var(--titanium);
+    }
+    .scenario-badge {
+      font-family: var(--font-mono);
+      font-size: 6.5pt;
+      padding: 1px 4px;
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--cobalt);
+      border: 1px solid var(--cobalt);
+      text-transform: uppercase;
+    }
+    .scenario-desc {
+      font-size: 7.8pt;
+      color: #aaaaaa;
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+
+    /* Spec Grid inside cards */
+    .spec-grid {
+      background: #080808;
+      border: 1px solid var(--concrete);
+      padding: 6px 8px;
+      font-size: 7.5pt;
+      display: grid;
+      grid-template-columns: 1fr 1.05fr;
+      gap: 6px;
+    }
+    .spec-col h4 {
+      font-family: var(--font-mono);
+      font-size: 6.5pt;
+      color: var(--steel);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .spec-content {
+      font-family: var(--font-mono);
+      color: #d8d8d8;
+      white-space: pre-wrap;
+      line-height: 1.3;
+    }
+    .spec-content .kw { color: var(--electric-cyan); }
+    .spec-content .val { color: var(--signal-emerald); font-weight: 700; }
+    .spec-content .opt { color: var(--amber-gold); }
+
+    /* Comparison Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      margin-bottom: 10px;
+      font-size: 7.8pt;
+    }
+    th {
+      font-family: var(--font-mono);
+      font-size: 7.2pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 6px 8px;
+      background: #181818;
+      color: var(--titanium);
+      border-bottom: 1.5px solid var(--concrete);
+      text-align: left;
+    }
+    td {
+      padding: 5.5px 8px;
+      border-bottom: 1px solid var(--concrete);
+      color: #cccccc;
+    }
+    tr:nth-child(even) td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .mono { font-family: var(--font-mono); }
+    .win { color: var(--signal-emerald); font-weight: 700; }
+    .loss { color: #888888; }
+
+    /* Footer */
+    .doc-footer {
+      border-top: 1px solid var(--concrete);
+      padding-top: 6px;
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 7pt;
+      color: var(--steel);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== PAGE 1 ==================== -->
+  <div class="page">
+    <div class="page-top">
+      <header class="doc-header">
+        <div class="brand-mark">
+          <span class="brand-badge">BH</span>
+          <span>ZEV // ARCHITECTURAL TECHNICAL BRIEF</span>
+        </div>
+        <div class="meta-tag">
+          Document: <strong>ZEV-CREATIVE-01</strong> &bull; Date: <strong>September 2026</strong>
+        </div>
+      </header>
+
+      <div class="title-block">
+        <div class="kicker">HIGH-THROUGHPUT DISCRETE DECISION ENGINE</div>
+        <h1>Zero-Token Decision Systems in Creative Production</h1>
+        <p class="subtitle">
+          Probabilistic classification, real-time edit pacing, and Dynamic Creative Optimization (DCO) for video editing, Figma workflows, and Adobe Creative Cloud pipelines at wire speed.
+        </p>
+      </div>
+
+      <!-- 4 Stats Strip -->
+      <div class="stat-strip">
+        <div class="stat-item">
+          <div class="stat-val">5.8 µs</div>
+          <div class="stat-lbl">Inference Latency (p50)</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">0.0%</div>
+          <div class="stat-lbl">Order Permutation Flip</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">$0.00</div>
+          <div class="stat-lbl">Per-Token API Overhead</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">0 MB</div>
+          <div class="stat-lbl">External Weights Needed</div>
+        </div>
+      </div>
+
+      <div class="callout-box">
+        <div class="callout-title">The Paradigm: Evaluative Decision Compute vs. Generative LLMs</div>
+        <div class="callout-body">
+          Creative software is not bottlenecked by asset generation; it is bottlenecked by <strong>discrete decision latency</strong>. Deciding which layout template, transition curve, or B-roll bin to select via cloud LLMs introduces 1,500 ms round-trips, non-deterministic hallucinations, and runaway API bills. <strong>Zev replaces the LLM in the decision loop</strong>, evaluating candidate options at 60 fps directly on the local machine with 100% order invariance.
+        </div>
+      </div>
+
+      <!-- Section 1: Video Editing -->
+      <h2 class="section-title">
+        <span class="section-num">01 //</span> Video Editing & Post-Production Pipelines
+      </h2>
+
+      <div class="grid-2col">
+        <!-- 1.1 -->
+        <div class="scenario-card highlight">
+          <div class="scenario-header">
+            <span class="scenario-name">1.1 Automated Cut & Transition Style</span>
+            <span class="scenario-badge">Premiere / Resolve</span>
+          </div>
+          <div class="scenario-desc">Evaluates dialogue cadence, pause duration, and emotion to pick timeline cut types at interactive scrubbing speeds.</div>
+          <div class="spec-grid">
+            <div class="spec-col">
+              <h4>Input Context</h4>
+              <div class="spec-content">"Wait, what? No way... <span class="kw">[1.4s pause]</span>"
+<span class="kw">Speaker:</span> Guest reaction
+<span class="kw">Goal:</span> YouTube High-Energy</div>
+            </div>
+            <div class="spec-col">
+              <h4>Evaluated Choices</h4>
+              <div class="spec-content"><span class="opt">A:</span> dramatic_zoom_punch
+<span class="opt">B:</span> reaction_shot_b_roll <span class="val">&larr; [96.4%]</span>
+<span class="opt">C:</span> hold_speaker_wide
+<span class="opt">D:</span> jump_cut_fast</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1.2 -->
+        <div class="scenario-card">
+          <div class="scenario-header">
+            <span class="scenario-name">1.2 Semantic B-Roll & Media Pool Match</span>
+            <span class="scenario-badge">Asset Ingest</span>
+          </div>
+          <div class="scenario-desc">Maps voiceover sentences directly into stock footage bins. Automatically abstains when no clip fits the context.</div>
+          <div class="spec-grid">
+            <div class="spec-col">
+              <h4>Input Context</h4>
+              <div class="spec-content">"Interest rates surged and tech valuations plummeted."
+<span class="kw">Available:</span> 8 Stock Bins</div>
+            </div>
+            <div class="spec-col">
+              <h4>Evaluated Choices</h4>
+              <div class="spec-content"><span class="opt">A:</span> generic_city_skyline
+<span class="opt">B:</span> stock_charts_red_down <span class="val">&larr; [98%]</span>
+<span class="opt">C:</span> office_worker_stressed
+<span class="opt">D:</span> __insufficient__ (Abstain)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1.3 -->
+        <div class="scenario-card">
+          <div class="scenario-header">
+            <span class="scenario-name">1.3 16:9 &rarr; 9:16 Shorts Re-Framing</span>
+            <span class="scenario-badge">Multi-Platform</span>
+          </div>
+          <div class="scenario-desc">Selects dynamic vertical crop anchors and split layouts per beat when repurposing landscape podcasts for TikTok/Reels.</div>
+          <div class="spec-grid">
+            <div class="spec-col">
+              <h4>Input Context</h4>
+              <div class="spec-content"><span class="kw">Active Faces:</span> 2 (Simultaneous)
+<span class="kw">Motion:</span> Low | Audio: Cross-talk
+<span class="kw">Target:</span> 9:16 TikTok Safe Zones</div>
+            </div>
+            <div class="spec-col">
+              <h4>Evaluated Choices</h4>
+              <div class="spec-content"><span class="opt">A:</span> single_speaker_center
+<span class="opt">B:</span> split_screen_dual <span class="val">&larr; [94.2%]</span>
+<span class="opt">C:</span> blurred_side_letterbox</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1.4 -->
+        <div class="scenario-card">
+          <div class="scenario-header">
+            <span class="scenario-name">1.4 Audio Ducking & Stem Hierarchy</span>
+            <span class="scenario-badge">Multi-Track Mix</span>
+          </div>
+          <div class="scenario-desc">Routes audio stems to ducking profiles on-the-fly, balancing explosive SFX, background beds, and dialogue priority.</div>
+          <div class="spec-grid">
+            <div class="spec-col">
+              <h4>Input Context</h4>
+              <div class="spec-content"><span class="kw">Stem Levels:</span> Dialogue peak -6dB
+<span class="kw">Music Bed:</span> Uptempo EDM -12dB
+<span class="kw">SFX:</span> Sub-bass drop detected</div>
+            </div>
+            <div class="spec-col">
+              <h4>Evaluated Choices</h4>
+              <div class="spec-content"><span class="opt">A:</span> duck_music_24db_dialogue <span class="val">&larr; [91%]</span>
+<span class="opt">B:</span> swell_music_emotional
+<span class="opt">C:</span> sfx_priority_explosive</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="doc-footer">
+      <span>Zev Technical Architecture Report &bull; https://bhubbard.github.io/zev-rs/</span>
+      <span>Section 01 // Page 1 of 2</span>
+    </footer>
+  </div>
+
+  <!-- ==================== PAGE 2 ==================== -->
+  <div class="page">
+    <div class="page-top">
+      <header class="doc-header">
+        <div class="brand-mark">
+          <span class="brand-badge">BH</span>
+          <span>ZEV // ARCHITECTURAL TECHNICAL BRIEF</span>
+        </div>
+        <div class="meta-tag">
+          Module: <strong>Design Automation & Operations</strong> &bull; Engine: <strong>zev-rs v0.2.0</strong>
+        </div>
+      </header>
+
+      <!-- Section 2: Graphic Design -->
+      <h2 class="section-title">
+        <span class="section-num">02 //</span> Graphic Design & Creative Automation
+      </h2>
+
+      <div class="grid-2col">
+        <!-- 2.1 -->
+        <div class="scenario-card highlight">
+          <div class="scenario-header">
+            <span class="scenario-name">2.1 Dynamic Creative Optimization (DCO)</span>
+            <span class="scenario-badge">Ad Server Pipeline</span>
+          </div>
+          <div class="scenario-desc">Assembles personalized display ads in microseconds, matching discount depth, audience intent, and copy length to layout IDs.</div>
+          <div class="spec-grid">
+            <div class="spec-col">
+              <h4>Input Context</h4>
+              <div class="spec-content"><span class="kw">Copy:</span> "Flash Sale: 70% Off Boots"
+<span class="kw">Length:</span> 28 Chars (Short)
+<span class="kw">Audience:</span> Urgent Deal Seeker</div>
+            </div>
+            <div class="spec-col">
+              <h4>Evaluated Choices</h4>
+              <div class="spec-content"><span class="opt">A:</span> bold_sale_yellow <span class="val">&larr; [97.5%]</span>
+<span class="opt">B:</span> editorial_minimal_dark
+<span class="opt">C:</span> multi_product_carousel</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2.2 -->
+        <div class="scenario-card">
+          <div class="scenario-header">
+            <span class="scenario-name">2.2 Typographic Hierarchy & Font Pairing</span>
+            <span class="scenario-badge">Figma / UXP Plugin</span>
+          </div>
+          <div class="scenario-desc">Adjusts font scales and pairs dynamically as designers edit text containers or translate copy across language expansions.</div>
+          <div class="spec-grid">
+            <div class="spec-col">
+              <h4>Input Context</h4>
+              <div class="spec-content"><span class="kw">Language:</span> German (240 Chars)
+<span class="kw">Width:</span> 320px (Mobile Sidebar)
+<span class="kw">Brand Tone:</span> Technical Infra</div>
+            </div>
+            <div class="spec-col">
+              <h4>Evaluated Choices</h4>
+              <div class="spec-content"><span class="opt">A:</span> condensed_grotesk_tight <span class="val">&larr; [92.8%]</span>
+<span class="opt">B:</span> wide_display_serif_hero
+<span class="opt">C:</span> standard_sans_compact</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2.3 -->
+        <div class="scenario-card">
+          <div class="scenario-header">
+            <span class="scenario-name">2.3 Automated Export Pipeline Triage</span>
+            <span class="scenario-badge">DAM Asset Ingest</span>
+          </div>
+          <div class="scenario-desc">Classifies uploaded design assets by color profile, alpha channel, and DPI into optimal raster/vector export pipelines.</div>
+          <div class="spec-grid">
+            <div class="spec-col">
+              <h4>Input Context</h4>
+              <div class="spec-content"><span class="kw">Channels:</span> RGBA (Alpha transparent)
+<span class="kw">Resolution:</span> 4096x4096px | 300 DPI
+<span class="kw">Target:</span> Web Component</div>
+            </div>
+            <div class="spec-col">
+              <h4>Evaluated Choices</h4>
+              <div class="spec-content"><span class="opt">A:</span> print_cmyk_vector_pdf
+<span class="opt">B:</span> transparent_avif_webp <span class="val">&larr; [95.1%]</span>
+<span class="opt">C:</span> lowres_watermarked_proof</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3.1 -->
+        <div class="scenario-card">
+          <div class="scenario-header">
+            <span class="scenario-name">2.4 Client Revision Scope & Severity</span>
+            <span class="scenario-badge">Slack / PM Ingest</span>
+          </div>
+          <div class="scenario-desc">Classifies incoming client feedback into structured scope tiers (0 to 3) using Zev's calibrated ordinal severity ladder.</div>
+          <div class="spec-grid">
+            <div class="spec-col">
+              <h4>Input Context</h4>
+              <div class="spec-content">"Video is almost ready! Can we just make our logo 15% larger in lower third and swap the final URL?"</div>
+            </div>
+            <div class="spec-col">
+              <h4>Severity Output</h4>
+              <div class="spec-content"><span class="opt">0:</span> Cosmetic tweak (Logo/Text) <span class="val">&larr; [0]</span>
+<span class="opt">1:</span> Asset replacement (B-roll)
+<span class="opt">2:</span> Structural re-edit (VO redo)
+<span class="opt">3:</span> Full reconcept / scope creep</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Benchmark Comparison Table -->
+      <h2 class="section-title" style="margin-top: 10px;">
+        <span class="section-num">03 //</span> Architectural Matrix: Zev vs. Cloud LLMs
+      </h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Evaluation Dimension</th>
+            <th>Cloud LLM (GPT-4o / Claude)</th>
+            <th>Zev Engine (zev-rs)</th>
+            <th>Production Impact</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Inference Latency</strong></td>
+            <td class="loss">600 ms &ndash; 2,500 ms</td>
+            <td class="win">5 &ndash; 25 microseconds (p50: 5.8 µs)</td>
+            <td>Permits 60 fps real-time timeline scrubbing & slider feedback</td>
+          </tr>
+          <tr>
+            <td><strong>Operating Cost (10k ops)</strong></td>
+            <td class="loss">$5.00 &ndash; $25.00 per batch</td>
+            <td class="win">$0.00 (Zero API or token cost)</td>
+            <td>Viable for automated high-volume rendering clusters</td>
+          </tr>
+          <tr>
+            <td><strong>Offline / On-Set Usage</strong></td>
+            <td class="loss">Fails without active internet</td>
+            <td class="win">100% On-Device / Air-Gapped</td>
+            <td>Runs in on-set video village laptops with zero connectivity</td>
+          </tr>
+          <tr>
+            <td><strong>Order Invariance</strong></td>
+            <td class="loss">Unstable (Permuting options flips choice)</td>
+            <td class="win">100% Invariant (0.0% permutation flip)</td>
+            <td>Guarantees deterministic, reproducible video rendering</td>
+          </tr>
+          <tr>
+            <td><strong>Hallucination Risk</strong></td>
+            <td class="loss">Invented IDs or malformed JSON syntax</td>
+            <td class="win">0% (Strictly bounded to provided schema)</td>
+            <td>Prevents downstream automated rendering crashes</td>
+          </tr>
+          <tr>
+            <td><strong>Host Integration</strong></td>
+            <td class="loss">Cloud REST API (requires API keys)</td>
+            <td class="win">WASM, C-ABI (.dylib/.dll), CLI, Local Daemon</td>
+            <td>Embeds natively in Adobe CEP/UXP, Premiere, and Figma plugins</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout-box" style="margin-bottom: 0;">
+        <div class="callout-title">Deployment Recommendations for Creative Software</div>
+        <div class="callout-body">
+          &bull; <strong>Adobe Premiere Pro & After Effects (Desktop)</strong>: Link against Zev via C-ABI dynamic library (<code>.dylib</code> / <code>.dll</code>) or run <code>zev serve</code> as a lightweight localhost daemon (<code>http://127.0.0.1:8080</code>).<br>
+          &bull; <strong>Figma & Webflow (Web / Canvas)</strong>: Compile <code>zev-rs</code> to WebAssembly (<code>wasm32-unknown-unknown</code>) to run 100% in-browser without sending user creative data across the wire.
+        </div>
+      </div>
+    </div>
+
+    <footer class="doc-footer">
+      <span>Zev Technical Architecture Report &bull; https://bhubbard.github.io/zev-rs/</span>
+      <span>Section 03 // Page 2 of 2</span>
+    </footer>
+  </div>
+
+</body>
+</html>
