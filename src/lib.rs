@@ -31,6 +31,9 @@ pub use types::*;
 #[cfg(feature = "server")]
 pub use server::create_router;
 
+#[cfg(feature = "candle")]
+pub mod kev;
+
 #[cfg(feature = "neural")]
 pub mod neural;
 #[cfg(feature = "neural")]
