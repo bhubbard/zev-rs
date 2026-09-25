@@ -4,6 +4,8 @@
 [![Rust](https://img.shields.io/badge/rust-edition%202021-orange.svg)](Cargo.toml)
 [![crates.io](https://img.shields.io/crates/v/zev-rs.svg)](https://crates.io/crates/zev-rs)
 [![npm](https://img.shields.io/npm/v/zev-rs.svg)](https://www.npmjs.com/package/zev-rs)
+[![CI](https://github.com/bhubbard/zev-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/bhubbard/zev-rs/actions/workflows/ci.yml)
+[![Security Policy](https://img.shields.io/badge/security-policy-brightgreen.svg)](SECURITY.md)
 [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-yellow)](https://huggingface.co/spaces/bkhubbard/zev)
 [![Hugging Face Datasets](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Datasets-blue)](https://huggingface.co/datasets/bkhubbard/zev-benchmarks)
 [![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](#code-coverage)
@@ -436,6 +438,16 @@ cargo llvm-cov --lcov --output-path lcov.info
 | `order_invariant.rs` | **85.4%** | Canonical option permutations & marginal logit integration |
 | `engine.rs` | **83.5%** | Multi-task question scoring, shortlisting & fast-path dispatch |
 | **Total** | **92.4%** | **Comprehensive end-to-end engine coverage (115/119 functions, 96.5%)** |
+
+---
+
+## Contributing & Community
+
+Contributions are welcome! Please check our:
+- [Contributing Guide](CONTRIBUTING.md) for local dev setup, coding standards, and test expectations.
+- [Code of Conduct](CODE_OF_CONDUCT.md) for community standards.
+- [Security Policy](SECURITY.md) for private vulnerability disclosure.
+- [Support Guidelines](SUPPORT.md) for bug reports vs feature discussions.
 
 ---
 

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 GitHub Discussions
+    url: https://github.com/bhubbard/zev-rs/discussions
+    about: Ask architecture questions, discuss features, or get help with zev-rs.
+  - name: 🛡️ Security Vulnerability Reporting
+    url: https://github.com/bhubbard/zev-rs/security/advisories/new
+    about: Privately report suspected security vulnerabilities directly to the maintainers.

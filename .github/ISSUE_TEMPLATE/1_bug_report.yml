@@ -1,0 +1,74 @@
+name: "🐛 Bug Report"
+description: File a bug report or regression to help us improve zev-rs
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue!
+        *If this is a security vulnerability, please do NOT file a public issue.* Use our [Security Reporting](https://github.com/bhubbard/zev-rs/security/advisories/new) instead.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions or minimal reproducible example (CLI command, Rust code, or HTTP request payload).
+      placeholder: |
+        1. Run `zev serve --port 8080 ...`
+        2. Send POST request with payload `...`
+        3. Observe error or unexpected response
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior / Output
+      description: What actually happened? (Include terminal logs, HTTP error responses, or backtraces)
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - "Low (Minor inconvenience or cosmetic)"
+        - "Medium (Feature works unexpectedly or workarounds exist)"
+        - "High (Core functionality broken or crash/panic)"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Please provide OS, Rust version, hardware (CPU / GPU), and feature flags used.
+      placeholder: |
+        - OS: macOS 15.0 / Ubuntu 22.04
+        - Rust version: rustc 1.82.0
+        - Hardware: Apple Silicon M3 / NVIDIA RTX 4090
+        - Cargo features: --features candle,cuda
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Pre-submission Checks
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
