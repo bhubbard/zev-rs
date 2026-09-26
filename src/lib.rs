@@ -39,9 +39,11 @@ pub use cascade::{CascadeReport, CascadeStage, PredicateCascade, StageKind};
 pub use kv_rewind::{BlockTable, PagedContextArena, DEFAULT_PAGE_SIZE};
 pub use matrix::{AnchorPartnerEvaluator, PartnerMatrix};
 pub use logic::{
-    AluMode, AluOp, AluReport, CircuitGate, CircuitReport, GateType, ProbabilisticCircuitReport,
-    ProbabilisticGateResult, SemanticAluEngine, SemanticStateAlu, TopologicalCircuit, WireId,
-    ZevLogicEngine,
+    AluMode, AluOp, AluReport, CircuitGate, CircuitReport, ClockMode, ClockPulse, CpuCycleReport,
+    CpuRunReport, DFlipFlop, GateType, GatedDLatch, MemoryHalfLifeReport, MicroInstruction,
+    ProbabilisticCircuitReport, ProbabilisticClock, ProbabilisticGateResult, Register,
+    SemanticAluEngine, SemanticStateAlu, SrLatch, TopologicalCircuit, WireId, ZevLogicEngine,
+    ZevMicroCpu,
 };
 pub use readout::{
     BinaryReadout, ClassTokenPool, PrunedHead, DEFAULT_FALSE_SPELLINGS, DEFAULT_TRUE_SPELLINGS,
