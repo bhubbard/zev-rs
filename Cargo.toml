@@ -63,6 +63,7 @@ half = { version = "2", optional = true }
 serde-pickle = "1.2"
 zip = "8.6.0"
 rand = "0.9"
+ignore = "0.4"
 
 [features]
 default = ["server"]

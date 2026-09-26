@@ -368,6 +368,60 @@ async fn test_http_server_endpoints() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // 9. Root /systemone with boolean type question
+    let bool_body = serde_json::json!({
+        "state": "High CPU alert",
+        "questions": {
+            "critical": {
+                "type": "boolean",
+                "instructions": "Is this critical?"
+            }
+        }
+    });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/systemone")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&bool_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 10. /evaluate alias
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/evaluate")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&bool_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 11. /v1/evaluate alias
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/evaluate")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&bool_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[test]

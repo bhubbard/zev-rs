@@ -40,6 +40,7 @@ pub struct WireScoreQuestion {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum WireQuestion {
+    #[serde(alias = "boolean")]
     Noul(WireNoulQuestion),
     Choice(WireChoiceQuestion),
     Score(WireScoreQuestion),
@@ -74,6 +75,7 @@ pub struct WireUsage {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum WireAnswer {
+    #[serde(alias = "boolean")]
     Noul {
         noul: f64,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -252,3 +254,45 @@ pub fn wire_value_from_zev_answer(
     let wire_ans = wire_answer_from_zev_answer(wire_q, ans);
     Ok(serde_json::to_value(wire_ans)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wire_question_boolean_alias() {
+        let json_noul = r#"{"type":"noul","instructions":"Is this true?"}"#;
+        let q_noul: WireQuestion = serde_json::from_str(json_noul).expect("deserialize noul");
+        assert!(matches!(q_noul, WireQuestion::Noul(_)));
+
+        let json_bool = r#"{"type":"boolean","instructions":"Is this true?"}"#;
+        let q_bool: WireQuestion = serde_json::from_str(json_bool).expect("deserialize boolean");
+        assert!(matches!(q_bool, WireQuestion::Noul(_)));
+    }
+
+    #[test]
+    fn test_wire_answer_boolean_alias() {
+        let json_noul = r#"{"type":"noul","noul":0.85}"#;
+        let a_noul: WireAnswer = serde_json::from_str(json_noul).expect("deserialize noul");
+        assert_eq!(
+            a_noul,
+            WireAnswer::Noul {
+                noul: 0.85,
+                confidence: None,
+                source: None
+            }
+        );
+
+        let json_bool = r#"{"type":"boolean","noul":0.85}"#;
+        let a_bool: WireAnswer = serde_json::from_str(json_bool).expect("deserialize boolean");
+        assert_eq!(
+            a_bool,
+            WireAnswer::Noul {
+                noul: 0.85,
+                confidence: None,
+                source: None
+            }
+        );
+    }
+}
+

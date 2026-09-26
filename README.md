@@ -276,6 +276,18 @@ curl -X POST http://127.0.0.1:8080/v1/tev1 \
   }'
 ```
 
+### Example 5: Semantic Codebase Search (`zev grep`)
+
+Zev includes a high-speed semantic codebase search engine inspired by `jevgrep`'s 3-stage discovery architecture. It navigates source trees with `.gitignore` awareness, extracts language declarations (functions, structs, classes, routes) across Rust, TypeScript, Python, and Go, and evaluates declaration relevance in microseconds:
+
+```bash
+# Semantic search over code declarations in human-readable ANSI format:
+zev grep "order invariant logits" src
+
+# Output structured JSON for LLM agents or scripting:
+zev grep "router endpoints" src --json --limit 5
+```
+
 ---
 
 ## JevBench Benchmark: Zev vs. Original Python Projects

@@ -154,6 +154,32 @@ enum Commands {
         routes: Option<String>,
     },
 
+    /// Semantic codebase search over AST declarations using zero-token Zev decision engine
+    Grep {
+        /// Semantic query describing the logic, concept, or symbol to find
+        query: String,
+
+        /// Root directory path to search (default: ".")
+        #[arg(default_value = ".")]
+        path: std::path::PathBuf,
+
+        /// Output results as JSON for agents and programmatic consumers
+        #[arg(long)]
+        json: bool,
+
+        /// Maximum number of declarations to return
+        #[arg(short, long, default_value_t = 10)]
+        limit: usize,
+
+        /// Minimum relevance threshold [0.0 - 1.0]
+        #[arg(short, long, default_value_t = 0.3)]
+        threshold: f64,
+
+        /// Maximum number of files to inspect
+        #[arg(long, default_value_t = 1000)]
+        max_files: usize,
+    },
+
     /// Start the Model Context Protocol (MCP) JSON-RPC stdio server
     Mcp,
 }
@@ -405,6 +431,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         other
                     );
                 }
+            }
+        }
+
+        Commands::Grep {
+            query,
+            path,
+            json,
+            limit,
+            threshold,
+            max_files,
+        } => {
+            let engine = ZevEngine::default();
+            let opts = zev::GrepOptions {
+                query,
+                path,
+                limit,
+                threshold,
+                json,
+                include_evidence: true,
+                max_files,
+            };
+
+            let report = zev::run_grep(&engine, &opts)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                print!("{}", zev::format_human_report(&report));
             }
         }
 

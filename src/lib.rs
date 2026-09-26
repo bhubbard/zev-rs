@@ -18,6 +18,7 @@ pub mod tev1;
 pub mod types;
 pub mod mcp;
 pub mod wire;
+pub mod grep;
 
 #[cfg(feature = "server")]
 pub mod server;
@@ -60,6 +61,7 @@ pub use tabular::{
 };
 pub use tev1::{Tev1Request, Tev1Response};
 pub use types::*;
+pub use grep::*;
 
 #[cfg(feature = "server")]
 pub use server::create_router;
