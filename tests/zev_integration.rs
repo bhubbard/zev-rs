@@ -157,7 +157,7 @@ fn test_calibration_and_ece() {
     let confs = vec![0.9, 0.8, 0.6, 0.7, 0.95];
     let accs = vec![true, true, false, true, true];
     let ece = compute_ece(&confs, &accs, 5);
-    assert!(ece >= 0.0 && ece <= 1.0);
+    assert!((0.0..=1.0).contains(&ece));
 
     let pairs = vec![
         (vec![2.0, 0.5], 0),
@@ -480,11 +480,7 @@ fn test_ece_reduction_under_temperature_scaling() {
     let mut pairs = Vec::new();
     for i in 0..100 {
         let is_correct = i % 4 != 0;
-        let logits = if is_correct {
-            vec![12.0, 2.0]
-        } else {
-            vec![12.0, 2.0]
-        };
+        let logits = vec![12.0, 2.0];
         let true_idx = if is_correct { 0 } else { 1 };
         pairs.push((logits, true_idx));
     }

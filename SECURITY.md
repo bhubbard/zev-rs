@@ -61,7 +61,7 @@ We adhere to the following SLA:
 
 2. **Safe Deserialization:**
    - Model weights and checkpoints are loaded via memory-mapped `safetensors`.
-   - Python conversion utilities (`scripts/convert_head.py`) strictly reject arbitrary pickle classes to prevent Remote Code Execution (RCE).
+   - Native conversion utilities (`src/bin/convert_head.rs`) strictly reject arbitrary pickle classes and validate paths to prevent Remote Code Execution (RCE) and path traversal.
 
 3. **Denial-of-Service (DoS) Defenses:**
    - Strict body size limits enforced on all HTTP ingestion endpoints (`DefaultBodyLimit::max(2MB)`).

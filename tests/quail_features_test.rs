@@ -182,7 +182,7 @@ fn test_feature_4_output_head_pruning_and_token_pooling() {
     // Row 0 ("true"): positive weight on feature 0
     weights[0] = 1.0;
     // Row 1 ("yes"): positive weight on feature 1
-    weights[1 * hidden_dim + 1] = 1.2;
+    weights[hidden_dim + 1] = 1.2;
     // Row 2 ("false"): positive weight on feature 2
     weights[2 * hidden_dim + 2] = 1.1;
     // Row 3 ("no"): positive weight on feature 3

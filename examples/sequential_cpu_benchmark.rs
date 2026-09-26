@@ -48,7 +48,7 @@ fn main() {
     println!("  Cycle | Jev LLM Latch | Zev Calibrated Latch");
     println!("  ------+---------------+---------------------");
     for &c in &[1, 5, 10, 20, 50, 100] {
-        let p_jev = (0.998f64).powi((36 * c) as i32) * 100.0;
+        let p_jev = (0.998f64).powi(36 * c) * 100.0;
         println!("  {:5} | {:11.2}% | 100.00% (STABLE)", c, p_jev);
     }
     println!();

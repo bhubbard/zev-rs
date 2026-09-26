@@ -19,7 +19,7 @@ fn test_cli_help() {
 #[test]
 fn test_cli_route() {
     let output = Command::new(env!("CARGO_BIN_EXE_zev"))
-        .args(&[
+        .args([
             "route",
             "--state",
             "Critical: database server is returning 500 error code",
@@ -39,7 +39,7 @@ fn test_cli_route() {
 #[test]
 fn test_cli_gate() {
     let output = Command::new(env!("CARGO_BIN_EXE_zev"))
-        .args(&[
+        .args([
             "gate",
             "--state",
             "Yes. Confirms urgent emergency completely",
@@ -62,7 +62,7 @@ fn test_cli_gate() {
 #[test]
 fn test_cli_tev1_flags() {
     let output = Command::new(env!("CARGO_BIN_EXE_zev"))
-        .args(&[
+        .args([
             "tev1",
             "--state",
             "Returns are allowed within 30 days. This purchase was 12 days ago.",

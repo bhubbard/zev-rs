@@ -44,12 +44,12 @@ fn get_choice_decision(resp: &zev::types::ZevResponse, key: &str) -> Option<Stri
 }
 
 fn get_boolean_decision(resp: &zev::types::ZevResponse, key: &str) -> Option<bool> {
-    resp.answers.get(key).and_then(|ans| match &ans.decision {
-        Some(serde_json::Value::Bool(b)) => Some(*b),
+    resp.answers.get(key).map(|ans| match &ans.decision {
+        Some(serde_json::Value::Bool(b)) => *b,
         _ => {
             let p_true = ans.probabilities.get("true").copied().unwrap_or(0.0);
             let p_false = ans.probabilities.get("false").copied().unwrap_or(0.0);
-            Some(p_true > p_false)
+            p_true > p_false
         }
     })
 }

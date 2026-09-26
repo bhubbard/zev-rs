@@ -81,5 +81,5 @@ To generate more test items or modify the task distribution:
 
 ```bash
 # Generate 2,500 items into the dataset directory
-python3 scripts/export_hf_dataset.py --output-dir datasets/zev_benchmarks --count 2500
+cargo run --bin export_hf_dataset -- --output-dir datasets/zev_benchmarks --count 2500
 ```
