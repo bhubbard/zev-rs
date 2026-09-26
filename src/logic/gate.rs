@@ -71,7 +71,11 @@ impl GateType {
                 let sel = inputs.first().copied().unwrap_or(false);
                 let a = inputs.get(1).copied().unwrap_or(false);
                 let b = inputs.get(2).copied().unwrap_or(false);
-                if sel { b } else { a }
+                if sel {
+                    b
+                } else {
+                    a
+                }
             }
         }
     }

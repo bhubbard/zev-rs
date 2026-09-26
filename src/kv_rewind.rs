@@ -73,7 +73,9 @@ impl PagedContextArena {
     /// Allocates resident prefix pages for a key.
     pub fn allocate_prefix(&mut self, key: &str, token_count: usize) -> Result<&BlockTable> {
         if self.block_tables.contains_key(key) {
-            return Err(ZevError::Internal(format!("Key '{key}' is already resident in arena")));
+            return Err(ZevError::Internal(format!(
+                "Key '{key}' is already resident in arena"
+            )));
         }
 
         let needed = self.pages_needed(token_count);

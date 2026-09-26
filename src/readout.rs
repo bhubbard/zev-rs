@@ -2,15 +2,11 @@ use crate::error::{Result, ZevError};
 
 /// Common token spelling variants for boolean/affirmative and negative decision classes.
 pub const DEFAULT_TRUE_SPELLINGS: &[&str] = &[
-    "true", "True", "TRUE", " true", " True",
-    "yes", "Yes", "YES", " yes", " Yes",
-    "1", " 1",
+    "true", "True", "TRUE", " true", " True", "yes", "Yes", "YES", " yes", " Yes", "1", " 1",
 ];
 
 pub const DEFAULT_FALSE_SPELLINGS: &[&str] = &[
-    "false", "False", "FALSE", " false", " False",
-    "no", "No", "NO", " no", " No",
-    "0", " 0",
+    "false", "False", "FALSE", " false", " False", "no", "No", "NO", " no", " No", "0", " 0",
 ];
 
 /// A vocabulary pool mapping a semantic class to multiple tokenizer token IDs.
@@ -99,13 +95,23 @@ impl BinaryReadout {
         let max_true = self
             .true_indices
             .iter()
-            .map(|&idx| retained_logits.get(idx).copied().unwrap_or(f32::NEG_INFINITY))
+            .map(|&idx| {
+                retained_logits
+                    .get(idx)
+                    .copied()
+                    .unwrap_or(f32::NEG_INFINITY)
+            })
             .fold(f32::NEG_INFINITY, f32::max);
 
         let max_false = self
             .false_indices
             .iter()
-            .map(|&idx| retained_logits.get(idx).copied().unwrap_or(f32::NEG_INFINITY))
+            .map(|&idx| {
+                retained_logits
+                    .get(idx)
+                    .copied()
+                    .unwrap_or(f32::NEG_INFINITY)
+            })
             .fold(f32::NEG_INFINITY, f32::max);
 
         (max_true, max_false)

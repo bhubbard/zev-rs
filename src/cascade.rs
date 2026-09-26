@@ -104,7 +104,9 @@ impl PredicateCascade {
             let reject_b = (1.0 - b.estimated_selectivity).max(0.001);
             let score_a = a.estimated_cost_micros / reject_a;
             let score_b = b.estimated_cost_micros / reject_b;
-            score_a.partial_cmp(&score_b).unwrap_or(std::cmp::Ordering::Equal)
+            score_a
+                .partial_cmp(&score_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
     }
 

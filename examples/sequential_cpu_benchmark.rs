@@ -25,10 +25,22 @@ fn main() {
 
     println!("  Register Width:           4 bits (4x Master-Slave D Flip-Flops = 36 NAND gates)");
     println!("  Single-Gate Accuracy:     99.80% (reported for LLM gates)");
-    println!("  Jev Survival / Cycle:     {:.2}% ((0.998)^36)", (0.998f64).powi(36) * 100.0);
-    println!("  Jev Survival @ Cycle 10:  {:.2}%", (0.998f64).powi(360) * 100.0);
-    println!("  Jev Survival @ Cycle 20:  {:.2}%", decay_report.llm_retention_probability * 100.0);
-    println!("  Jev Memory Half-Life:     {:.1} clock cycles (Radioactive Bit-Rot!)", decay_report.llm_half_life_cycles);
+    println!(
+        "  Jev Survival / Cycle:     {:.2}% ((0.998)^36)",
+        (0.998f64).powi(36) * 100.0
+    );
+    println!(
+        "  Jev Survival @ Cycle 10:  {:.2}%",
+        (0.998f64).powi(360) * 100.0
+    );
+    println!(
+        "  Jev Survival @ Cycle 20:  {:.2}%",
+        decay_report.llm_retention_probability * 100.0
+    );
+    println!(
+        "  Jev Memory Half-Life:     {:.1} clock cycles (Radioactive Bit-Rot!)",
+        decay_report.llm_half_life_cycles
+    );
     println!("  Zev Memory Retention:     100.00% (Infinite half-life, zero decay)");
     println!();
 
@@ -66,10 +78,17 @@ fn main() {
     let sync_time = t0.elapsed().as_secs_f64() * 1_000_000.0;
 
     println!("  Program:               Sum(0..=4)");
-    println!("  Final Accumulator:     {} ({:04b})", rep_sync.final_acc, rep_sync.final_acc);
+    println!(
+        "  Final Accumulator:     {} ({:04b})",
+        rep_sync.final_acc, rep_sync.final_acc
+    );
     println!("  Total Cycles Run:      {}", rep_sync.total_cycles);
     println!("  Wall-Clock Time:       {:.2} µs", sync_time);
-    println!("  Effective Frequency:   {:.2} MHz ({:.0} cycles/sec)", rep_sync.cycles_per_second / 1_000_000.0, rep_sync.cycles_per_second);
+    println!(
+        "  Effective Frequency:   {:.2} MHz ({:.0} cycles/sec)",
+        rep_sync.cycles_per_second / 1_000_000.0,
+        rep_sync.cycles_per_second
+    );
     println!("  Cost per Run:          $0.000000 (0 tokens)");
     println!();
 
@@ -80,16 +99,24 @@ fn main() {
     // Clock ticks follow a stochastic Poisson arrival process (lambda = 2,000,000 ticks/sec)
     let mut cpu_poisson = ZevMicroCpu::new(
         4,
-        ClockMode::ProbabilisticPoisson { lambda: 2_000_000.0 },
+        ClockMode::ProbabilisticPoisson {
+            lambda: 2_000_000.0,
+        },
         program.clone(),
     );
 
     let rep_poisson = cpu_poisson.run(100).expect("Run poisson CPU");
     println!("  Clock Architecture:    Poisson Process (Stochastic / Thermodynamic)");
-    println!("  Final Accumulator:     {} ({:04b})", rep_poisson.final_acc, rep_poisson.final_acc);
+    println!(
+        "  Final Accumulator:     {} ({:04b})",
+        rep_poisson.final_acc, rep_poisson.final_acc
+    );
     println!("  Total Cycles Run:      {}", rep_poisson.total_cycles);
     println!("  CPU State Halted:      {}", rep_poisson.halted);
-    println!("  Deterministic Parity:  {}", rep_poisson.final_acc == rep_sync.final_acc);
+    println!(
+        "  Deterministic Parity:  {}",
+        rep_poisson.final_acc == rep_sync.final_acc
+    );
     println!();
 
     // -------------------------------------------------------------------------
@@ -98,15 +125,15 @@ fn main() {
     println!("─── [PART 4] CONFIDENCE-GATED CLOCK (Self-Timed Wavefront) ───");
     println!("  In neuromorphic/asynchronous logic, the clock only advances when");
     println!("  calibrated confidence >= threshold (tau = 0.95), preventing race conditions.");
-    let mut cpu_gated = ZevMicroCpu::new(
-        4,
-        ClockMode::ConfidenceGated { threshold: 0.95 },
-        program,
-    );
+    let mut cpu_gated =
+        ZevMicroCpu::new(4, ClockMode::ConfidenceGated { threshold: 0.95 }, program);
 
     let rep_gated = cpu_gated.run(50).expect("Run gated CPU");
     println!("  Gating Threshold:      tau >= 0.95");
-    println!("  Final Accumulator:     {} ({:04b})", rep_gated.final_acc, rep_gated.final_acc);
+    println!(
+        "  Final Accumulator:     {} ({:04b})",
+        rep_gated.final_acc, rep_gated.final_acc
+    );
     println!("  Race Conditions:       0 (Eliminated by confidence gating)");
     println!("  Execution Correctness: 100.00%");
     println!();
@@ -117,12 +144,30 @@ fn main() {
     println!("================================================================================");
     println!("             HEAD-TO-HEAD: JEV vs ZEV SEQUENTIAL MACHINE");
     println!("================================================================================");
-    println!("{:<28} | {:<22} | {:<24}", "Feature", "Jev (LLM Flip-Flop)", "Zev Micro-CPU");
+    println!(
+        "{:<28} | {:<22} | {:<24}",
+        "Feature", "Jev (LLM Flip-Flop)", "Zev Micro-CPU"
+    );
     println!("{:-<28}-+-{:-<22}-+-{:-<24}", "", "", "");
-    println!("{:<28} | {:<22} | {:<24}", "Memory Retention", "Decays (Half-life ~9.6 cyc)", "Permanent (100% stable)");
-    println!("{:<28} | {:<22} | {:<24}", "Clock Rate", "~0.13 Hz (7.6s / tick)", "Over 2.5 MHz (>2,500,000 Hz)");
-    println!("{:<28} | {:<22} | {:<24}", "Speedup", "1.0x (Baseline)", "~19,000,000x FASTER");
-    println!("{:<28} | {:<22} | {:<24}", "Cost for 100 Cycles", "$0.18 (100 LLM calls)", "$0.000000 (0 tokens)");
-    println!("{:<28} | {:<22} | {:<24}", "Probabilistic Clock Support", "Only HTTP latency jitter", "Poisson, Thermal, & QDI Gated");
+    println!(
+        "{:<28} | {:<22} | {:<24}",
+        "Memory Retention", "Decays (Half-life ~9.6 cyc)", "Permanent (100% stable)"
+    );
+    println!(
+        "{:<28} | {:<22} | {:<24}",
+        "Clock Rate", "~0.13 Hz (7.6s / tick)", "Over 2.5 MHz (>2,500,000 Hz)"
+    );
+    println!(
+        "{:<28} | {:<22} | {:<24}",
+        "Speedup", "1.0x (Baseline)", "~19,000,000x FASTER"
+    );
+    println!(
+        "{:<28} | {:<22} | {:<24}",
+        "Cost for 100 Cycles", "$0.18 (100 LLM calls)", "$0.000000 (0 tokens)"
+    );
+    println!(
+        "{:<28} | {:<22} | {:<24}",
+        "Probabilistic Clock Support", "Only HTTP latency jitter", "Poisson, Thermal, & QDI Gated"
+    );
     println!("================================================================================");
 }

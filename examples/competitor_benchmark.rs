@@ -35,9 +35,13 @@ struct BenchmarkOption {
 }
 
 fn main() {
-    println!("=========================================================================================");
+    println!(
+        "========================================================================================="
+    );
     println!("           ZEV vs. ALL ORIGINAL JEV / LAYA COMPETITORS BENCHMARK");
-    println!("=========================================================================================");
+    println!(
+        "========================================================================================="
+    );
     println!("Competitors evaluated:");
     println!("  1. TypeSafe Jev      (Cloud LLM / GPT-4o API)");
     println!("  2. Laya              (ModernBERT-large 421M, PyTorch)");
@@ -127,14 +131,35 @@ fn main() {
         let throughput = (zev_total as f64) / total_wall;
 
         println!("  Tasks Evaluated:       {}", zev_total);
-        println!("  Zev Accuracy:          {:.2}% ({}/{} correct)", accuracy, zev_correct, zev_total);
-        println!("  Latency p50:           {:.2} µs ({:.4} ms)", p50, p50 / 1000.0);
-        println!("  Latency p95:           {:.2} µs ({:.4} ms)", p95, p95 / 1000.0);
-        println!("  Latency p99:           {:.2} µs ({:.4} ms)", p99, p99 / 1000.0);
+        println!(
+            "  Zev Accuracy:          {:.2}% ({}/{} correct)",
+            accuracy, zev_correct, zev_total
+        );
+        println!(
+            "  Latency p50:           {:.2} µs ({:.4} ms)",
+            p50,
+            p50 / 1000.0
+        );
+        println!(
+            "  Latency p95:           {:.2} µs ({:.4} ms)",
+            p95,
+            p95 / 1000.0
+        );
+        println!(
+            "  Latency p99:           {:.2} µs ({:.4} ms)",
+            p99,
+            p99 / 1000.0
+        );
         println!("  Total Wall-Clock Time: {:.3} seconds", total_wall);
-        println!("  Evaluation Throughput: {:.0} decisions / sec\n", throughput);
+        println!(
+            "  Evaluation Throughput: {:.0} decisions / sec\n",
+            throughput
+        );
     } else {
-        println!("  Dataset not found at {}; skipping live dataset pass.\n", dataset_path);
+        println!(
+            "  Dataset not found at {}; skipping live dataset pass.\n",
+            dataset_path
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -153,17 +178,68 @@ fn main() {
         .execute(AluOp::Add, 7, 5, 4, AluMode::MacroSemantic)
         .unwrap();
 
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "System / Competitor", "Latency (ms)", "Speedup vs Jev", "Accuracy / P(corr)", "Cost / 1M Ops");
-    println!("{:-<20}-+-{:-<14}-+-{:-<16}-+-{:-<16}-+-{:-<14}", "", "", "", "", "");
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "TypeSafe Jev (Cloud)", "7,600.0 ms", "1.0x (Baseline)", "84.0% (decayed)", "$1,800.00");
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "Laya (ModernBERT)", "508.0 ms", "15.0x faster", "88.2% (decayed)", "$250.00 (GPU)");
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "Kev 8B (Qwen3)", "591.0 ms", "12.9x faster", "91.5% (decayed)", "$600.00 (GPU)");
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "Kev 0.6B (Qwen3)", "587.0 ms", "13.0x faster", "76.4% (decayed)", "$80.00 (GPU)");
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "Tev1 (Together AI)", "300.0 ms", "25.3x faster", "86.1% (decayed)", "$180.00");
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "Von (wfzyx)", "480.0 ms", "15.8x faster", "81.0% (decayed)", "$150.00");
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "Nimble (pruned)", "280.0 ms", "27.1x faster", "79.5% (decayed)", "$120.00");
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "ZEV (Structural NAND)", format!("{:.5} ms", zev_struct.latency_micros / 1000.0), format!("{:.0}x FASTER", 7600.0 / (zev_struct.latency_micros / 1000.0)), "100.0% (calibrated)", "$0.00 (0 tokens)");
-    println!("{:<20} | {:<14} | {:<16} | {:<16} | {:<14}", "ZEV (Macro Semantic)", format!("{:.5} ms", zev_macro.latency_micros / 1000.0), format!("{:.0}x FASTER", 7600.0 / (zev_macro.latency_micros / 1000.0)), "100.0% (calibrated)", "$0.00 (0 tokens)");
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "System / Competitor",
+        "Latency (ms)",
+        "Speedup vs Jev",
+        "Accuracy / P(corr)",
+        "Cost / 1M Ops"
+    );
+    println!(
+        "{:-<20}-+-{:-<14}-+-{:-<16}-+-{:-<16}-+-{:-<14}",
+        "", "", "", "", ""
+    );
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "TypeSafe Jev (Cloud)", "7,600.0 ms", "1.0x (Baseline)", "84.0% (decayed)", "$1,800.00"
+    );
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "Laya (ModernBERT)", "508.0 ms", "15.0x faster", "88.2% (decayed)", "$250.00 (GPU)"
+    );
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "Kev 8B (Qwen3)", "591.0 ms", "12.9x faster", "91.5% (decayed)", "$600.00 (GPU)"
+    );
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "Kev 0.6B (Qwen3)", "587.0 ms", "13.0x faster", "76.4% (decayed)", "$80.00 (GPU)"
+    );
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "Tev1 (Together AI)", "300.0 ms", "25.3x faster", "86.1% (decayed)", "$180.00"
+    );
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "Von (wfzyx)", "480.0 ms", "15.8x faster", "81.0% (decayed)", "$150.00"
+    );
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "Nimble (pruned)", "280.0 ms", "27.1x faster", "79.5% (decayed)", "$120.00"
+    );
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "ZEV (Structural NAND)",
+        format!("{:.5} ms", zev_struct.latency_micros / 1000.0),
+        format!(
+            "{:.0}x FASTER",
+            7600.0 / (zev_struct.latency_micros / 1000.0)
+        ),
+        "100.0% (calibrated)",
+        "$0.00 (0 tokens)"
+    );
+    println!(
+        "{:<20} | {:<14} | {:<16} | {:<16} | {:<14}",
+        "ZEV (Macro Semantic)",
+        format!("{:.5} ms", zev_macro.latency_micros / 1000.0),
+        format!(
+            "{:.0}x FASTER",
+            7600.0 / (zev_macro.latency_micros / 1000.0)
+        ),
+        "100.0% (calibrated)",
+        "$0.00 (0 tokens)"
+    );
     println!();
 
     // -------------------------------------------------------------------------
@@ -185,28 +261,109 @@ fn main() {
     );
     let cpu_rep = cpu.run(50).unwrap();
 
-    println!("{:<22} | {:<22} | {:<18} | {:<18}", "Competitor", "Memory Half-Life", "Clock Frequency", "Can Play Doom (60 FPS)?");
+    println!(
+        "{:<22} | {:<22} | {:<18} | {:<18}",
+        "Competitor", "Memory Half-Life", "Clock Frequency", "Can Play Doom (60 FPS)?"
+    );
     println!("{:-<22}-+-{:-<22}-+-{:-<18}-+-{:-<18}", "", "", "", "");
-    println!("{:<22} | {:<22} | {:<18} | {:<18}", "TypeSafe Jev", "9.6 cycles (Bit-Rot!)", "0.13 Hz", "NO ($54M/frame)");
-    println!("{:<22} | {:<22} | {:<18} | {:<18}", "Laya (PyTorch)", "14.2 cycles (Bit-Rot!)", "1.97 Hz", "NO ($3.6M/frame)");
-    println!("{:<22} | {:<22} | {:<18} | {:<18}", "Kev (LoRA pointer)", "18.5 cycles (Bit-Rot!)", "1.69 Hz", "NO ($4.2M/frame)");
-    println!("{:<22} | {:<22} | {:<18} | {:<18}", "Tev1 (Together AI)", "12.0 cycles (Bit-Rot!)", "3.33 Hz", "NO ($2.1M/frame)");
-    println!("{:<22} | {:<22} | {:<18} | {:<18}", "ZEV Sequential CPU", "PERMANENT (Infinite)", format!("{:.1} kHz", cpu_rep.cycles_per_second / 1000.0), "YES (Native WASM/Rust)");
+    println!(
+        "{:<22} | {:<22} | {:<18} | {:<18}",
+        "TypeSafe Jev", "9.6 cycles (Bit-Rot!)", "0.13 Hz", "NO ($54M/frame)"
+    );
+    println!(
+        "{:<22} | {:<22} | {:<18} | {:<18}",
+        "Laya (PyTorch)", "14.2 cycles (Bit-Rot!)", "1.97 Hz", "NO ($3.6M/frame)"
+    );
+    println!(
+        "{:<22} | {:<22} | {:<18} | {:<18}",
+        "Kev (LoRA pointer)", "18.5 cycles (Bit-Rot!)", "1.69 Hz", "NO ($4.2M/frame)"
+    );
+    println!(
+        "{:<22} | {:<22} | {:<18} | {:<18}",
+        "Tev1 (Together AI)", "12.0 cycles (Bit-Rot!)", "3.33 Hz", "NO ($2.1M/frame)"
+    );
+    println!(
+        "{:<22} | {:<22} | {:<18} | {:<18}",
+        "ZEV Sequential CPU",
+        "PERMANENT (Infinite)",
+        format!("{:.1} kHz", cpu_rep.cycles_per_second / 1000.0),
+        "YES (Native WASM/Rust)"
+    );
     println!();
 
     // -------------------------------------------------------------------------
     // PART 4: ARCHITECTURAL MATRIX SUMMARY
     // -------------------------------------------------------------------------
-    println!("=========================================================================================");
+    println!(
+        "========================================================================================="
+    );
     println!("           GRAND ARCHITECTURAL FEATURE COMPARISON MATRIX");
-    println!("=========================================================================================");
-    println!("{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}", "Feature", "Zev-rs", "Jev", "Laya", "Kev", "Tev1", "Von/Nimble");
-    println!("{:-<18}-+-{:-<12}-+-{:-<12}-+-{:-<12}-+-{:-<12}-+-{:-<12}-+-{:-<12}", "", "", "", "", "", "", "");
-    println!("{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}", "Runtime", "Pure Rust", "Cloud API", "Python/Torch", "TS/PyTorch", "Cloud GPU", "Python");
-    println!("{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}", "Tokens per Dec", "0 (Zero)", "Prompt+Gen", "BERT Tokens", "Pointer Tokens", "4B Tokens", "Pruned Tokens");
-    println!("{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}", "Order Invariance", "Mathematical", "Uncalibrated", "Position-bias", "Position-bias", "Order-biased", "Partial");
-    println!("{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}", "Memory Model", "D Flip-Flops", "Prompt Loop", "KV Cache", "KV Cache", "KV Cache", "KV Cache");
-    println!("{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}", "Clock Types", "Sync/Poisson", "HTTP ping", "GPU sync", "Node loop", "HTTP ping", "Python loop");
-    println!("{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}", "Local Embedded", "YES (WASM/CF)", "NO (Cloud)", "NO (Heavy)", "NO (VRAM)", "NO (Cloud)", "NO");
-    println!("=========================================================================================");
+    println!(
+        "========================================================================================="
+    );
+    println!(
+        "{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}",
+        "Feature", "Zev-rs", "Jev", "Laya", "Kev", "Tev1", "Von/Nimble"
+    );
+    println!(
+        "{:-<18}-+-{:-<12}-+-{:-<12}-+-{:-<12}-+-{:-<12}-+-{:-<12}-+-{:-<12}",
+        "", "", "", "", "", "", ""
+    );
+    println!(
+        "{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}",
+        "Runtime", "Pure Rust", "Cloud API", "Python/Torch", "TS/PyTorch", "Cloud GPU", "Python"
+    );
+    println!(
+        "{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}",
+        "Tokens per Dec",
+        "0 (Zero)",
+        "Prompt+Gen",
+        "BERT Tokens",
+        "Pointer Tokens",
+        "4B Tokens",
+        "Pruned Tokens"
+    );
+    println!(
+        "{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}",
+        "Order Invariance",
+        "Mathematical",
+        "Uncalibrated",
+        "Position-bias",
+        "Position-bias",
+        "Order-biased",
+        "Partial"
+    );
+    println!(
+        "{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}",
+        "Memory Model",
+        "D Flip-Flops",
+        "Prompt Loop",
+        "KV Cache",
+        "KV Cache",
+        "KV Cache",
+        "KV Cache"
+    );
+    println!(
+        "{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}",
+        "Clock Types",
+        "Sync/Poisson",
+        "HTTP ping",
+        "GPU sync",
+        "Node loop",
+        "HTTP ping",
+        "Python loop"
+    );
+    println!(
+        "{:<18} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}",
+        "Local Embedded",
+        "YES (WASM/CF)",
+        "NO (Cloud)",
+        "NO (Heavy)",
+        "NO (VRAM)",
+        "NO (Cloud)",
+        "NO"
+    );
+    println!(
+        "========================================================================================="
+    );
 }

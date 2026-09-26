@@ -10,9 +10,18 @@ fn test_feature_1_tabular_streaming_engine() {
     let engine = TabularEngine::default();
 
     let mut batch = TabularBatch::default();
-    batch.push(TabularRow::new("row_1", "Production PostgreSQL database connection refused 500 error"));
-    batch.push(TabularRow::new("row_2", "I love the new UI dashboard, great design!"));
-    batch.push(TabularRow::new("row_3", "General inquiry: how to update account profile settings"));
+    batch.push(TabularRow::new(
+        "row_1",
+        "Production PostgreSQL database connection refused 500 error",
+    ));
+    batch.push(TabularRow::new(
+        "row_2",
+        "I love the new UI dashboard, great design!",
+    ));
+    batch.push(TabularRow::new(
+        "row_3",
+        "General inquiry: how to update account profile settings",
+    ));
 
     // 1. Filter: Find incident / outage rows
     let filter = TabularFilterPredicate::new(
@@ -22,19 +31,33 @@ fn test_feature_1_tabular_streaming_engine() {
     );
     let (survivors, report) = engine.filter_batch(&batch, &filter).unwrap();
     for row in &batch.rows {
-        let (s, _) = engine.filter_batch(&TabularBatch::new(vec![row.clone()]), &filter).unwrap();
+        let (s, _) = engine
+            .filter_batch(&TabularBatch::new(vec![row.clone()]), &filter)
+            .unwrap();
         println!("row {}: survived? {}", row.id, !s.is_empty());
     }
-    println!("test_feature_1 survivors: {:?}", survivors.rows.iter().map(|r| &r.id).collect::<Vec<_>>());
+    println!(
+        "test_feature_1 survivors: {:?}",
+        survivors.rows.iter().map(|r| &r.id).collect::<Vec<_>>()
+    );
     assert_eq!(report.input_rows, 3);
     assert_eq!(survivors.len(), 1);
     assert_eq!(survivors.rows[0].id, "row_1");
 
     // 2. Route: Route across departments
     let mut routes = BTreeMap::new();
-    routes.insert("infra".to_string(), "Database, server outages, infrastructure errors".to_string());
-    routes.insert("feedback".to_string(), "UI dashboard design, compliments, UX feedback, general appreciation".to_string());
-    routes.insert("auth".to_string(), "Login, passwords, account authentication".to_string());
+    routes.insert(
+        "infra".to_string(),
+        "Database, server outages, infrastructure errors".to_string(),
+    );
+    routes.insert(
+        "feedback".to_string(),
+        "UI dashboard design, compliments, UX feedback, general appreciation".to_string(),
+    );
+    routes.insert(
+        "auth".to_string(),
+        "Login, passwords, account authentication".to_string(),
+    );
 
     let (routed, route_report) = engine.route_batch(&batch, &routes).unwrap();
     println!("routed: {:?}", routed);
@@ -44,24 +67,38 @@ fn test_feature_1_tabular_streaming_engine() {
     assert_eq!(routed[2].1, "auth");
 
     // 3. Score: Continuous probability
-    let (scores, score_report) = engine.score_batch(
-        &batch,
-        "Assess customer sentiment",
-        "Positive, pleased, compliment, love, great design",
-        "Frustrated, issue, complaint, error, refused, outage",
-    ).unwrap();
+    let (scores, score_report) = engine
+        .score_batch(
+            &batch,
+            "Assess customer sentiment",
+            "Positive, pleased, compliment, love, great design",
+            "Frustrated, issue, complaint, error, refused, outage",
+        )
+        .unwrap();
     assert_eq!(score_report.input_rows, 3);
     let row_2_score = scores.iter().find(|(id, _)| id == "row_2").unwrap().1;
     let row_1_score = scores.iter().find(|(id, _)| id == "row_1").unwrap().1;
-    assert!(row_2_score > row_1_score, "Row 2 (compliment) should have higher positive sentiment");
+    assert!(
+        row_2_score > row_1_score,
+        "Row 2 (compliment) should have higher positive sentiment"
+    );
 }
 
 #[test]
 fn test_feature_2_asymmetric_anchor_partner_matrix() {
     let partners = [
-        ("billing", "Invoices, payments, chargebacks, subscriptions, refunds"),
-        ("security", "Vulnerability report, credentials compromised, malware, breach"),
-        ("hardware", "Broken laptop screen, printer jam, keyboard replacement"),
+        (
+            "billing",
+            "Invoices, payments, chargebacks, subscriptions, refunds",
+        ),
+        (
+            "security",
+            "Vulnerability report, credentials compromised, malware, breach",
+        ),
+        (
+            "hardware",
+            "Broken laptop screen, printer jam, keyboard replacement",
+        ),
     ];
 
     let matrix = PartnerMatrix::from_options(&partners, 512);
@@ -71,9 +108,18 @@ fn test_feature_2_asymmetric_anchor_partner_matrix() {
     let evaluator = AnchorPartnerEvaluator::new(matrix, 2.179);
 
     let anchors = [
-        ("ticket_101", "Our office printer is smoking and paper is jammed"),
-        ("ticket_102", "We need a refund for duplicate charges on invoice #8892"),
-        ("ticket_103", "Someone leaked the admin API credentials on pastebin"),
+        (
+            "ticket_101",
+            "Our office printer is smoking and paper is jammed",
+        ),
+        (
+            "ticket_102",
+            "We need a refund for duplicate charges on invoice #8892",
+        ),
+        (
+            "ticket_103",
+            "Someone leaked the admin API credentials on pastebin",
+        ),
     ];
 
     let results = evaluator.evaluate_anchors(&anchors).unwrap();
@@ -108,10 +154,12 @@ fn test_feature_3_kv_rewind_paged_arena() {
     assert_eq!(arena.free_pages_count(), 97);
 
     // 4. Append question 2 (5 tokens -> total 45 tokens, fits in existing 3 pages)
-    let evaluated = arena.with_rewind(doc_key, 5, |t| {
-        assert_eq!(t.token_count, 45);
-        Ok("result_ok")
-    }).unwrap();
+    let evaluated = arena
+        .with_rewind(doc_key, 5, |t| {
+            assert_eq!(t.token_count, 45);
+            Ok("result_ok")
+        })
+        .unwrap();
 
     assert_eq!(evaluated, "result_ok");
     assert_eq!(arena.free_pages_count(), 97);
@@ -148,7 +196,10 @@ fn test_feature_4_output_head_pruning_and_token_pooling() {
     let logits = head.forward_logits(&affirmative_state).unwrap();
     assert!(readout.decision(&logits));
     let prob_yes = readout.score(&logits);
-    assert!(prob_yes > 0.8, "Affirmative score should be high, got {prob_yes}");
+    assert!(
+        prob_yes > 0.8,
+        "Affirmative score should be high, got {prob_yes}"
+    );
 
     // Test with negative hidden state (activation on feature 3)
     let negative_state = vec![0.0, 0.0, 0.0, 2.5, 0.0, 0.0, 0.0, 0.0];
@@ -173,23 +224,27 @@ fn test_feature_5_predicate_cascade_early_rejection() {
             "Is this state discussing a patient or clinical health scenario?",
             "Patient, symptoms, clinical condition, medical triage",
             "Software coding, nginx web server, programming, sales, or general conversation",
-        ).with_cost(0.5).with_selectivity(0.1),
-
+        )
+        .with_cost(0.5)
+        .with_selectivity(0.1),
         CascadeStage::new(
             "acute_abdomen",
             StageKind::SimdFilter,
             "Is the patient experiencing severe abdominal symptoms or peritonitis?",
             "Right lower quadrant pain, tenderness, acute abdomen",
             "Mild headache, dermatological rash, or limb injury",
-        ).with_cost(5.0).with_selectivity(0.3),
-
+        )
+        .with_cost(5.0)
+        .with_selectivity(0.3),
         CascadeStage::new(
             "appendicitis_differential",
             StageKind::DetailedEvaluator,
             "Does the patient show signs consistent with acute appendicitis?",
             "McBurney tenderness, peritonitis, localized right lower quadrant pain",
             "Diffuse gastroenteritis with diarrhea",
-        ).with_cost(20.0).with_selectivity(0.5),
+        )
+        .with_cost(20.0)
+        .with_selectivity(0.5),
     ];
 
     let cascade = PredicateCascade::new(stages);
@@ -202,7 +257,10 @@ fn test_feature_5_predicate_cascade_early_rejection() {
     let report_a = cascade.evaluate(&engine, non_medical).unwrap();
     assert!(!report_a.passed);
     assert!(report_a.short_circuited);
-    assert_eq!(report_a.completed_stages, 1, "Should short-circuit after Stage 1");
+    assert_eq!(
+        report_a.completed_stages, 1,
+        "Should short-circuit after Stage 1"
+    );
 
     // Case B: Clinical acute appendicitis scenario -> passes all 3 stages
     let medical_state = "Patient reports acute right lower quadrant pain with McBurney tenderness, fever, and nausea.";

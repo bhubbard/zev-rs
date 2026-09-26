@@ -270,11 +270,7 @@ mod tests {
             MicroInstruction::Halt,
         ];
 
-        let mut cpu = ZevMicroCpu::new(
-            4,
-            ClockMode::Synchronous { period_micros: 1.0 },
-            program,
-        );
+        let mut cpu = ZevMicroCpu::new(4, ClockMode::Synchronous { period_micros: 1.0 }, program);
 
         let report = cpu.run(100).unwrap();
         assert!(report.halted);
@@ -295,11 +291,7 @@ mod tests {
             MicroInstruction::Halt,
         ];
 
-        let mut cpu = ZevMicroCpu::new(
-            8,
-            ClockMode::Synchronous { period_micros: 1.0 },
-            program,
-        );
+        let mut cpu = ZevMicroCpu::new(8, ClockMode::Synchronous { period_micros: 1.0 }, program);
 
         let report = cpu.run(50).unwrap();
         assert!(report.halted);

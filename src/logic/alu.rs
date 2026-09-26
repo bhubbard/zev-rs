@@ -136,7 +136,8 @@ impl SemanticAluEngine {
             }
             AluMode::StructuralNand => {
                 // Build or use synthesized topological NAND circuit
-                let (circuit, report) = self.execute_structural_nand(op, masked_a, masked_b, bit_width)?;
+                let (circuit, report) =
+                    self.execute_structural_nand(op, masked_a, masked_b, bit_width)?;
                 let mut result_val = 0u64;
                 for i in 0..bit_width {
                     if report.outputs[i] {

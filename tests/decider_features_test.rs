@@ -141,10 +141,7 @@ fn test_fit_temperatures_by_type_optimizer() {
     );
     data.insert(
         "boolean".to_string(),
-        vec![
-            (vec![2.5, 0.3], 0),
-            (vec![0.1, 2.8], 1),
-        ],
+        vec![(vec![2.5, 0.3], 0), (vec![0.1, 2.8], 1)],
     );
 
     let fitted = fit_temperatures_by_type(&data, 0.5, 4.0, 20);

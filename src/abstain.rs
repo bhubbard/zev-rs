@@ -48,11 +48,15 @@ pub const ABSTAIN_EXACT: &[&str] = &[
 /// Returns true if the text matches an abstention exact keyword or prefix.
 pub fn is_abstain_text(text: &str) -> bool {
     let t = text.trim().to_lowercase();
-    let clean = t.trim_end_matches(|c: char| c.is_ascii_punctuation()).trim();
+    let clean = t
+        .trim_end_matches(|c: char| c.is_ascii_punctuation())
+        .trim();
     if ABSTAIN_EXACT.iter().any(|&exact| clean == exact) {
         return true;
     }
-    ABSTAIN_PREFIXES.iter().any(|&prefix| clean.starts_with(prefix))
+    ABSTAIN_PREFIXES
+        .iter()
+        .any(|&prefix| clean.starts_with(prefix))
 }
 
 /// Returns true if either the candidate id or its description is an abstention option.

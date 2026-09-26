@@ -235,11 +235,7 @@ pub struct MemoryHalfLifeReport {
 }
 
 impl MemoryHalfLifeReport {
-    pub fn compute(
-        bit_width: usize,
-        clock_cycles: usize,
-        single_gate_accuracy: f64,
-    ) -> Self {
+    pub fn compute(bit_width: usize, clock_cycles: usize, single_gate_accuracy: f64) -> Self {
         // A master-slave D flip-flop uses ~9 NAND gates per bit
         let gates_per_bit = 9;
         let total_gates = bit_width * gates_per_bit;

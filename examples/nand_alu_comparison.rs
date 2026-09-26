@@ -29,15 +29,28 @@ fn main() {
 
     println!("  Operand A:          7 (0111)");
     println!("  Operand B:          5 (0101)");
-    println!("  Result:             {} ({:04b})", struct_res.result, struct_res.result);
+    println!(
+        "  Result:             {} ({:04b})",
+        struct_res.result, struct_res.result
+    );
     println!("  Carry Out:          {}", struct_res.carry_out);
     println!("  Zero Flag:          {}", struct_res.zero_flag);
     println!("  Overflow Flag:      {}", struct_res.overflow_flag);
     println!("  Gates Evaluated:    {}", struct_res.gate_evaluations);
-    println!("  Critical Depth:     {} topological stages", struct_res.critical_path_depth);
-    println!("  Circuit Latency:    {:.2} µs ({:.5} ms)", struct_res.latency_micros, struct_res.latency_micros / 1000.0);
+    println!(
+        "  Critical Depth:     {} topological stages",
+        struct_res.critical_path_depth
+    );
+    println!(
+        "  Circuit Latency:    {:.2} µs ({:.5} ms)",
+        struct_res.latency_micros,
+        struct_res.latency_micros / 1000.0
+    );
     println!("  Wall-Clock Latency: {:.2} µs", total_struct_wall_clock);
-    println!("  Accuracy / Conf:    {:.2}%", struct_res.compound_confidence * 100.0);
+    println!(
+        "  Accuracy / Conf:    {:.2}%",
+        struct_res.compound_confidence * 100.0
+    );
     println!("  Cost:               ${:.6}", struct_res.cost_dollars);
     println!();
 
@@ -53,10 +66,20 @@ fn main() {
 
     println!("  Operand A:          7 (0111)");
     println!("  Operand B:          5 (0101)");
-    println!("  Result:             {} ({:04b})", macro_res.result, macro_res.result);
+    println!(
+        "  Result:             {} ({:04b})",
+        macro_res.result, macro_res.result
+    );
     println!("  Decision Steps:     1");
-    println!("  Latency:            {:.2} µs ({:.5} ms)", macro_latency, macro_latency / 1000.0);
-    println!("  Compound Conf:      {:.2}%", macro_res.compound_confidence * 100.0);
+    println!(
+        "  Latency:            {:.2} µs ({:.5} ms)",
+        macro_latency,
+        macro_latency / 1000.0
+    );
+    println!(
+        "  Compound Conf:      {:.2}%",
+        macro_res.compound_confidence * 100.0
+    );
     println!("  Cost:               ${:.6}", macro_res.cost_dollars);
     println!();
 
@@ -79,10 +102,20 @@ fn main() {
 
     println!("  Input A Confidence: 92.0%");
     println!("  Input B Confidence: 35.0%");
-    println!("  Output Probabilities: Sum={:.2}%, Cout={:.2}%", fuzzy_rep.output_probabilities[0] * 100.0, fuzzy_rep.output_probabilities[1] * 100.0);
-    println!("  Output Decisions:     Sum={}, Cout={}", fuzzy_rep.output_decisions[0], fuzzy_rep.output_decisions[1]);
+    println!(
+        "  Output Probabilities: Sum={:.2}%, Cout={:.2}%",
+        fuzzy_rep.output_probabilities[0] * 100.0,
+        fuzzy_rep.output_probabilities[1] * 100.0
+    );
+    println!(
+        "  Output Decisions:     Sum={}, Cout={}",
+        fuzzy_rep.output_decisions[0], fuzzy_rep.output_decisions[1]
+    );
     println!("  Critical Stages:      {}", fuzzy_rep.critical_path_depth);
-    println!("  Compound Gate Decay:  {:.2}% (at 0.998/gate)", fuzzy_rep.compound_confidence * 100.0);
+    println!(
+        "  Compound Gate Decay:  {:.2}% (at 0.998/gate)",
+        fuzzy_rep.compound_confidence * 100.0
+    );
     println!("  Abstained Outputs:    {}", fuzzy_rep.abstained_outputs);
     println!();
 
@@ -112,13 +145,52 @@ fn main() {
     let speedup_struct = jev_latency_ms / zev_struct_ms.max(0.0001);
     let speedup_macro = jev_latency_ms / zev_macro_ms.max(0.0001);
 
-    println!("{:<24} | {:<16} | {:<20} | {:<20}", "Metric", "Jev (Reported)", "Zev (Structural NAND)", "Zev (Macro Semantic)");
+    println!(
+        "{:<24} | {:<16} | {:<20} | {:<20}",
+        "Metric", "Jev (Reported)", "Zev (Structural NAND)", "Zev (Macro Semantic)"
+    );
     println!("{:-<24}-+-{:-<16}-+-{:-<20}-+-{:-<20}", "", "", "", "");
-    println!("{:<24} | {:<16} | {:<20} | {:<20}", "Steps / Gate Calls", "116 API calls", format!("{} gates ({} stages)", struct_res.gate_evaluations, struct_res.critical_path_depth), "1 macro decision");
-    println!("{:<24} | {:<16} | {:<20} | {:<20}", "Wall-Clock Latency", "7.60 s (7,600 ms)", format!("{:.4} ms ({:.1} µs)", zev_struct_ms, struct_res.latency_micros), format!("{:.4} ms ({:.1} µs)", zev_macro_ms, macro_latency));
-    println!("{:<24} | {:<16} | {:<20} | {:<20}", "Speedup vs Jev", "1.0x (Baseline)", format!("{:.0}x FASTER", speedup_struct), format!("{:.0}x FASTER", speedup_macro));
-    println!("{:<24} | {:<16} | {:<20} | {:<20}", "Cost per Op", "$0.0018", "$0.000000 (0 tokens)", "$0.000000 (0 tokens)");
-    println!("{:<24} | {:<16} | {:<20} | {:<20}", "Compound Accuracy", "84.0% (decayed)", "100.0% (deterministic)", "100.0% (deterministic)");
-    println!("{:<24} | {:<16} | {:<20} | {:<20}", "Can Run Doom at 60 FPS?", "No ($54M/frame)", "YES (in-process Rust/WASM)", "YES (in-process Rust/WASM)");
+    println!(
+        "{:<24} | {:<16} | {:<20} | {:<20}",
+        "Steps / Gate Calls",
+        "116 API calls",
+        format!(
+            "{} gates ({} stages)",
+            struct_res.gate_evaluations, struct_res.critical_path_depth
+        ),
+        "1 macro decision"
+    );
+    println!(
+        "{:<24} | {:<16} | {:<20} | {:<20}",
+        "Wall-Clock Latency",
+        "7.60 s (7,600 ms)",
+        format!(
+            "{:.4} ms ({:.1} µs)",
+            zev_struct_ms, struct_res.latency_micros
+        ),
+        format!("{:.4} ms ({:.1} µs)", zev_macro_ms, macro_latency)
+    );
+    println!(
+        "{:<24} | {:<16} | {:<20} | {:<20}",
+        "Speedup vs Jev",
+        "1.0x (Baseline)",
+        format!("{:.0}x FASTER", speedup_struct),
+        format!("{:.0}x FASTER", speedup_macro)
+    );
+    println!(
+        "{:<24} | {:<16} | {:<20} | {:<20}",
+        "Cost per Op", "$0.0018", "$0.000000 (0 tokens)", "$0.000000 (0 tokens)"
+    );
+    println!(
+        "{:<24} | {:<16} | {:<20} | {:<20}",
+        "Compound Accuracy", "84.0% (decayed)", "100.0% (deterministic)", "100.0% (deterministic)"
+    );
+    println!(
+        "{:<24} | {:<16} | {:<20} | {:<20}",
+        "Can Run Doom at 60 FPS?",
+        "No ($54M/frame)",
+        "YES (in-process Rust/WASM)",
+        "YES (in-process Rust/WASM)"
+    );
     println!("================================================================================");
 }

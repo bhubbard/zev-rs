@@ -258,12 +258,18 @@ pub fn fit_temperatures_by_type(
             config.choice = fit_temperature(pairs, min_t, max_t, max_iters);
         }
     }
-    if let Some(pairs) = samples_by_type.get("boolean").or_else(|| samples_by_type.get("noul")) {
+    if let Some(pairs) = samples_by_type
+        .get("boolean")
+        .or_else(|| samples_by_type.get("noul"))
+    {
         if !pairs.is_empty() {
             config.boolean = fit_temperature(pairs, min_t, max_t, max_iters);
         }
     }
-    if let Some(pairs) = samples_by_type.get("score").or_else(|| samples_by_type.get("ordinal")) {
+    if let Some(pairs) = samples_by_type
+        .get("score")
+        .or_else(|| samples_by_type.get("ordinal"))
+    {
         if !pairs.is_empty() {
             config.score = fit_temperature(pairs, min_t, max_t, max_iters);
         }

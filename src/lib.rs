@@ -26,18 +26,13 @@ pub use calibration::{
     compute_ece, fit_temperature, fit_temperatures_by_type, resolve_temperature, scaled_softmax,
     TypeTemperatureConfig,
 };
+pub use cascade::{CascadeReport, CascadeStage, PredicateCascade, StageKind};
 pub use clm::{ContrastiveHead, HeadConfig, HybridVerifier, VectorArena};
 pub use compaction::{ToolCallRecord, ToolCompactionAction, ToolCompactionDecision, ToolCompactor};
 pub use decoding::{decode_decision, generate_candidates, summarize_moments};
 pub use engine::{DecisionEngine, Evaluable, ZevEngine};
 pub use error::{Result, ZevError};
-pub use order_invariant::{
-    compute_order_invariant_logits, compute_order_invariant_logits_with_context, PremiseContext,
-};
-pub use preprocessor::{clean_text, inject_temporal_facts, preprocess_state};
-pub use cascade::{CascadeReport, CascadeStage, PredicateCascade, StageKind};
 pub use kv_rewind::{BlockTable, PagedContextArena, DEFAULT_PAGE_SIZE};
-pub use matrix::{AnchorPartnerEvaluator, PartnerMatrix};
 pub use logic::{
     AluMode, AluOp, AluReport, CircuitGate, CircuitReport, ClockMode, ClockPulse, CpuCycleReport,
     CpuRunReport, DFlipFlop, GateType, GatedDLatch, MemoryHalfLifeReport, MicroInstruction,
@@ -45,6 +40,11 @@ pub use logic::{
     SemanticAluEngine, SemanticStateAlu, SrLatch, TopologicalCircuit, WireId, ZevLogicEngine,
     ZevMicroCpu,
 };
+pub use matrix::{AnchorPartnerEvaluator, PartnerMatrix};
+pub use order_invariant::{
+    compute_order_invariant_logits, compute_order_invariant_logits_with_context, PremiseContext,
+};
+pub use preprocessor::{clean_text, inject_temporal_facts, preprocess_state};
 pub use readout::{
     BinaryReadout, ClassTokenPool, PrunedHead, DEFAULT_FALSE_SPELLINGS, DEFAULT_TRUE_SPELLINGS,
 };

@@ -306,7 +306,8 @@ impl TabularEngine {
                         options: vec![
                             OptionDef {
                                 id: "match".to_string(),
-                                description: "The candidate criterion applies to the state".to_string(),
+                                description: "The candidate criterion applies to the state"
+                                    .to_string(),
                             },
                             OptionDef {
                                 id: "mismatch".to_string(),

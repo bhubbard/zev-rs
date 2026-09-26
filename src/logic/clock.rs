@@ -104,7 +104,10 @@ impl ProbabilisticClock {
 
             ClockMode::ProbabilisticPoisson { lambda } => {
                 // Probability of tick in short step: p = 1 - exp(-lambda * dt)
-                let dt = now.duration_since(self.last_tick_time).as_secs_f64().max(1e-6);
+                let dt = now
+                    .duration_since(self.last_tick_time)
+                    .as_secs_f64()
+                    .max(1e-6);
                 let p_tick = 1.0 - (-lambda * dt).exp();
                 let sample = self.next_uniform();
                 (sample < p_tick, false)
@@ -116,7 +119,8 @@ impl ProbabilisticClock {
             } => {
                 let jitter = self.next_gaussian() * jitter_std_dev;
                 let actual_period = (nominal_period_micros + jitter).max(0.1);
-                let since_last = now.duration_since(self.last_tick_time).as_secs_f64() * 1_000_000.0;
+                let since_last =
+                    now.duration_since(self.last_tick_time).as_secs_f64() * 1_000_000.0;
                 (since_last >= actual_period, false)
             }
         };

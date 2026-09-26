@@ -17,6 +17,4 @@ pub use circuit::{
 pub use clock::{ClockMode, ClockPulse, ProbabilisticClock};
 pub use cpu::{CpuCycleReport, CpuRunReport, MicroInstruction, ZevMicroCpu};
 pub use gate::{GateType, ProbabilisticGateResult, ZevLogicEngine};
-pub use sequential::{
-    DFlipFlop, GatedDLatch, MemoryHalfLifeReport, Register, SrLatch,
-};
+pub use sequential::{DFlipFlop, GatedDLatch, MemoryHalfLifeReport, Register, SrLatch};

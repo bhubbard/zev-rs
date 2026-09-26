@@ -7,8 +7,8 @@ use std::sync::Arc;
 #[cfg(feature = "server")]
 use zev::create_router;
 use zev::{
-    SystemOneRequest, TabularBatch, TabularEngine, TabularFilterPredicate,
-    TabularRow, ZevEngine, ZevRequest,
+    SystemOneRequest, TabularBatch, TabularEngine, TabularFilterPredicate, TabularRow, ZevEngine,
+    ZevRequest,
 };
 
 #[derive(Parser)]
@@ -337,10 +337,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue;
                 }
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(trimmed) {
-                    let id = val.get("id").and_then(|v| v.as_str()).unwrap_or(&line_idx.to_string()).to_string();
-                    let text = val.get("text").and_then(|v| v.as_str())
+                    let id = val
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&line_idx.to_string())
+                        .to_string();
+                    let text = val
+                        .get("text")
+                        .and_then(|v| v.as_str())
                         .or_else(|| val.get("body").and_then(|v| v.as_str()))
-                        .unwrap_or(trimmed).to_string();
+                        .unwrap_or(trimmed)
+                        .to_string();
                     rows.push(TabularRow::new(id, text));
                 }
             }
@@ -363,7 +370,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("{}", serde_json::to_string_pretty(&survivors)?);
                 }
                 "score" => {
-                    let (scores, report) = engine.score_batch(&batch, &instructions, &positive, &negative)?;
+                    let (scores, report) =
+                        engine.score_batch(&batch, &instructions, &positive, &negative)?;
                     println!(
                         "Scored {} rows in {:.2} ms ({:.0} rows/s)",
                         report.input_rows,
@@ -374,7 +382,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 "route" => {
                     let routes_str = routes.ok_or_else(|| {
-                        zev::ZevError::InvalidRequest("Missing --routes JSON map for route mode".into())
+                        zev::ZevError::InvalidRequest(
+                            "Missing --routes JSON map for route mode".into(),
+                        )
                     })?;
                     let routes_map: BTreeMap<String, String> = serde_json::from_str(&routes_str)?;
                     let (routed, report) = engine.route_batch(&batch, &routes_map)?;
@@ -387,7 +397,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("{}", serde_json::to_string_pretty(&routed)?);
                 }
                 other => {
-                    eprintln!("Unknown batch mode: '{}'. Supported modes: 'filter', 'score', 'route'", other);
+                    eprintln!(
+                        "Unknown batch mode: '{}'. Supported modes: 'filter', 'score', 'route'",
+                        other
+                    );
                 }
             }
         }
