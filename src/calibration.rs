@@ -1,5 +1,52 @@
 use crate::error::{Result, ZevError};
 use crate::types::DEFAULT_CALIBRATED_TEMPERATURE;
+use serde::{Deserialize, Serialize};
+
+/// Question-type specific calibrated temperatures.
+/// Based on empirical calibration findings from Decider (Mapika) and Jev:
+/// - choice: 1.48 (multi-class categorical routing)
+/// - boolean: 2.22 (binary noul)
+/// - score: 1.38 (ordinal ratings / Likert scale)
+/// - numeric: 1.25 (anchor regression)
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct TypeTemperatureConfig {
+    pub choice: f64,
+    pub boolean: f64,
+    pub score: f64,
+    pub numeric: f64,
+}
+
+impl Default for TypeTemperatureConfig {
+    fn default() -> Self {
+        Self {
+            choice: 1.48,
+            boolean: 2.22,
+            score: 1.38,
+            numeric: 1.25,
+        }
+    }
+}
+
+impl TypeTemperatureConfig {
+    pub fn new(choice: f64, boolean: f64, score: f64, numeric: f64) -> Self {
+        Self {
+            choice,
+            boolean,
+            score,
+            numeric,
+        }
+    }
+
+    pub fn get_temperature(&self, q_type: &str) -> f64 {
+        match q_type.to_lowercase().as_str() {
+            "choice" | "routing" => self.choice,
+            "boolean" | "noul" => self.boolean,
+            "score" | "ordinal" => self.score,
+            "numeric" => self.numeric,
+            _ => DEFAULT_CALIBRATED_TEMPERATURE,
+        }
+    }
+}
 
 pub fn resolve_temperature(user_temp: Option<f64>) -> Result<f64> {
     let t = user_temp.unwrap_or(DEFAULT_CALIBRATED_TEMPERATURE);
@@ -196,9 +243,75 @@ pub fn fit_temperature(
     (a + b) / 2.0
 }
 
+/// Fits optimal calibration temperatures individually per question type
+/// (Choice, Boolean, Score, Numeric) to minimize Expected Calibration Error.
+/// Inspired by Decider's multi-type calibration architecture.
+pub fn fit_temperatures_by_type(
+    samples_by_type: &std::collections::HashMap<String, Vec<(Vec<f64>, usize)>>,
+    min_t: f64,
+    max_t: f64,
+    max_iters: usize,
+) -> TypeTemperatureConfig {
+    let mut config = TypeTemperatureConfig::default();
+    if let Some(pairs) = samples_by_type.get("choice") {
+        if !pairs.is_empty() {
+            config.choice = fit_temperature(pairs, min_t, max_t, max_iters);
+        }
+    }
+    if let Some(pairs) = samples_by_type.get("boolean").or_else(|| samples_by_type.get("noul")) {
+        if !pairs.is_empty() {
+            config.boolean = fit_temperature(pairs, min_t, max_t, max_iters);
+        }
+    }
+    if let Some(pairs) = samples_by_type.get("score").or_else(|| samples_by_type.get("ordinal")) {
+        if !pairs.is_empty() {
+            config.score = fit_temperature(pairs, min_t, max_t, max_iters);
+        }
+    }
+    if let Some(pairs) = samples_by_type.get("numeric") {
+        if !pairs.is_empty() {
+            config.numeric = fit_temperature(pairs, min_t, max_t, max_iters);
+        }
+    }
+    config
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_type_temperature_config() {
+        let config = TypeTemperatureConfig::default();
+        assert_eq!(config.get_temperature("choice"), 1.48);
+        assert_eq!(config.get_temperature("routing"), 1.48);
+        assert_eq!(config.get_temperature("boolean"), 2.22);
+        assert_eq!(config.get_temperature("noul"), 2.22);
+        assert_eq!(config.get_temperature("score"), 1.38);
+        assert_eq!(config.get_temperature("ordinal"), 1.38);
+        assert_eq!(config.get_temperature("numeric"), 1.25);
+    }
+
+    #[test]
+    fn test_fit_temperatures_by_type() {
+        use std::collections::HashMap;
+        let mut map = HashMap::new();
+        map.insert(
+            "choice".to_string(),
+            vec![(vec![2.0, 0.5], 0), (vec![0.1, 2.5], 1)],
+        );
+        map.insert(
+            "score".to_string(),
+            vec![(vec![3.0, 1.0, 0.2], 0), (vec![0.2, 1.5, 3.2], 2)],
+        );
+
+        let fitted = fit_temperatures_by_type(&map, 0.5, 4.0, 15);
+        assert!(fitted.choice >= 0.5 && fitted.choice <= 4.0);
+        assert!(fitted.score >= 0.5 && fitted.score <= 4.0);
+        // Untrained types retain defaults
+        assert_eq!(fitted.boolean, 2.22);
+        assert_eq!(fitted.numeric, 1.25);
+    }
 
     #[test]
     fn test_calibration_errors() {

@@ -23,6 +23,9 @@ pub enum ZevError {
     #[error("Evaluation error: {0}")]
     Evaluation(String),
 
+    #[error("Internal error: {0}")]
+    Internal(String),
+
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 

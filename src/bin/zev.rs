@@ -6,7 +6,10 @@ use std::io::{self, Read};
 use std::sync::Arc;
 #[cfg(feature = "server")]
 use zev::create_router;
-use zev::{SystemOneRequest, ZevEngine, ZevRequest};
+use zev::{
+    SystemOneRequest, TabularBatch, TabularEngine, TabularFilterPredicate,
+    TabularRow, ZevEngine, ZevRequest,
+};
 
 #[derive(Parser)]
 #[command(name = "zev")]
@@ -118,6 +121,37 @@ enum Commands {
         #[cfg(feature = "candle")]
         #[arg(long, default_value_t = 8)]
         prefix_cache: usize,
+    },
+
+    /// Execute batch tabular decisions (filter, score, route) over a JSONL file
+    Batch {
+        /// Path to JSONL file with rows (each row: {"id": "...", "text": "..."})
+        #[arg(short, long)]
+        file: String,
+
+        /// Batch mode: 'filter', 'score', or 'route'
+        #[arg(short, long, default_value = "filter")]
+        mode: String,
+
+        /// Instruction text for filter/score
+        #[arg(short, long, default_value = "Evaluate row")]
+        instructions: String,
+
+        /// Positive criterion for filter/score
+        #[arg(long, default_value = "Satisfies condition")]
+        positive: String,
+
+        /// Negative criterion for filter/score
+        #[arg(long, default_value = "Does not satisfy condition")]
+        negative: String,
+
+        /// Threshold probability (default 0.5)
+        #[arg(short, long, default_value_t = 0.5)]
+        threshold: f64,
+
+        /// Routes JSON map (required for 'route' mode)
+        #[arg(short, long)]
+        routes: Option<String>,
     },
 }
 
@@ -284,6 +318,78 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let listener = tokio::net::TcpListener::bind(&addr).await?;
             println!("Zev API server running on http://{}", addr);
             axum::serve(listener, router).await?;
+        }
+
+        Commands::Batch {
+            file,
+            mode,
+            instructions,
+            positive,
+            negative,
+            threshold,
+            routes,
+        } => {
+            let content = fs::read_to_string(&file)?;
+            let mut rows = Vec::new();
+            for (line_idx, line) in content.lines().enumerate() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                    let id = val.get("id").and_then(|v| v.as_str()).unwrap_or(&line_idx.to_string()).to_string();
+                    let text = val.get("text").and_then(|v| v.as_str())
+                        .or_else(|| val.get("body").and_then(|v| v.as_str()))
+                        .unwrap_or(trimmed).to_string();
+                    rows.push(TabularRow::new(id, text));
+                }
+            }
+
+            let batch = TabularBatch::new(rows);
+            let engine = TabularEngine::default();
+
+            match mode.as_str() {
+                "filter" => {
+                    let pred = TabularFilterPredicate::new(instructions, positive, negative)
+                        .with_threshold(threshold);
+                    let (survivors, report) = engine.filter_batch(&batch, &pred)?;
+                    println!(
+                        "Filtered {} -> {} rows in {:.2} ms ({:.0} rows/s)",
+                        report.input_rows,
+                        report.output_rows,
+                        report.elapsed_microseconds as f64 / 1000.0,
+                        report.rows_per_second
+                    );
+                    println!("{}", serde_json::to_string_pretty(&survivors)?);
+                }
+                "score" => {
+                    let (scores, report) = engine.score_batch(&batch, &instructions, &positive, &negative)?;
+                    println!(
+                        "Scored {} rows in {:.2} ms ({:.0} rows/s)",
+                        report.input_rows,
+                        report.elapsed_microseconds as f64 / 1000.0,
+                        report.rows_per_second
+                    );
+                    println!("{}", serde_json::to_string_pretty(&scores)?);
+                }
+                "route" => {
+                    let routes_str = routes.ok_or_else(|| {
+                        zev::ZevError::InvalidRequest("Missing --routes JSON map for route mode".into())
+                    })?;
+                    let routes_map: BTreeMap<String, String> = serde_json::from_str(&routes_str)?;
+                    let (routed, report) = engine.route_batch(&batch, &routes_map)?;
+                    println!(
+                        "Routed {} rows in {:.2} ms ({:.0} rows/s)",
+                        report.input_rows,
+                        report.elapsed_microseconds as f64 / 1000.0,
+                        report.rows_per_second
+                    );
+                    println!("{}", serde_json::to_string_pretty(&routed)?);
+                }
+                other => {
+                    eprintln!("Unknown batch mode: '{}'. Supported modes: 'filter', 'score', 'route'", other);
+                }
+            }
         }
     }
 

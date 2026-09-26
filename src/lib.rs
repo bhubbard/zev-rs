@@ -1,12 +1,19 @@
+pub mod abstain;
 pub mod calibration;
+pub mod cascade;
 pub mod clm;
 pub mod compaction;
 pub mod decoding;
 pub mod engine;
 pub mod error;
+pub mod kv_rewind;
+pub mod logic;
+pub mod matrix;
 pub mod order_invariant;
 pub mod preprocessor;
+pub mod readout;
 pub mod shortlist;
+pub mod tabular;
 pub mod tev1;
 pub mod types;
 pub mod wire;
@@ -14,7 +21,11 @@ pub mod wire;
 #[cfg(feature = "server")]
 pub mod server;
 
-pub use calibration::{compute_ece, fit_temperature, resolve_temperature, scaled_softmax};
+pub use abstain::{is_abstain_candidate, is_abstain_text, ABSTAIN_EXACT, ABSTAIN_PREFIXES};
+pub use calibration::{
+    compute_ece, fit_temperature, fit_temperatures_by_type, resolve_temperature, scaled_softmax,
+    TypeTemperatureConfig,
+};
 pub use clm::{ContrastiveHead, HeadConfig, HybridVerifier, VectorArena};
 pub use compaction::{ToolCallRecord, ToolCompactionAction, ToolCompactionDecision, ToolCompactor};
 pub use decoding::{decode_decision, generate_candidates, summarize_moments};
@@ -24,7 +35,21 @@ pub use order_invariant::{
     compute_order_invariant_logits, compute_order_invariant_logits_with_context, PremiseContext,
 };
 pub use preprocessor::{clean_text, inject_temporal_facts, preprocess_state};
+pub use cascade::{CascadeReport, CascadeStage, PredicateCascade, StageKind};
+pub use kv_rewind::{BlockTable, PagedContextArena, DEFAULT_PAGE_SIZE};
+pub use matrix::{AnchorPartnerEvaluator, PartnerMatrix};
+pub use logic::{
+    AluMode, AluOp, AluReport, CircuitGate, CircuitReport, GateType, ProbabilisticCircuitReport,
+    ProbabilisticGateResult, SemanticAluEngine, SemanticStateAlu, TopologicalCircuit, WireId,
+    ZevLogicEngine,
+};
+pub use readout::{
+    BinaryReadout, ClassTokenPool, PrunedHead, DEFAULT_FALSE_SPELLINGS, DEFAULT_TRUE_SPELLINGS,
+};
 pub use shortlist::shortlist_options;
+pub use tabular::{
+    BatchExecutionReport, TabularBatch, TabularEngine, TabularFilterPredicate, TabularRow,
+};
 pub use tev1::{Tev1Request, Tev1Response};
 pub use types::*;
 

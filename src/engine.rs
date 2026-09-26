@@ -1,4 +1,4 @@
-use crate::calibration::resolve_temperature;
+use crate::calibration::{resolve_temperature, TypeTemperatureConfig};
 use crate::decoding::{decode_decision, generate_candidates};
 use crate::error::{Result, ZevError};
 use crate::order_invariant::{compute_order_invariant_logits_with_context, PremiseContext};
@@ -390,6 +390,12 @@ impl DecisionEngine {
         }
     }
 
+    pub fn with_type_temperatures(config: TypeTemperatureConfig) -> Self {
+        Self {
+            inner: ZevEngine::default().with_type_temperatures(config),
+        }
+    }
+
     pub fn eval<R: Evaluable>(&self, req: &R) -> Result<R::Output> {
         req.eval_with(&self.inner)
     }
@@ -448,6 +454,8 @@ pub fn determine_question_family(question: &Question) -> &'static str {
 
 pub struct ZevEngine {
     pub default_temperature: f64,
+    pub type_temperatures: TypeTemperatureConfig,
+    pub use_type_temperatures: bool,
 }
 
 impl Default for ZevEngine {
@@ -458,10 +466,24 @@ impl Default for ZevEngine {
 
 impl ZevEngine {
     pub fn new(temperature: Option<f64>) -> Self {
-        let temp = resolve_temperature(temperature).unwrap_or(2.179078721266035);
+        let (temp, use_type) = match temperature {
+            Some(t) => (
+                resolve_temperature(Some(t)).unwrap_or(2.179078721266035),
+                false,
+            ),
+            None => (2.179078721266035, true),
+        };
         Self {
             default_temperature: temp,
+            type_temperatures: TypeTemperatureConfig::default(),
+            use_type_temperatures: use_type,
         }
+    }
+
+    pub fn with_type_temperatures(mut self, config: TypeTemperatureConfig) -> Self {
+        self.type_temperatures = config;
+        self.use_type_temperatures = true;
+        self
     }
 
     pub fn eval<R: Evaluable>(&self, req: &R) -> Result<R::Output> {
@@ -501,7 +523,9 @@ impl ZevEngine {
         // Pre-tokenize premise context once for all questions
         let ctx = PremiseContext::new(&preprocessed_state);
 
-        let temp = resolve_temperature(req.temperature.or(Some(self.default_temperature)))?;
+        if let Some(t) = req.temperature {
+            resolve_temperature(Some(t))?;
+        }
         let mut answers = BTreeMap::new();
 
         // 2. Parallel / Multi-Task Question Scoring
@@ -647,7 +671,20 @@ impl ZevEngine {
 
             // 4. Calibrated Decoding & Moment Statistics with family temperatures & margin dampening
             let family = determine_question_family(final_question);
-            let family_temp = crate::calibration::family_calibrated_temperature(family, temp);
+            let base_temp = if let Some(t) = req.temperature {
+                resolve_temperature(Some(t))?
+            } else if self.use_type_temperatures {
+                let q_type = match final_question {
+                    Question::Choice(_) => "choice",
+                    Question::Boolean(_) => "boolean",
+                    Question::Score(_) => "score",
+                    Question::Numeric(_) => "numeric",
+                };
+                self.type_temperatures.get_temperature(q_type)
+            } else {
+                self.default_temperature
+            };
+            let family_temp = crate::calibration::family_calibrated_temperature(family, base_temp);
             let effective_temp =
                 crate::calibration::dampen_temperature_by_margin(&logits, family_temp, 0.40);
 

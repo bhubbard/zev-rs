@@ -1,3 +1,4 @@
+use crate::abstain::is_abstain_candidate;
 use crate::calibration::scaled_softmax_slice;
 use crate::error::{Result, ZevError};
 use crate::types::{
@@ -70,12 +71,21 @@ pub fn generate_candidates(question: &Question) -> Vec<Candidate> {
     };
 
     if question.policy().allow_abstain {
-        list.push(Candidate {
-            id: UNKNOWN.into(),
-            description: "Cannot determine the answer: evidence is contradictory or missing."
-                .into(),
-            value: None,
-        });
+        let has_explicit_abstain = match question {
+            Question::Choice(c) => c
+                .options
+                .iter()
+                .any(|o| is_abstain_candidate(&o.id, &o.description)),
+            _ => false,
+        };
+        if !has_explicit_abstain {
+            list.push(Candidate {
+                id: UNKNOWN.into(),
+                description: "Cannot determine the answer: evidence is contradictory or missing."
+                    .into(),
+                value: None,
+            });
+        }
     }
 
     list
@@ -146,18 +156,24 @@ pub fn decode_decision(
         logit_map.insert(c.id.clone(), l);
     }
 
-    let unavailable_ids = [UNKNOWN, BELOW, ABOVE];
+    let is_unavailable = |c: &Candidate| -> bool {
+        c.id == UNKNOWN
+            || c.id == BELOW
+            || c.id == ABOVE
+            || is_abstain_candidate(&c.id, &c.description)
+    };
+
     let unavailable_prob: f64 = candidates
         .iter()
         .zip(probs.iter())
-        .filter(|(c, _)| unavailable_ids.contains(&c.id.as_str()))
+        .filter(|(c, _)| is_unavailable(c))
         .map(|(_, &p)| p)
         .sum();
 
     let available_prob: f64 = candidates
         .iter()
         .zip(probs.iter())
-        .filter(|(c, _)| !unavailable_ids.contains(&c.id.as_str()))
+        .filter(|(c, _)| !is_unavailable(c))
         .map(|(_, &p)| p)
         .sum();
 
@@ -225,9 +241,7 @@ pub fn decode_decision(
     if winner.id == BELOW || winner.id == ABOVE || out_of_range_prob > available_prob {
         status = "out_of_range".into();
     } else if policy.allow_abstain {
-        if unavailable_ids.contains(&winner.id.as_str())
-            || unavailable_prob >= policy.max_unavailable_probability
-        {
+        if is_unavailable(winner) || unavailable_prob >= policy.max_unavailable_probability {
             status = if out_of_range_prob > unknown_prob {
                 "out_of_range".into()
             } else {
@@ -246,7 +260,7 @@ pub fn decode_decision(
     let valid_cands: Vec<(&Candidate, f64)> = candidates
         .iter()
         .zip(probs.iter())
-        .filter(|(c, _)| !unavailable_ids.contains(&c.id.as_str()))
+        .filter(|(c, _)| !is_unavailable(c))
         .map(|(c, &p)| (c, p))
         .collect();
 
@@ -307,6 +321,14 @@ pub fn decode_decision(
                     }
                 }
             }
+        }
+    } else if status == "insufficient_evidence"
+        && winner.id != UNKNOWN
+        && winner.id != BELOW
+        && winner.id != ABOVE
+    {
+        if matches!(question, Question::Choice(_)) {
+            answer.decision = Some(serde_json::Value::String(winner.id.clone()));
         }
     }
 
