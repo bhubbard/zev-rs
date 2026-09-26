@@ -41,6 +41,10 @@ name = "convert_head"
 path = "src/bin/convert_head.rs"
 required-features = ["candle"]
 
+[[bin]]
+name = "bench_vs_original"
+path = "src/bin/bench_vs_original.rs"
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
