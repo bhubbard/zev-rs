@@ -268,26 +268,26 @@ mod tests {
     fn test_nand_derived_gates() {
         let mut engine = ZevLogicEngine::new();
         // NOT
-        assert_eq!(engine.not(false).0, true);
-        assert_eq!(engine.not(true).0, false);
+        assert!(engine.not(false).0);
+        assert!(!engine.not(true).0);
 
         // AND
-        assert_eq!(engine.and(false, false).0, false);
-        assert_eq!(engine.and(false, true).0, false);
-        assert_eq!(engine.and(true, false).0, false);
-        assert_eq!(engine.and(true, true).0, true);
+        assert!(!engine.and(false, false).0);
+        assert!(!engine.and(false, true).0);
+        assert!(!engine.and(true, false).0);
+        assert!(engine.and(true, true).0);
 
         // OR
-        assert_eq!(engine.or(false, false).0, false);
-        assert_eq!(engine.or(true, false).0, true);
-        assert_eq!(engine.or(false, true).0, true);
-        assert_eq!(engine.or(true, true).0, true);
+        assert!(!engine.or(false, false).0);
+        assert!(engine.or(true, false).0);
+        assert!(engine.or(false, true).0);
+        assert!(engine.or(true, true).0);
 
         // XOR
-        assert_eq!(engine.xor(false, false).0, false);
-        assert_eq!(engine.xor(true, false).0, true);
-        assert_eq!(engine.xor(false, true).0, true);
-        assert_eq!(engine.xor(true, true).0, false);
+        assert!(!engine.xor(false, false).0);
+        assert!(engine.xor(true, false).0);
+        assert!(engine.xor(false, true).0);
+        assert!(!engine.xor(true, true).0);
     }
 
     #[test]
@@ -301,9 +301,10 @@ mod tests {
         assert!(!res.abstained);
         assert!(res.probability < 0.2);
 
-        // Ambiguous inputs near boundary
+        // Ambiguous inputs near boundary: 1/sqrt(2) * 1/sqrt(2) = 0.50
+        let inv_sqrt2 = std::f64::consts::FRAC_1_SQRT_2;
         let ambiguous = engine
-            .evaluate_probabilistic(GateType::Nand, &[0.7071, 0.7071], 0.05)
+            .evaluate_probabilistic(GateType::Nand, &[inv_sqrt2, inv_sqrt2], 0.05)
             .unwrap();
         // 0.7071 * 0.7071 = 0.50 -> 1 - 0.50 = 0.50 -> distance ~ 0 -> should abstain
         assert!(ambiguous.abstained);

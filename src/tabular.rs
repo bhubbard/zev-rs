@@ -14,6 +14,9 @@ pub struct TabularRow {
     pub metadata: BTreeMap<String, String>,
 }
 
+/// Return type for batch routing and join operations.
+pub type BatchMatchResult = (Vec<(String, String, f64)>, BatchExecutionReport);
+
 impl TabularRow {
     pub fn new(id: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
@@ -254,7 +257,7 @@ impl TabularEngine {
         &self,
         batch: &TabularBatch,
         routes: &BTreeMap<String, String>,
-    ) -> Result<(Vec<(String, String, f64)>, BatchExecutionReport)> {
+    ) -> Result<BatchMatchResult> {
         let t0 = Instant::now();
         let mut routed = Vec::with_capacity(batch.len());
 
@@ -290,7 +293,7 @@ impl TabularEngine {
         partners: &TabularBatch,
         instructions: &str,
         threshold: f64,
-    ) -> Result<(Vec<(String, String, f64)>, BatchExecutionReport)> {
+    ) -> Result<BatchMatchResult> {
         let t0 = Instant::now();
         let mut matches = Vec::new();
         let total_pairs = anchors.len() * partners.len();

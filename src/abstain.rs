@@ -51,7 +51,7 @@ pub fn is_abstain_text(text: &str) -> bool {
     let clean = t
         .trim_end_matches(|c: char| c.is_ascii_punctuation())
         .trim();
-    if ABSTAIN_EXACT.iter().any(|&exact| clean == exact) {
+    if ABSTAIN_EXACT.contains(&clean) {
         return true;
     }
     ABSTAIN_PREFIXES

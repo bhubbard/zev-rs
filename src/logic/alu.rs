@@ -197,13 +197,13 @@ impl SemanticAluEngine {
 
         // Effective B bits (inverted if subtraction)
         let mut effective_b = Vec::with_capacity(bit_width);
-        for i in 0..bit_width {
+        for &b_wire in b_wires.iter().take(bit_width) {
             if op == AluOp::Sub {
                 let not_b = circuit.alloc_wire();
-                circuit.add_nand_not(b_wires[i], not_b);
+                circuit.add_nand_not(b_wire, not_b);
                 effective_b.push(not_b);
             } else {
-                effective_b.push(b_wires[i]);
+                effective_b.push(b_wire);
             }
         }
 

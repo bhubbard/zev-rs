@@ -66,7 +66,7 @@ impl PagedContextArena {
         if tokens == 0 {
             0
         } else {
-            (tokens + self.page_size - 1) / self.page_size
+            tokens.div_ceil(self.page_size)
         }
     }
 

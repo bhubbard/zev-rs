@@ -299,20 +299,20 @@ mod tests {
 
         // Feed D=1, clock low -> Q remains false
         dff.tick(true, false);
-        assert_eq!(dff.q, false);
+        assert!(!dff.q);
 
         // Clock rises -> Q latches to true
         dff.tick(true, true);
-        assert_eq!(dff.q, true);
+        assert!(dff.q);
 
         // Change D=0 while clock high -> Q stays true until next cycle
         dff.tick(false, true);
-        assert_eq!(dff.q, true);
+        assert!(dff.q);
 
         // Clock low then high with D=0 -> Q becomes false
         dff.tick(false, false);
         dff.tick(false, true);
-        assert_eq!(dff.q, false);
+        assert!(!dff.q);
     }
 
     #[test]

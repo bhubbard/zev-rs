@@ -326,10 +326,9 @@ pub fn decode_decision(
         && winner.id != UNKNOWN
         && winner.id != BELOW
         && winner.id != ABOVE
+        && matches!(question, Question::Choice(_))
     {
-        if matches!(question, Question::Choice(_)) {
-            answer.decision = Some(serde_json::Value::String(winner.id.clone()));
-        }
+        answer.decision = Some(serde_json::Value::String(winner.id.clone()));
     }
 
     Ok(answer)
