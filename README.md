@@ -9,7 +9,7 @@
 [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-yellow)](https://huggingface.co/spaces/bkhubbard/zev)
 [![Hugging Face Datasets](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Datasets-blue)](https://huggingface.co/datasets/bkhubbard/zev-benchmarks)
 [![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](#code-coverage)
-[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-06B6D4.svg)](https://bhubbard.github.io/zev-rs/)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-06B6D4.svg)](https://code.brandonhubbard.com/zev-rs/)
 
 **Zev** is an ultra-fast zero-token LLM decision engine in Rust. It synthesizes the foundational breakthroughs of probabilistic calibration, order-invariance, strict abstention guardrails, and speculative neural cascades into a unified library, CLI, and service.
 
