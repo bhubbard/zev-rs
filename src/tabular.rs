@@ -85,7 +85,69 @@ impl TabularFilterPredicate {
     }
 }
 
-/// Execution report detailing throughput, wall time, and evaluated items.
+/// Single-pass streaming Welford running statistics with division-by-zero protection.
+/// Ported from TimesFM-rs update_running_stats.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RunningStats {
+    pub count: usize,
+    pub mean: f64,
+    pub m2: f64,
+    pub min: f64,
+    pub max: f64,
+}
+
+impl Default for RunningStats {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            mean: 0.0,
+            m2: 0.0,
+            min: f64::INFINITY,
+            max: f64::NEG_INFINITY,
+        }
+    }
+}
+
+impl RunningStats {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Incrementally updates running statistics with a new value using Welford's algorithm.
+    #[inline]
+    pub fn update(&mut self, val: f64) {
+        if !val.is_finite() {
+            return;
+        }
+        self.count += 1;
+        let delta = val - self.mean;
+        self.mean += delta / (self.count as f64);
+        let delta2 = val - self.mean;
+        self.m2 += delta * delta2;
+        if val < self.min {
+            self.min = val;
+        }
+        if val > self.max {
+            self.max = val;
+        }
+    }
+
+    #[inline]
+    pub fn variance(&self) -> f64 {
+        if self.count < 2 {
+            0.0
+        } else {
+            self.m2 / (self.count as f64 - 1.0)
+        }
+    }
+
+    #[inline]
+    pub fn stddev(&self) -> f64 {
+        self.variance().sqrt()
+    }
+}
+
+/// Execution report detailing throughput, wall time, evaluated items, and streaming confidence stats.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchExecutionReport {
     pub input_rows: usize,
@@ -93,6 +155,8 @@ pub struct BatchExecutionReport {
     pub elapsed_microseconds: u128,
     pub rows_per_second: f64,
     pub evaluated_pairs: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence_stats: Option<RunningStats>,
 }
 
 /// High-performance tabular execution engine for batch AI operations.
@@ -123,6 +187,7 @@ impl TabularEngine {
     ) -> Result<(TabularBatch, BatchExecutionReport)> {
         let t0 = Instant::now();
         let mut surviving = Vec::new();
+        let mut stats = RunningStats::new();
 
         for row in &batch.rows {
             let mut questions = BTreeMap::new();
@@ -158,6 +223,7 @@ impl TabularEngine {
             let resp = self.zev.evaluate(&req)?;
             if let Some(ans) = resp.answers.get("filter") {
                 let p_match = ans.probabilities.get("match").copied().unwrap_or(0.0);
+                stats.update(p_match);
                 if p_match >= predicate.threshold {
                     surviving.push(row.clone());
                 }
@@ -177,6 +243,7 @@ impl TabularEngine {
             elapsed_microseconds: elapsed,
             rows_per_second: rows_per_sec,
             evaluated_pairs: batch.len(),
+            confidence_stats: Some(stats),
         };
 
         Ok((TabularBatch::new(surviving), report))
@@ -192,6 +259,7 @@ impl TabularEngine {
     ) -> Result<(Vec<(String, f64)>, BatchExecutionReport)> {
         let t0 = Instant::now();
         let mut scores = Vec::with_capacity(batch.len());
+        let mut stats = RunningStats::new();
 
         for row in &batch.rows {
             let mut questions = BTreeMap::new();
@@ -231,6 +299,7 @@ impl TabularEngine {
                 .and_then(|ans| ans.probabilities.get("positive").copied())
                 .unwrap_or(0.0);
 
+            stats.update(prob);
             scores.push((row.id.clone(), prob));
         }
 
@@ -247,6 +316,7 @@ impl TabularEngine {
             elapsed_microseconds: elapsed,
             rows_per_second: rows_per_sec,
             evaluated_pairs: batch.len(),
+            confidence_stats: Some(stats),
         };
 
         Ok((scores, report))
@@ -260,9 +330,11 @@ impl TabularEngine {
     ) -> Result<BatchMatchResult> {
         let t0 = Instant::now();
         let mut routed = Vec::with_capacity(batch.len());
+        let mut stats = RunningStats::new();
 
         for row in &batch.rows {
             let (dest, conf) = self.zev.route(&row.text, routes.clone())?;
+            stats.update(conf);
             routed.push((row.id.clone(), dest, conf));
         }
 
@@ -279,6 +351,7 @@ impl TabularEngine {
             elapsed_microseconds: elapsed,
             rows_per_second: rows_per_sec,
             evaluated_pairs: batch.len() * routes.len(),
+            confidence_stats: Some(stats),
         };
 
         Ok((routed, report))
@@ -297,6 +370,8 @@ impl TabularEngine {
         let t0 = Instant::now();
         let mut matches = Vec::new();
         let total_pairs = anchors.len() * partners.len();
+
+        let mut stats = RunningStats::new();
 
         for anchor in &anchors.rows {
             for partner in &partners.rows {
@@ -335,6 +410,7 @@ impl TabularEngine {
                 let resp = self.zev.evaluate(&req)?;
                 if let Some(ans) = resp.answers.get("match") {
                     let prob = ans.probabilities.get("match").copied().unwrap_or(0.0);
+                    stats.update(prob);
                     if prob >= threshold {
                         matches.push((anchor.id.clone(), partner.id.clone(), prob));
                     }
@@ -355,6 +431,7 @@ impl TabularEngine {
             elapsed_microseconds: elapsed,
             rows_per_second: rows_per_sec,
             evaluated_pairs: total_pairs,
+            confidence_stats: Some(stats),
         };
 
         Ok((matches, report))

@@ -27,6 +27,12 @@ pub struct CascadeStage {
     pub threshold: f64,
     pub estimated_cost_micros: f64,
     pub estimated_selectivity: f64, // Fraction expected to pass (0.0 - 1.0)
+    #[serde(default = "default_consecutive_required")]
+    pub consecutive_required: usize,
+}
+
+fn default_consecutive_required() -> usize {
+    1
 }
 
 impl CascadeStage {
@@ -52,6 +58,7 @@ impl CascadeStage {
             threshold: 0.5,
             estimated_cost_micros: default_cost,
             estimated_selectivity: 0.5,
+            consecutive_required: 1,
         }
     }
 
@@ -69,6 +76,11 @@ impl CascadeStage {
         self.threshold = threshold;
         self
     }
+
+    pub fn with_consecutive_required(mut self, consecutive: usize) -> Self {
+        self.consecutive_required = consecutive.max(1);
+        self
+    }
 }
 
 /// Summary report of a cascaded evaluation pass.
@@ -83,6 +95,7 @@ pub struct CascadeReport {
 }
 
 /// A planner and executor that orders predicates to minimize total execution cost.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PredicateCascade {
     pub stages: Vec<CascadeStage>,
 }
@@ -174,5 +187,113 @@ impl PredicateCascade {
             elapsed_micros: t0.elapsed().as_micros(),
             stage_results,
         })
+    }
+
+    /// Evaluates the cascade on a stream step, maintaining consecutive match streaks.
+    /// A stage with `consecutive_required > 1` requires `consecutive_required` consecutive
+    /// positive matches before triggering a stage pass.
+    pub fn evaluate_stream_step(
+        &self,
+        engine: &ZevEngine,
+        state: &str,
+        streaks: &mut BTreeMap<String, usize>,
+    ) -> Result<CascadeReport> {
+        let t0 = Instant::now();
+        let mut stage_results = BTreeMap::new();
+        let mut short_circuited = false;
+        let mut passed = true;
+        let mut completed_stages = 0;
+
+        for stage in &self.stages {
+            completed_stages += 1;
+            let mut questions = BTreeMap::new();
+            questions.insert(
+                stage.name.clone(),
+                Question::Choice(ChoiceQuestion {
+                    instructions: stage.instructions.clone(),
+                    options: vec![
+                        OptionDef {
+                            id: "match".to_string(),
+                            description: stage.positive_criterion.clone(),
+                        },
+                        OptionDef {
+                            id: "reject".to_string(),
+                            description: stage.negative_criterion.clone(),
+                        },
+                    ],
+                    policy: Policy {
+                        allow_abstain: false,
+                        ..Default::default()
+                    },
+                }),
+            );
+
+            let req = ZevRequest {
+                state: serde_json::Value::String(state.to_string()),
+                questions,
+                model: None,
+                temperature: None,
+                enable_temporal_facts: false,
+            };
+
+            let resp = engine.evaluate(&req)?;
+            let p_match = resp
+                .answers
+                .get(&stage.name)
+                .and_then(|ans| ans.probabilities.get("match").copied())
+                .unwrap_or(0.0);
+
+            stage_results.insert(stage.name.clone(), p_match);
+
+            let is_match = p_match >= stage.threshold;
+            let streak = streaks.entry(stage.name.clone()).or_insert(0);
+            if is_match {
+                *streak += 1;
+            } else {
+                *streak = 0;
+            }
+
+            let effective_pass = *streak >= stage.consecutive_required;
+
+            if !effective_pass {
+                passed = false;
+                short_circuited = completed_stages < self.stages.len();
+                break;
+            }
+        }
+
+        Ok(CascadeReport {
+            passed,
+            completed_stages,
+            total_stages: self.stages.len(),
+            short_circuited,
+            elapsed_micros: t0.elapsed().as_micros(),
+            stage_results,
+        })
+    }
+}
+
+/// Stateful runner that manages consecutive match streaks across sequential inputs.
+/// Ported from TimesFM-rs consecutive_steps threshold policy gating.
+#[derive(Debug, Clone)]
+pub struct SequentialCascadeRunner {
+    pub cascade: PredicateCascade,
+    pub streaks: BTreeMap<String, usize>,
+}
+
+impl SequentialCascadeRunner {
+    pub fn new(cascade: PredicateCascade) -> Self {
+        Self {
+            cascade,
+            streaks: BTreeMap::new(),
+        }
+    }
+
+    pub fn evaluate_step(&mut self, engine: &ZevEngine, state: &str) -> Result<CascadeReport> {
+        self.cascade.evaluate_stream_step(engine, state, &mut self.streaks)
+    }
+
+    pub fn reset_streaks(&mut self) {
+        self.streaks.clear();
     }
 }

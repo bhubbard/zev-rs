@@ -16,17 +16,22 @@ pub mod shortlist;
 pub mod tabular;
 pub mod tev1;
 pub mod types;
+pub mod mcp;
 pub mod wire;
 
 #[cfg(feature = "server")]
 pub mod server;
+
+pub use mcp::run_stdio_server;
 
 pub use abstain::{is_abstain_candidate, is_abstain_text, ABSTAIN_EXACT, ABSTAIN_PREFIXES};
 pub use calibration::{
     compute_ece, fit_temperature, fit_temperatures_by_type, resolve_temperature, scaled_softmax,
     TypeTemperatureConfig,
 };
-pub use cascade::{CascadeReport, CascadeStage, PredicateCascade, StageKind};
+pub use cascade::{
+    CascadeReport, CascadeStage, PredicateCascade, SequentialCascadeRunner, StageKind,
+};
 pub use clm::{ContrastiveHead, HeadConfig, HybridVerifier, VectorArena};
 pub use compaction::{ToolCallRecord, ToolCompactionAction, ToolCompactionDecision, ToolCompactor};
 pub use decoding::{decode_decision, generate_candidates, summarize_moments};
@@ -50,7 +55,8 @@ pub use readout::{
 };
 pub use shortlist::shortlist_options;
 pub use tabular::{
-    BatchExecutionReport, TabularBatch, TabularEngine, TabularFilterPredicate, TabularRow,
+    BatchExecutionReport, RunningStats, TabularBatch, TabularEngine, TabularFilterPredicate,
+    TabularRow,
 };
 pub use tev1::{Tev1Request, Tev1Response};
 pub use types::*;

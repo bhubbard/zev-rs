@@ -210,6 +210,174 @@ pub struct UncertaintyMetrics {
     pub unavailable_probability: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub margin: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quantile_spread: Option<f64>,
+}
+
+/// Configuration for pre-flight numerical sanity and variance guardrails.
+/// Ported from TimesFM-rs check_series_guardrails.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NumericGuardrailConfig {
+    pub min_length: usize,
+    pub max_nan_ratio: f64,
+    pub min_variance: f64,
+}
+
+impl Default for NumericGuardrailConfig {
+    fn default() -> Self {
+        Self {
+            min_length: 2,
+            max_nan_ratio: 0.3,
+            min_variance: 1e-8,
+        }
+    }
+}
+
+/// Result of pre-flight numerical sanity guardrail check.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NumericGuardrailResult {
+    pub passed: bool,
+    pub should_abstain: bool,
+    pub reason: Option<String>,
+    pub total_points: usize,
+    pub valid_points: usize,
+    pub nan_count: usize,
+    pub nan_ratio: f64,
+    pub variance: f64,
+    pub mean: f64,
+    pub min_val: f64,
+    pub max_val: f64,
+    pub is_flatline: bool,
+}
+
+/// Checks pre-flight sanity on a slice of numbers.
+/// Validates length, NaN ratio, and detects degenerate flatlines (zero-variance).
+pub fn check_numeric_guardrails(
+    values: &[f64],
+    config: &NumericGuardrailConfig,
+) -> NumericGuardrailResult {
+    let total_points = values.len();
+    if total_points == 0 {
+        return NumericGuardrailResult {
+            passed: false,
+            should_abstain: true,
+            reason: Some("Empty series: no data points provided".to_string()),
+            total_points: 0,
+            valid_points: 0,
+            nan_count: 0,
+            nan_ratio: 1.0,
+            variance: 0.0,
+            mean: 0.0,
+            min_val: 0.0,
+            max_val: 0.0,
+            is_flatline: true,
+        };
+    }
+
+    let mut valid_points = 0usize;
+    let mut nan_count = 0usize;
+    let mut min_val = f64::INFINITY;
+    let mut max_val = f64::NEG_INFINITY;
+    let mut sum = 0.0;
+    let mut sum_sq = 0.0;
+
+    for &v in values {
+        if v.is_finite() {
+            valid_points += 1;
+            if v < min_val {
+                min_val = v;
+            }
+            if v > max_val {
+                max_val = v;
+            }
+            sum += v;
+            sum_sq += v * v;
+        } else {
+            nan_count += 1;
+        }
+    }
+
+    let nan_ratio = nan_count as f64 / total_points as f64;
+
+    if valid_points < config.min_length {
+        return NumericGuardrailResult {
+            passed: false,
+            should_abstain: true,
+            reason: Some(format!(
+                "Insufficient valid data points ({} < required {})",
+                valid_points, config.min_length
+            )),
+            total_points,
+            valid_points,
+            nan_count,
+            nan_ratio,
+            variance: 0.0,
+            mean: if valid_points > 0 { sum / valid_points as f64 } else { 0.0 },
+            min_val: if min_val.is_finite() { min_val } else { 0.0 },
+            max_val: if max_val.is_finite() { max_val } else { 0.0 },
+            is_flatline: true,
+        };
+    }
+
+    if nan_ratio > config.max_nan_ratio {
+        let mean = sum / valid_points as f64;
+        let variance = ((sum_sq / valid_points as f64) - (mean * mean)).max(0.0);
+        return NumericGuardrailResult {
+            passed: false,
+            should_abstain: true,
+            reason: Some(format!(
+                "High NaN ratio: {:.1}% exceeds allowed {:.1}%",
+                nan_ratio * 100.0,
+                config.max_nan_ratio * 100.0
+            )),
+            total_points,
+            valid_points,
+            nan_count,
+            nan_ratio,
+            variance,
+            mean,
+            min_val,
+            max_val,
+            is_flatline: false,
+        };
+    }
+
+    let mean = sum / valid_points as f64;
+    let variance = ((sum_sq / valid_points as f64) - (mean * mean)).max(0.0);
+    let range = max_val - min_val;
+    let is_flatline = variance <= config.min_variance || range <= 1e-7;
+
+    if is_flatline {
+        return NumericGuardrailResult {
+            passed: false,
+            should_abstain: true,
+            reason: Some("Degenerate flatline series: zero or near-zero variance".to_string()),
+            total_points,
+            valid_points,
+            nan_count,
+            nan_ratio,
+            variance,
+            mean,
+            min_val,
+            max_val,
+            is_flatline: true,
+        };
+    }
+
+    NumericGuardrailResult {
+        passed: true,
+        should_abstain: false,
+        reason: None,
+        total_points,
+        valid_points,
+        nan_count,
+        nan_ratio,
+        variance,
+        mean,
+        min_val,
+        max_val,
+        is_flatline: false,
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

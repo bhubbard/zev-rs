@@ -295,12 +295,43 @@ pub fn decode_decision(
             concentration,
             unavailable_probability: unavailable_prob,
             margin: Some(margin),
+            quantile_spread: None,
         },
         statistics: None,
         expected_value: None,
         temperature,
         source: Some("native".to_string()),
     };
+
+    // Pre-flight sanity guardrails on numeric question anchors
+    if let Question::Numeric(n) = question {
+        let anchor_vals: Vec<f64> = n.anchors.iter().map(|a| a.value).collect();
+        let guardrail = crate::types::check_numeric_guardrails(
+            &anchor_vals,
+            &crate::types::NumericGuardrailConfig::default(),
+        );
+        if guardrail.should_abstain {
+            status = "insufficient_evidence".into();
+            answer.status = status.clone();
+        }
+    }
+
+    // Compute moments and quantile_spread for continuous/ordinal questions if valid candidates exist
+    if matches!(question, Question::Score(_) | Question::Numeric(_)) {
+        let values: Vec<f64> = valid_cands.iter().filter_map(|(c, _)| c.value).collect();
+        if let Some(ref cp) = cond_probs {
+            if !values.is_empty() {
+                let stats = summarize_moments(&values, cp);
+                let spread = (stats.quantiles["p90"] - stats.quantiles["p10"]).max(0.0);
+                answer.uncertainty.quantile_spread = Some(spread);
+                if status == "ok" {
+                    answer.expected_value = Some(stats.mean);
+                    answer.decision = Some(serde_json::json!(stats.mean));
+                    answer.statistics = Some(stats);
+                }
+            }
+        }
+    }
 
     if status == "ok" {
         match question {
@@ -310,17 +341,7 @@ pub fn decode_decision(
             Question::Choice(_) => {
                 answer.decision = Some(serde_json::Value::String(winner.id.clone()));
             }
-            Question::Score(_) | Question::Numeric(_) => {
-                let values: Vec<f64> = valid_cands.iter().filter_map(|(c, _)| c.value).collect();
-                if let Some(ref cp) = cond_probs {
-                    if !values.is_empty() {
-                        let stats = summarize_moments(&values, cp);
-                        answer.expected_value = Some(stats.mean);
-                        answer.decision = Some(serde_json::json!(stats.mean));
-                        answer.statistics = Some(stats);
-                    }
-                }
-            }
+            Question::Score(_) | Question::Numeric(_) => {}
         }
     } else if status == "insufficient_evidence"
         && winner.id != UNKNOWN

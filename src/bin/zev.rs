@@ -153,6 +153,9 @@ enum Commands {
         #[arg(short, long)]
         routes: Option<String>,
     },
+
+    /// Start the Model Context Protocol (MCP) JSON-RPC stdio server
+    Mcp,
 }
 
 #[tokio::main]
@@ -403,6 +406,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                 }
             }
+        }
+
+        Commands::Mcp => {
+            zev::mcp::run_stdio_server().await?;
         }
     }
 
