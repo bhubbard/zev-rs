@@ -399,4 +399,189 @@ mod tests {
         assert_eq!(a.source, Some("gemma".into()));
         assert_eq!(a.probabilities.len(), 2);
     }
+
+    #[test]
+    fn test_parse_gemma_decision_raw_id() {
+        let candidates = vec![
+            Candidate {
+                id: "billing".into(),
+                description: "Billing question".into(),
+                value: None,
+            },
+            Candidate {
+                id: "shipping".into(),
+                description: "Shipping inquiry".into(),
+                value: None,
+            },
+        ];
+
+        let q = Question::Choice(crate::types::ChoiceQuestion {
+            instructions: "Select category".into(),
+            options: vec![],
+            policy: crate::types::Policy::default(),
+        });
+
+        // Test without brackets
+        let ans = parse_gemma_decision("shipping", &candidates, &candidates, &q);
+        assert!(ans.is_some());
+        let a = ans.unwrap();
+        assert_eq!(a.decision, Some(serde_json::Value::String("shipping".into())));
+    }
+
+    #[test]
+    fn test_parse_gemma_decision_boolean() {
+        let candidates = vec![
+            Candidate {
+                id: "false".into(),
+                description: "No".into(),
+                value: Some(0.0),
+            },
+            Candidate {
+                id: "true".into(),
+                description: "Yes".into(),
+                value: Some(1.0),
+            },
+        ];
+
+        let q = Question::Boolean(crate::types::BooleanQuestion {
+            instructions: "Is this valid?".into(),
+            true_description: "Yes".into(),
+            false_description: "No".into(),
+            policy: crate::types::Policy::default(),
+        });
+
+        let ans = parse_gemma_decision("[true]", &candidates, &candidates, &q);
+        assert!(ans.is_some());
+        let a = ans.unwrap();
+        assert_eq!(a.decision, Some(serde_json::Value::Bool(true)));
+        assert_eq!(a.question_type, "boolean");
+
+        let ans_f = parse_gemma_decision("[false]", &candidates, &candidates, &q);
+        assert!(ans_f.is_some());
+        let af = ans_f.unwrap();
+        assert_eq!(af.decision, Some(serde_json::Value::Bool(false)));
+    }
+
+    #[test]
+    fn test_parse_gemma_decision_invalid() {
+        let candidates = vec![
+            Candidate {
+                id: "billing".into(),
+                description: "Billing question".into(),
+                value: None,
+            },
+        ];
+
+        let q = Question::Choice(crate::types::ChoiceQuestion {
+            instructions: "Select category".into(),
+            options: vec![],
+            policy: crate::types::Policy::default(),
+        });
+
+        let ans = parse_gemma_decision("[unrecognized_id]", &candidates, &candidates, &q);
+        assert!(ans.is_none());
+    }
+
+    #[test]
+    fn test_evaluate_gemma_distilled_choice() {
+        let candidates = vec![
+            Candidate {
+                id: "card_payment".into(),
+                description: "Problems with credit or debit card payment".into(),
+                value: None,
+            },
+            Candidate {
+                id: "flight_booking".into(),
+                description: "Booking an airline flight".into(),
+                value: None,
+            },
+        ];
+
+        let q = Question::Choice(crate::types::ChoiceQuestion {
+            instructions: "Classify request".into(),
+            options: vec![],
+            policy: crate::types::Policy::default(),
+        });
+
+        let ans = evaluate_gemma_distilled(
+            "My debit card was charged twice at the restaurant.",
+            &q,
+            &candidates,
+            &candidates,
+        ).unwrap();
+
+        assert_eq!(ans.decision, Some(serde_json::Value::String("card_payment".into())));
+        assert_eq!(ans.source, Some("gemma-distill".into()));
+        assert_eq!(ans.probabilities.len(), 2);
+        let sum_p: f64 = ans.probabilities.values().sum();
+        assert!((sum_p - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_evaluate_gemma_distilled_boolean() {
+        let candidates = vec![
+            Candidate {
+                id: "false".into(),
+                description: "Invalid transaction".into(),
+                value: Some(0.0),
+            },
+            Candidate {
+                id: "true".into(),
+                description: "Valid transaction".into(),
+                value: Some(1.0),
+            },
+        ];
+
+        let q = Question::Boolean(crate::types::BooleanQuestion {
+            instructions: "Is this valid?".into(),
+            true_description: "Valid".into(),
+            false_description: "Invalid".into(),
+            policy: crate::types::Policy::default(),
+        });
+
+        let ans = evaluate_gemma_distilled(
+            "Transaction is valid and confirmed.",
+            &q,
+            &candidates,
+            &candidates,
+        ).unwrap();
+
+        assert_eq!(ans.decision, Some(serde_json::Value::Bool(true)));
+    }
+
+    #[test]
+    fn test_gemma_full_probability_distribution_large_set() {
+        // Test with 20 options (verifying shortlisting does not truncate output probabilities)
+        let candidates: Vec<Candidate> = (0..20)
+            .map(|i| Candidate {
+                id: format!("opt_{i}"),
+                description: format!("Description for option {i}"),
+                value: None,
+            })
+            .collect();
+
+        let q = Question::Choice(crate::types::ChoiceQuestion {
+            instructions: "Select option".into(),
+            options: vec![],
+            policy: crate::types::Policy::default(),
+        });
+
+        // Run evaluate_gemma with distill mode
+        std::env::set_var("GEMMA_MODE", "distill");
+        let ans = evaluate_gemma("Context related to opt_7", &q, &candidates).unwrap();
+
+        assert_eq!(ans.probabilities.len(), 20);
+        let sum_p: f64 = ans.probabilities.values().sum();
+        assert!((sum_p - 1.0).abs() < 1e-4);
+        std::env::remove_var("GEMMA_MODE");
+    }
+
+    #[test]
+    fn test_gemma_config_defaults() {
+        let cfg = GemmaConfig::default();
+        assert!(!cfg.endpoint.is_empty());
+        assert!(!cfg.model.is_empty());
+        assert!(cfg.timeout.as_millis() > 0);
+        assert!(cfg.fallback_to_heuristic);
+    }
 }
