@@ -12,6 +12,8 @@ pub enum StageKind {
     RuleCheck,
     /// Fast SIMD probabilistic filter (e.g. toxicity / intent gate)
     SimdFilter,
+    /// Dense vector / MLX semantic filter (~15-100 microseconds)
+    DenseVectorFilter,
     /// Detailed multi-class or neural verifier
     DetailedEvaluator,
 }
@@ -46,6 +48,7 @@ impl CascadeStage {
         let default_cost = match kind {
             StageKind::RuleCheck => 0.5,
             StageKind::SimdFilter => 5.0,
+            StageKind::DenseVectorFilter => 15.0,
             StageKind::DetailedEvaluator => 50.0,
         };
 
