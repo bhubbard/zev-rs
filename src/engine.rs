@@ -769,7 +769,7 @@ impl ZevEngine {
 
         // Upgrade 5: Two-System Speculative Gating with Cross-Platform Fallback
         let should_fallback = answer.confidence < 0.45
-            || answer.uncertainty.margin.map_or(false, |m| m < 0.20);
+            || answer.uncertainty.margin.is_some_and(|m| m < 0.20);
         if should_fallback && !fallback_mode.is_empty() {
             if fallback_mode == "gemma" {
                 if let Ok(gemma_ans) = crate::gemma::evaluate_gemma(
