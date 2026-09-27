@@ -583,6 +583,7 @@ pub fn run_grep(engine: &ZevEngine, options: &GrepOptions) -> Result<GrepReport>
             model: None,
             temperature: Some(engine.default_temperature),
             enable_temporal_facts: false,
+            images: None,
         };
 
         // Evaluate in microsecond time

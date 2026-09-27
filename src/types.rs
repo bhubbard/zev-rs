@@ -413,6 +413,8 @@ pub struct ZevRequest {
     pub temperature: Option<f64>,
     #[serde(default = "default_enable_temporal")]
     pub enable_temporal_facts: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub images: Option<Vec<String>>,
 }
 
 fn default_enable_temporal() -> bool {

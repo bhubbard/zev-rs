@@ -218,6 +218,7 @@ impl TabularEngine {
                 model: None,
                 temperature: None,
                 enable_temporal_facts: false,
+                images: None,
             };
 
             let resp = self.zev.evaluate(&req)?;
@@ -290,6 +291,7 @@ impl TabularEngine {
                 model: None,
                 temperature: None,
                 enable_temporal_facts: false,
+                images: None,
             };
 
             let resp = self.zev.evaluate(&req)?;
@@ -405,6 +407,7 @@ impl TabularEngine {
                     model: None,
                     temperature: None,
                     enable_temporal_facts: true,
+                    images: None,
                 };
 
                 let resp = self.zev.evaluate(&req)?;

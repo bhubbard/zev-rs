@@ -14,6 +14,7 @@ pub mod kv_rewind;
 pub mod logic;
 pub mod matrix;
 pub mod mcp;
+pub mod multimodal;
 pub mod order_invariant;
 pub mod premise_window;
 pub mod preprocessor;
@@ -53,6 +54,7 @@ pub use logic::{
     ZevMicroCpu,
 };
 pub use matrix::{AnchorPartnerEvaluator, PartnerMatrix};
+pub use multimodal::{MultimodalTriageEngine, VisualFeature};
 pub use order_invariant::{
     compute_order_invariant_logits, compute_order_invariant_logits_with_context, PremiseContext,
 };

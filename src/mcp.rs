@@ -435,6 +435,7 @@ fn call_zev_classify(arguments: Value, engine: &ZevEngine) -> CallToolResult {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     match engine.evaluate(&req) {
@@ -526,6 +527,7 @@ fn call_zev_filter(arguments: Value, engine: &ZevEngine) -> CallToolResult {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     match engine.evaluate(&req) {
@@ -601,6 +603,7 @@ fn call_zev_score(arguments: Value, engine: &ZevEngine) -> CallToolResult {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     match engine.evaluate(&req) {
@@ -704,6 +707,7 @@ fn call_zev_batch(arguments: Value, engine: &ZevEngine) -> CallToolResult {
             model: None,
             temperature: None,
             enable_temporal_facts: false,
+            images: None,
         };
 
         match engine.evaluate(&req) {

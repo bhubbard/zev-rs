@@ -517,11 +517,33 @@ impl ZevEngine {
         let start = Instant::now();
 
         // 1. Text Preprocessing & Temporal Grounding
-        let preprocessed_state = preprocess_state(&state_borrowed, req.enable_temporal_facts);
+        let mut final_state = preprocess_state(&state_borrowed, req.enable_temporal_facts);
+
+        // 1b. Multimodal Feature Injection (Phase 4)
+        if let Some(ref imgs) = req.images {
+            if !imgs.is_empty() {
+                let triage = crate::multimodal::MultimodalTriageEngine::default();
+                let mut visual_cues = Vec::new();
+                for img in imgs {
+                    let feat = triage.extract_features(img);
+                    if !feat.semantic_tags.is_empty() {
+                        visual_cues.push(feat.semantic_tags.join(" "));
+                    }
+                }
+                if !visual_cues.is_empty() {
+                    let mut s = final_state.into_owned();
+                    s.push_str(" [visual_context: ");
+                    s.push_str(&visual_cues.join(", "));
+                    s.push(']');
+                    final_state = std::borrow::Cow::Owned(s);
+                }
+            }
+        }
+
         let eval_start = Instant::now();
 
         // Pre-tokenize premise context once for all questions
-        let ctx = PremiseContext::new(&preprocessed_state);
+        let ctx = PremiseContext::new(&final_state);
 
         if let Some(t) = req.temperature {
             resolve_temperature(Some(t))?;
@@ -538,7 +560,7 @@ impl ZevEngine {
                     let ans = self.evaluate_single_question(
                         key,
                         q,
-                        &preprocessed_state,
+                        &final_state,
                         &state_borrowed,
                         &ctx,
                         req.temperature,
@@ -554,7 +576,7 @@ impl ZevEngine {
                 let ans = self.evaluate_single_question(
                     key,
                     q,
-                    &preprocessed_state,
+                    &final_state,
                     &state_borrowed,
                     &ctx,
                     req.temperature,
@@ -574,7 +596,7 @@ impl ZevEngine {
             execution: ExecutionTiming {
                 total_micros,
                 eval_micros,
-                shared_prefix_tokens: preprocessed_state.len() / 4,
+                shared_prefix_tokens: final_state.len() / 4,
             },
         })
     }
@@ -874,6 +896,7 @@ impl ZevEngine {
             model: Some(req.model.clone()),
             temperature: Some(self.default_temperature),
             enable_temporal_facts: true,
+            images: None,
         };
 
         let zev_resp = self.evaluate(&zev_req)?;
@@ -913,6 +936,7 @@ impl ZevEngine {
             model: None,
             temperature: None,
             enable_temporal_facts: true,
+            images: None,
         };
         let resp = self.evaluate(&req)?;
         let ans = resp.answers.get("gate").cloned().unwrap();
@@ -955,6 +979,7 @@ impl ZevEngine {
             model: None,
             temperature: None,
             enable_temporal_facts: false,
+            images: None,
         };
         let resp = self.evaluate(&req)?;
         let ans = resp.answers.get("route").unwrap();
@@ -1209,4 +1234,41 @@ mod tests {
             .unwrap();
         assert!(score0 < 0.5, "Level 0 expected score < 0.5, got {score0}");
     }
+
+    #[test]
+    fn test_multimodal_engine_evaluation() {
+        let engine = ZevEngine::default();
+        let mut questions = BTreeMap::new();
+        questions.insert(
+            "category".to_string(),
+            Question::Choice(ChoiceQuestion {
+                instructions: "Categorize the ticket inquiry based on text and attached visual context.".to_string(),
+                options: vec![
+                    OptionDef {
+                        id: "technical".to_string(),
+                        description: "Technical issues, errors, crashes, stack traces, bugs".to_string(),
+                    },
+                    OptionDef {
+                        id: "billing".to_string(),
+                        description: "Invoices, payments, receipts, subscription fees".to_string(),
+                    },
+                ],
+                policy: Policy::default(),
+            }),
+        );
+
+        let req = ZevRequest {
+            state: serde_json::json!("User ticket report: See attached screenshot for details."),
+            questions,
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+            images: Some(vec!["attachment_system_error_dialog_crash.png".to_string()]),
+        };
+
+        let resp = engine.evaluate(&req).expect("Multimodal eval should succeed");
+        let ans = resp.answers.get("category").expect("answer should be present");
+        assert_eq!(ans.decision, Some(serde_json::Value::String("technical".to_string())));
+    }
 }
+

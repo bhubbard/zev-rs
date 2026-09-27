@@ -117,6 +117,7 @@ impl ToolCompactor {
             model: None,
             temperature: None,
             enable_temporal_facts: false,
+            images: None,
         };
 
         let resp = self.engine.eval(&req)?;

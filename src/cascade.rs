@@ -164,6 +164,7 @@ impl PredicateCascade {
                 model: None,
                 temperature: None,
                 enable_temporal_facts: false,
+                images: None,
             };
 
             let resp = engine.evaluate(&req)?;
@@ -237,6 +238,7 @@ impl PredicateCascade {
                 model: None,
                 temperature: None,
                 enable_temporal_facts: false,
+                images: None,
             };
 
             let resp = engine.evaluate(&req)?;
