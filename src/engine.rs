@@ -771,7 +771,15 @@ impl ZevEngine {
         let should_fallback = answer.confidence < 0.45
             || answer.uncertainty.margin.map_or(false, |m| m < 0.20);
         if should_fallback && !fallback_mode.is_empty() {
-            if fallback_mode == "clm" {
+            if fallback_mode == "gemma" {
+                if let Ok(gemma_ans) = crate::gemma::evaluate_gemma(
+                    preprocessed_state,
+                    final_question,
+                    &candidates,
+                ) {
+                    answer = gemma_ans;
+                }
+            } else if fallback_mode == "clm" {
                 if let Question::Choice(c) = final_question {
                     let mut verifier = crate::clm::HybridVerifier::default();
                     let state_emb = crate::clm::embed_text(preprocessed_state, 512);
