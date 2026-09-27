@@ -768,8 +768,16 @@ impl ZevEngine {
         let mut answer = decode_decision(final_question, &candidates, &logits, effective_temp)?;
 
         // Upgrade 5: Two-System Speculative Gating with Cross-Platform Fallback
-        let should_fallback = answer.confidence < 0.45
-            || answer.uncertainty.margin.is_some_and(|m| m < 0.20);
+        let conf_thresh = std::env::var("ZEV_FALLBACK_CONFIDENCE")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.35);
+        let margin_thresh = std::env::var("ZEV_FALLBACK_MARGIN")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.10);
+        let should_fallback = answer.confidence < conf_thresh
+            || answer.uncertainty.margin.is_some_and(|m| m < margin_thresh);
         if should_fallback && !fallback_mode.is_empty() {
             if fallback_mode == "gemma" {
                 if let Ok(gemma_ans) = crate::gemma::evaluate_gemma(
@@ -821,7 +829,7 @@ impl ZevEngine {
             if fallback_mode == "apfel" || fallback_mode == "neural" {
                 #[cfg(target_os = "macos")]
                 {
-                    let backend = crate::neural::ApfelNeuralBackend::new();
+                    let backend = crate::neural::shared_apfel();
                     if let Ok(mut neural_ans) =
                         backend.evaluate_candidates(_state_borrowed, final_question, &candidates)
                     {
@@ -916,6 +924,16 @@ impl ZevEngine {
 
     /// Fast route helper
     pub fn route(&self, state: &str, routes: BTreeMap<String, String>) -> Result<(String, f64)> {
+        let (dest, prob, _) = self.route_with_distribution(state, routes)?;
+        Ok((dest, prob))
+    }
+
+    /// Route helper returning top destination, confidence probability, and full probability distribution
+    pub fn route_with_distribution(
+        &self,
+        state: &str,
+        routes: BTreeMap<String, String>,
+    ) -> Result<(String, f64, BTreeMap<String, f64>)> {
         let options = routes
             .into_iter()
             .map(|(id, desc)| OptionDef {
@@ -947,7 +965,7 @@ impl ZevEngine {
             _ => "".into(),
         };
         let prob = ans.probabilities.get(&choice).copied().unwrap_or(0.0);
-        Ok((choice, prob))
+        Ok((choice, prob, ans.probabilities.clone()))
     }
 
     /// Evaluates using the speculative two-tier cascade:

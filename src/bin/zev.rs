@@ -56,13 +56,25 @@ enum Commands {
 
     /// Route state text to destinations
     Route {
-        /// State text
+        /// State text context (or pass via --file or stdin)
         #[arg(short, long)]
-        state: String,
+        state: Option<String>,
+
+        /// Path to file containing state text (or '-' for stdin)
+        #[arg(short, long)]
+        file: Option<std::path::PathBuf>,
 
         /// Destinations JSON map, e.g. '{"billing": "Billing & Invoices", "tech": "Tech Support"}'
         #[arg(short, long)]
         routes: String,
+
+        /// Output full probability distribution over all destination candidates
+        #[arg(short, long)]
+        distribution: bool,
+
+        /// Speculative fallback backend ("gemma", "apfel", "clm", "none")
+        #[arg(short, long)]
+        backend: Option<String>,
     },
 
     /// Evaluate a Tev1 decision request from JSON, raw prompt text, or CLI flags
@@ -299,17 +311,56 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
-        Commands::Route { state, routes } => {
+        Commands::Route {
+            state,
+            file,
+            routes,
+            distribution,
+            backend,
+        } => {
+            if let Some(b) = backend {
+                std::env::set_var("ZEV_FALLBACK", b);
+            }
+            let text = match (state, file) {
+                (Some(s), _) => s,
+                (None, Some(f)) => {
+                    if f.as_os_str() == "-" {
+                        let mut buf = String::new();
+                        io::stdin().read_to_string(&mut buf)?;
+                        buf
+                    } else {
+                        fs::read_to_string(f)?
+                    }
+                }
+                (None, None) => {
+                    let mut buf = String::new();
+                    io::stdin().read_to_string(&mut buf)?;
+                    buf
+                }
+            };
+
             let map: BTreeMap<String, String> = serde_json::from_str(&routes)?;
             let engine = ZevEngine::default();
-            let (dest, prob) = engine.route(&state, map)?;
-            println!(
-                "{}",
-                serde_json::json!({
-                    "destination": dest,
-                    "probability": prob,
-                })
-            );
+            let (dest, prob, dist) = engine.route_with_distribution(&text, map)?;
+
+            if distribution {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "destination": dest,
+                        "probability": prob,
+                        "distribution": dist,
+                    })
+                );
+            } else {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "destination": dest,
+                        "probability": prob,
+                    })
+                );
+            }
         }
 
         #[cfg(feature = "server")]

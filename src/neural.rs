@@ -103,37 +103,40 @@ impl ApfelNeuralBackend {
             .map_err(|e| ZevError::Evaluation(format!("Apfel neural generation failed: {e}")))?;
 
         let raw = resp.content.trim();
-        let matched_id = parse_candidate_choice(raw, candidates);
+        let parsed = parse_candidate_choice(raw, candidates);
+        let matched_id = if parsed == "__insufficient__" || !candidates.iter().any(|c| c.id == parsed) {
+            candidates.first().map(|c| c.id.clone()).unwrap_or_else(|| "none".to_string())
+        } else {
+            parsed
+        };
 
         let mut probabilities = std::collections::BTreeMap::new();
         let mut logits = std::collections::BTreeMap::new();
+        let top_p = 0.95;
+        let other_p = if candidates.len() > 1 {
+            (1.0 - top_p) / (candidates.len() - 1) as f64
+        } else {
+            0.0
+        };
+
         for c in candidates {
             if c.id == matched_id {
-                probabilities.insert(c.id.clone(), 0.95);
+                probabilities.insert(c.id.clone(), top_p);
                 logits.insert(c.id.clone(), 3.0);
             } else {
-                let remainder = 0.05 / (candidates.len().max(2) - 1) as f64;
-                probabilities.insert(c.id.clone(), remainder);
+                probabilities.insert(c.id.clone(), other_p);
                 logits.insert(c.id.clone(), 0.0);
             }
         }
 
-        let status = if matched_id == "__insufficient__" {
-            "insufficient_evidence".to_string()
-        } else {
-            "ok".to_string()
-        };
+        let status = "ok".to_string();
 
         let uncertainty = crate::types::UncertaintyMetrics {
-            top_probability: if status == "ok" { 0.95 } else { 0.0 },
+            top_probability: top_p,
             entropy_nats: 0.1,
             concentration: 0.9,
-            margin: if status == "ok" { Some(0.90) } else { None },
-            unavailable_probability: if matched_id == "__insufficient__" {
-                0.95
-            } else {
-                0.0
-            },
+            margin: Some(top_p - other_p),
+            unavailable_probability: 0.0,
             quantile_spread: None,
         };
 
@@ -144,15 +147,22 @@ impl ApfelNeuralBackend {
             Question::Numeric(_) => "numeric",
         };
 
+        let decision_val = match question {
+            Question::Boolean(_) => {
+                if matched_id.eq_ignore_ascii_case("true") || matched_id.eq_ignore_ascii_case("yes") {
+                    serde_json::Value::Bool(true)
+                } else {
+                    serde_json::Value::Bool(false)
+                }
+            }
+            _ => serde_json::Value::String(matched_id),
+        };
+
         Ok(ZevAnswer {
             question_type: q_type.to_string(),
-            status: status.clone(),
-            decision: if status == "ok" {
-                Some(serde_json::Value::String(matched_id))
-            } else {
-                None
-            },
-            confidence: if status == "ok" { 0.95 } else { 0.0 },
+            status,
+            decision: Some(decision_val),
+            confidence: top_p,
             probabilities,
             logits,
             uncertainty,
@@ -162,6 +172,14 @@ impl ApfelNeuralBackend {
             source: Some("neural".to_string()),
         })
     }
+}
+
+#[cfg(feature = "neural")]
+static SHARED_APFEL: std::sync::OnceLock<ApfelNeuralBackend> = std::sync::OnceLock::new();
+
+#[cfg(feature = "neural")]
+pub fn shared_apfel() -> &'static ApfelNeuralBackend {
+    SHARED_APFEL.get_or_init(ApfelNeuralBackend::new)
 }
 
 #[cfg(feature = "neural")]
