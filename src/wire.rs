@@ -157,11 +157,13 @@ pub fn wire_to_question(wire: &WireQuestion) -> Result<Question> {
                     description: desc,
                 });
             }
+            let num_opts = options.len();
             Ok(Question::Choice(ChoiceQuestion {
                 instructions: instr,
                 options,
                 policy: Policy {
                     allow_abstain: false,
+                    max_slots: Some(num_opts.max(crate::types::MAX_SLOTS)),
                     ..Default::default()
                 },
             }))
@@ -181,11 +183,13 @@ pub fn wire_to_question(wire: &WireQuestion) -> Result<Question> {
                     }
                 })
                 .collect();
+            let num_levels = levels.len();
             Ok(Question::Score(ScoreQuestion {
                 instructions: instr,
                 levels,
                 policy: Policy {
                     allow_abstain: false,
+                    max_slots: Some(num_levels.max(crate::types::MAX_SLOTS)),
                     ..Default::default()
                 },
             }))

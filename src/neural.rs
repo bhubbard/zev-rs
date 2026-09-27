@@ -134,6 +134,7 @@ impl ApfelNeuralBackend {
             } else {
                 0.0
             },
+            quantile_spread: None,
         };
 
         let q_type = match question {

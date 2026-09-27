@@ -1,6 +1,6 @@
 [package]
 name = "zev-rs"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 authors = ["Brandon Hubbard", "zev-rs contributors"]
 license = "MIT"
@@ -64,6 +64,7 @@ serde-pickle = "1.2"
 zip = "8.6.0"
 rand = "0.9"
 ignore = "0.4"
+rayon = "1.10"
 
 [features]
 default = ["server"]

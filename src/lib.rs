@@ -19,6 +19,9 @@ pub mod types;
 pub mod mcp;
 pub mod wire;
 pub mod grep;
+pub mod concept_knowledge;
+pub mod intent_sieve;
+pub mod premise_window;
 
 #[cfg(feature = "server")]
 pub mod server;
