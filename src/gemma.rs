@@ -21,10 +21,9 @@ pub struct GemmaConfig {
 
 impl Default for GemmaConfig {
     fn default() -> Self {
-        let endpoint = std::env::var("GEMMA_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:8000/v1".to_string());
-        let model = std::env::var("GEMMA_MODEL")
-            .unwrap_or_else(|_| "gemma-4-31b".to_string());
+        let endpoint =
+            std::env::var("GEMMA_URL").unwrap_or_else(|_| "http://127.0.0.1:8000/v1".to_string());
+        let model = std::env::var("GEMMA_MODEL").unwrap_or_else(|_| "gemma-4-31b".to_string());
         let api_key = std::env::var("GEMMA_API_KEY").ok();
         let timeout_ms = std::env::var("GEMMA_TIMEOUT_MS")
             .ok()
@@ -121,10 +120,21 @@ pub fn evaluate_gemma(
         Ok(mut resp) => {
             use std::io::Read;
             let mut body_str = String::new();
-            if resp.body_mut().as_reader().read_to_string(&mut body_str).is_ok() {
+            if resp
+                .body_mut()
+                .as_reader()
+                .read_to_string(&mut body_str)
+                .is_ok()
+            {
                 if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&body_str) {
-                    if let Some(content_str) = json_val["choices"][0]["message"]["content"].as_str() {
-                        if let Some(answer) = parse_gemma_decision(content_str, &effective_candidates, candidates, question) {
+                    if let Some(content_str) = json_val["choices"][0]["message"]["content"].as_str()
+                    {
+                        if let Some(answer) = parse_gemma_decision(
+                            content_str,
+                            &effective_candidates,
+                            candidates,
+                            question,
+                        ) {
                             return Ok(answer);
                         }
                     }
@@ -141,7 +151,9 @@ pub fn evaluate_gemma(
             if config.fallback_to_heuristic {
                 evaluate_gemma_distilled(state, question, &effective_candidates, candidates)
             } else {
-                Err(ZevError::Evaluation(format!("Gemma HTTP request failed: {e}")))
+                Err(ZevError::Evaluation(format!(
+                    "Gemma HTTP request failed: {e}"
+                )))
             }
         }
     }
@@ -264,7 +276,10 @@ fn evaluate_gemma_distilled(
         let mut score = 0.0;
 
         // Word overlap
-        for word in id_lower.split(|ch: char| !ch.is_alphanumeric()).filter(|w| w.len() > 3) {
+        for word in id_lower
+            .split(|ch: char| !ch.is_alphanumeric())
+            .filter(|w| w.len() > 3)
+        {
             if state_lower.contains(word) {
                 score += 3.0;
             }
@@ -273,7 +288,10 @@ fn evaluate_gemma_distilled(
             }
         }
 
-        for word in desc_lower.split(|ch: char| !ch.is_alphanumeric()).filter(|w| w.len() > 3) {
+        for word in desc_lower
+            .split(|ch: char| !ch.is_alphanumeric())
+            .filter(|w| w.len() > 3)
+        {
             if state_lower.contains(word) {
                 score += 2.0;
             }
@@ -395,7 +413,10 @@ mod tests {
         let ans = parse_gemma_decision("[billing]", &candidates, &candidates, &q);
         assert!(ans.is_some());
         let a = ans.unwrap();
-        assert_eq!(a.decision, Some(serde_json::Value::String("billing".into())));
+        assert_eq!(
+            a.decision,
+            Some(serde_json::Value::String("billing".into()))
+        );
         assert_eq!(a.source, Some("gemma".into()));
         assert_eq!(a.probabilities.len(), 2);
     }
@@ -425,7 +446,10 @@ mod tests {
         let ans = parse_gemma_decision("shipping", &candidates, &candidates, &q);
         assert!(ans.is_some());
         let a = ans.unwrap();
-        assert_eq!(a.decision, Some(serde_json::Value::String("shipping".into())));
+        assert_eq!(
+            a.decision,
+            Some(serde_json::Value::String("shipping".into()))
+        );
     }
 
     #[test]
@@ -464,13 +488,11 @@ mod tests {
 
     #[test]
     fn test_parse_gemma_decision_invalid() {
-        let candidates = vec![
-            Candidate {
-                id: "billing".into(),
-                description: "Billing question".into(),
-                value: None,
-            },
-        ];
+        let candidates = vec![Candidate {
+            id: "billing".into(),
+            description: "Billing question".into(),
+            value: None,
+        }];
 
         let q = Question::Choice(crate::types::ChoiceQuestion {
             instructions: "Select category".into(),
@@ -508,9 +530,13 @@ mod tests {
             &q,
             &candidates,
             &candidates,
-        ).unwrap();
+        )
+        .unwrap();
 
-        assert_eq!(ans.decision, Some(serde_json::Value::String("card_payment".into())));
+        assert_eq!(
+            ans.decision,
+            Some(serde_json::Value::String("card_payment".into()))
+        );
         assert_eq!(ans.source, Some("gemma-distill".into()));
         assert_eq!(ans.probabilities.len(), 2);
         let sum_p: f64 = ans.probabilities.values().sum();
@@ -544,7 +570,8 @@ mod tests {
             &q,
             &candidates,
             &candidates,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(ans.decision, Some(serde_json::Value::Bool(true)));
     }

@@ -46,7 +46,10 @@ fn test_fixture_loading_and_schema_validation() {
     assert_eq!(*by_benchmark.get("ARC-Easy").unwrap_or(&0), 100);
     assert_eq!(*by_benchmark.get("ARC-Challenge").unwrap_or(&0), 100);
     assert_eq!(*by_benchmark.get("ContractNLI").unwrap_or(&0), 50);
-    assert_eq!(*by_benchmark.get("Home appliance simulator").unwrap_or(&0), 15);
+    assert_eq!(
+        *by_benchmark.get("Home appliance simulator").unwrap_or(&0),
+        15
+    );
     assert_eq!(*by_benchmark.get("BANKING77").unwrap_or(&0), 30);
     assert_eq!(*by_benchmark.get("CLINC150+OOS").unwrap_or(&0), 30);
 }
@@ -55,7 +58,10 @@ fn test_fixture_loading_and_schema_validation() {
 fn test_simplebench_regression_and_accuracy_floor() {
     let engine = ZevEngine::default();
     let cases = load_fixtures();
-    let simplebench_cases: Vec<_> = cases.into_iter().filter(|c| c.benchmark == "SimpleBench").collect();
+    let simplebench_cases: Vec<_> = cases
+        .into_iter()
+        .filter(|c| c.benchmark == "SimpleBench")
+        .collect();
 
     assert_eq!(simplebench_cases.len(), 10);
 
@@ -90,7 +96,11 @@ fn test_simplebench_regression_and_accuracy_floor() {
                 .and_then(|p| p.as_object())
                 .expect("Probabilities map missing");
             let sum: f64 = probs.values().filter_map(|v| v.as_f64()).sum();
-            assert!((sum - 1.0).abs() < 1e-3, "Probabilities must sum to 1.0, got {}", sum);
+            assert!(
+                (sum - 1.0).abs() < 1e-3,
+                "Probabilities must sum to 1.0, got {}",
+                sum
+            );
 
             if choice == exp {
                 correct += 1;
@@ -99,7 +109,12 @@ fn test_simplebench_regression_and_accuracy_floor() {
     }
 
     let accuracy = correct as f64 / total as f64;
-    println!("SimpleBench Accuracy: {}/{} ({:.2}%)", correct, total, accuracy * 100.0);
+    println!(
+        "SimpleBench Accuracy: {}/{} ({:.2}%)",
+        correct,
+        total,
+        accuracy * 100.0
+    );
 
     // Official multimodalart SimpleBench baseline is 40.0% (4/10)
     assert!(
@@ -113,7 +128,10 @@ fn test_simplebench_regression_and_accuracy_floor() {
 fn test_arc_easy_regression_and_accuracy_floor() {
     let engine = ZevEngine::default();
     let cases = load_fixtures();
-    let arc_cases: Vec<_> = cases.into_iter().filter(|c| c.benchmark == "ARC-Easy").collect();
+    let arc_cases: Vec<_> = cases
+        .into_iter()
+        .filter(|c| c.benchmark == "ARC-Easy")
+        .collect();
 
     assert_eq!(arc_cases.len(), 100);
 
@@ -142,7 +160,12 @@ fn test_arc_easy_regression_and_accuracy_floor() {
     }
 
     let accuracy = correct as f64 / total as f64;
-    println!("ARC-Easy Accuracy (100 sample): {}/{} ({:.2}%)", correct, total, accuracy * 100.0);
+    println!(
+        "ARC-Easy Accuracy (100 sample): {}/{} ({:.2}%)",
+        correct,
+        total,
+        accuracy * 100.0
+    );
 
     // Official multimodalart ARC-Easy baseline is ~26.0%
     assert!(
@@ -156,7 +179,10 @@ fn test_arc_easy_regression_and_accuracy_floor() {
 fn test_arc_challenge_regression_and_accuracy_floor() {
     let engine = ZevEngine::default();
     let cases = load_fixtures();
-    let arc_cases: Vec<_> = cases.into_iter().filter(|c| c.benchmark == "ARC-Challenge").collect();
+    let arc_cases: Vec<_> = cases
+        .into_iter()
+        .filter(|c| c.benchmark == "ARC-Challenge")
+        .collect();
 
     assert_eq!(arc_cases.len(), 100);
 
@@ -185,7 +211,12 @@ fn test_arc_challenge_regression_and_accuracy_floor() {
     }
 
     let accuracy = correct as f64 / total as f64;
-    println!("ARC-Challenge Accuracy (100 sample): {}/{} ({:.2}%)", correct, total, accuracy * 100.0);
+    println!(
+        "ARC-Challenge Accuracy (100 sample): {}/{} ({:.2}%)",
+        correct,
+        total,
+        accuracy * 100.0
+    );
 
     // Official multimodalart ARC-Challenge baseline is ~23.2%
     assert!(
@@ -199,7 +230,10 @@ fn test_arc_challenge_regression_and_accuracy_floor() {
 fn test_contract_nli_entailment_classification() {
     let engine = ZevEngine::default();
     let cases = load_fixtures();
-    let contract_cases: Vec<_> = cases.into_iter().filter(|c| c.benchmark == "ContractNLI").collect();
+    let contract_cases: Vec<_> = cases
+        .into_iter()
+        .filter(|c| c.benchmark == "ContractNLI")
+        .collect();
 
     assert_eq!(contract_cases.len(), 50);
 
@@ -232,14 +266,20 @@ fn test_contract_nli_entailment_classification() {
     }
 
     assert_eq!(answered_ok, total_questions);
-    assert!(total_questions > 200, "Expected > 200 contract clause questions evaluated");
+    assert!(
+        total_questions > 200,
+        "Expected > 200 contract clause questions evaluated"
+    );
 }
 
 #[test]
 fn test_home_appliance_simulator_action_sequences() {
     let engine = ZevEngine::default();
     let cases = load_fixtures();
-    let appliance_cases: Vec<_> = cases.into_iter().filter(|c| c.benchmark == "Home appliance simulator").collect();
+    let appliance_cases: Vec<_> = cases
+        .into_iter()
+        .filter(|c| c.benchmark == "Home appliance simulator")
+        .collect();
 
     assert_eq!(appliance_cases.len(), 15);
 
@@ -264,14 +304,24 @@ fn test_home_appliance_simulator_action_sequences() {
             let choice = ans.get("choice").and_then(|v| v.as_str()).unwrap();
             assert!(!choice.is_empty(), "Choice must not be empty");
 
-            let probs = ans.get("probabilities").and_then(|p| p.as_object()).unwrap();
+            let probs = ans
+                .get("probabilities")
+                .and_then(|p| p.as_object())
+                .unwrap();
             let sum: f64 = probs.values().filter_map(|v| v.as_f64()).sum();
-            assert!((sum - 1.0).abs() < 1e-3, "Probabilities must sum to 1.0, got {}", sum);
+            assert!(
+                (sum - 1.0).abs() < 1e-3,
+                "Probabilities must sum to 1.0, got {}",
+                sum
+            );
             total_subquestions += 1;
         }
     }
 
-    assert!(total_subquestions >= 100, "Expected >= 100 action questions evaluated");
+    assert!(
+        total_subquestions >= 100,
+        "Expected >= 100 action questions evaluated"
+    );
 }
 
 #[test]
@@ -279,8 +329,14 @@ fn test_banking77_and_clinc150_high_cardinality_routing() {
     let engine = ZevEngine::default();
     let cases = load_fixtures();
 
-    let banking_cases: Vec<_> = cases.iter().filter(|c| c.benchmark == "BANKING77").collect();
-    let clinc_cases: Vec<_> = cases.iter().filter(|c| c.benchmark == "CLINC150+OOS").collect();
+    let banking_cases: Vec<_> = cases
+        .iter()
+        .filter(|c| c.benchmark == "BANKING77")
+        .collect();
+    let clinc_cases: Vec<_> = cases
+        .iter()
+        .filter(|c| c.benchmark == "CLINC150+OOS")
+        .collect();
 
     assert_eq!(banking_cases.len(), 30);
     assert_eq!(clinc_cases.len(), 30);
@@ -292,11 +348,20 @@ fn test_banking77_and_clinc150_high_cardinality_routing() {
             model: "zev-latest".to_string(),
             questions: case.questions.clone(),
         };
-        let resp = engine.evaluate_system_one(&req).expect("BANKING77 eval failed");
+        let resp = engine
+            .evaluate_system_one(&req)
+            .expect("BANKING77 eval failed");
         for q_id in case.expected.keys() {
             let ans = resp.answers.get(q_id).expect("BANKING77 answer missing");
-            let probs = ans.get("probabilities").and_then(|p| p.as_object()).unwrap();
-            assert_eq!(probs.len(), 77, "BANKING77 must contain all 77 candidates in distribution");
+            let probs = ans
+                .get("probabilities")
+                .and_then(|p| p.as_object())
+                .unwrap();
+            assert_eq!(
+                probs.len(),
+                77,
+                "BANKING77 must contain all 77 candidates in distribution"
+            );
             let sum: f64 = probs.values().filter_map(|v| v.as_f64()).sum();
             assert!((sum - 1.0).abs() < 1e-3, "BANKING77 sum must equal 1.0");
         }
@@ -309,11 +374,20 @@ fn test_banking77_and_clinc150_high_cardinality_routing() {
             model: "zev-latest".to_string(),
             questions: case.questions.clone(),
         };
-        let resp = engine.evaluate_system_one(&req).expect("CLINC150 eval failed");
+        let resp = engine
+            .evaluate_system_one(&req)
+            .expect("CLINC150 eval failed");
         for q_id in case.expected.keys() {
             let ans = resp.answers.get(q_id).expect("CLINC150 answer missing");
-            let probs = ans.get("probabilities").and_then(|p| p.as_object()).unwrap();
-            assert_eq!(probs.len(), 151, "CLINC150 must contain all 151 candidates in distribution");
+            let probs = ans
+                .get("probabilities")
+                .and_then(|p| p.as_object())
+                .unwrap();
+            assert_eq!(
+                probs.len(),
+                151,
+                "CLINC150 must contain all 151 candidates in distribution"
+            );
             let sum: f64 = probs.values().filter_map(|v| v.as_f64()).sum();
             assert!((sum - 1.0).abs() < 1e-3, "CLINC150 sum must equal 1.0");
         }
@@ -326,7 +400,11 @@ fn test_order_invariance_on_benchmark_suite() {
     let cases = load_fixtures();
 
     // Pick 20 questions across ARC and SimpleBench to verify 0.0% order flip rate
-    for case in cases.iter().filter(|c| c.benchmark == "ARC-Easy" || c.benchmark == "SimpleBench").take(20) {
+    for case in cases
+        .iter()
+        .filter(|c| c.benchmark == "ARC-Easy" || c.benchmark == "SimpleBench")
+        .take(20)
+    {
         for (q_id, q_def) in &case.questions {
             if let WireQuestion::Choice(choice_q) = q_def {
                 // Forward order
@@ -371,8 +449,12 @@ fn test_order_invariance_on_benchmark_suite() {
                     questions: q_map2,
                 };
 
-                let resp1 = engine.evaluate_system_one(&req1).expect("Forward eval failed");
-                let resp2 = engine.evaluate_system_one(&req2).expect("Reversed eval failed");
+                let resp1 = engine
+                    .evaluate_system_one(&req1)
+                    .expect("Forward eval failed");
+                let resp2 = engine
+                    .evaluate_system_one(&req2)
+                    .expect("Reversed eval failed");
 
                 let c1 = resp1.answers[q_id]["choice"].as_str().unwrap();
                 let c2 = resp2.answers[q_id]["choice"].as_str().unwrap();
@@ -391,7 +473,10 @@ fn test_order_invariance_on_benchmark_suite() {
 fn test_native_submillisecond_latency_budget() {
     let engine = ZevEngine::default();
     let cases = load_fixtures();
-    let test_case = cases.iter().find(|c| c.benchmark == "ARC-Challenge").unwrap();
+    let test_case = cases
+        .iter()
+        .find(|c| c.benchmark == "ARC-Challenge")
+        .unwrap();
 
     let req = SystemOneRequest {
         state: test_case.state.clone(),

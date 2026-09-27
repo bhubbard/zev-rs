@@ -446,7 +446,9 @@ fn call_zev_classify(arguments: Value, engine: &ZevEngine) -> CallToolResult {
                         // Fallback to max probability key if decision wasn't a string
                         ans.probabilities
                             .iter()
-                            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+                            .max_by(|a, b| {
+                                a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal)
+                            })
                             .map(|(k, _)| k.clone())
                             .unwrap_or_default()
                     }
@@ -505,7 +507,8 @@ fn call_zev_filter(arguments: Value, engine: &ZevEngine) -> CallToolResult {
             },
             OptionDef {
                 id: "reject".to_string(),
-                description: "Unrelated, benign, neutral, other topic, or does not match".to_string(),
+                description: "Unrelated, benign, neutral, other topic, or does not match"
+                    .to_string(),
             },
         ],
         policy: Policy {
@@ -533,10 +536,7 @@ fn call_zev_filter(arguments: Value, engine: &ZevEngine) -> CallToolResult {
                 let has_match = pass_logit > 0.5 + 1e-6;
                 let pass = has_match && p_pass >= args.threshold;
                 let confidence = if pass { p_pass } else { 1.0 - p_pass };
-                let res = FilterResult {
-                    pass,
-                    confidence,
-                };
+                let res = FilterResult { pass, confidence };
                 let text = serde_json::to_string_pretty(&res)
                     .unwrap_or_else(|e| format!("Serialization error: {}", e));
                 CallToolResult {
@@ -609,7 +609,11 @@ fn call_zev_score(arguments: Value, engine: &ZevEngine) -> CallToolResult {
                 let score = ans.expected_value.unwrap_or(0.0);
                 let mut level_probabilities = BTreeMap::new();
                 for (i, lvl) in args.levels.iter().enumerate() {
-                    let p = ans.probabilities.get(&i.to_string()).copied().unwrap_or(0.0);
+                    let p = ans
+                        .probabilities
+                        .get(&i.to_string())
+                        .copied()
+                        .unwrap_or(0.0);
                     level_probabilities.insert(lvl.clone(), p);
                 }
 
@@ -681,7 +685,8 @@ fn call_zev_batch(arguments: Value, engine: &ZevEngine) -> CallToolResult {
                 },
                 OptionDef {
                     id: "reject".to_string(),
-                    description: "Unrelated, benign, neutral, other topic, or does not match".to_string(),
+                    description: "Unrelated, benign, neutral, other topic, or does not match"
+                        .to_string(),
                 },
             ],
             policy: Policy {
@@ -750,11 +755,7 @@ pub async fn run_stdio_server() -> Result<()> {
 }
 
 /// Runs the MCP server loop over arbitrary async reader and writer.
-pub async fn run_mcp_server_io<R, W>(
-    engine: Arc<ZevEngine>,
-    reader: R,
-    mut writer: W,
-) -> Result<()>
+pub async fn run_mcp_server_io<R, W>(engine: Arc<ZevEngine>, reader: R, mut writer: W) -> Result<()>
 where
     R: AsyncRead + Unpin,
     W: AsyncWrite + Unpin,
@@ -770,10 +771,7 @@ where
                 .write_all(resp_str.as_bytes())
                 .await
                 .map_err(ZevError::Io)?;
-            writer
-                .write_all(b"\n")
-                .await
-                .map_err(ZevError::Io)?;
+            writer.write_all(b"\n").await.map_err(ZevError::Io)?;
             writer.flush().await.map_err(ZevError::Io)?;
         }
     }

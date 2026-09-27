@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use zev::{
-    check_numeric_guardrails, CascadeStage, NumericGuardrailConfig,
-    PredicateCascade, Question, RunningStats, ScoreQuestion, SequentialCascadeRunner, StageKind,
-    TabularBatch, TabularEngine, TabularFilterPredicate, TabularRow, ZevEngine, ZevRequest,
+    check_numeric_guardrails, CascadeStage, NumericGuardrailConfig, PredicateCascade, Question,
+    RunningStats, ScoreQuestion, SequentialCascadeRunner, StageKind, TabularBatch, TabularEngine,
+    TabularFilterPredicate, TabularRow, ZevEngine, ZevRequest,
 };
 
 #[test]
@@ -251,17 +251,22 @@ fn test_numeric_guardrails_edge_cases() {
 fn test_tabular_engine_batch_operations_with_stats() {
     let engine = TabularEngine::default();
     let batch = TabularBatch::new(vec![
-        TabularRow::new("row1", "Production payment gateway is responding with HTTP 500"),
+        TabularRow::new(
+            "row1",
+            "Production payment gateway is responding with HTTP 500",
+        ),
         TabularRow::new("row2", "User changed billing address"),
     ]);
 
     // 1. score_batch
-    let (scores, rep_score) = engine.score_batch(
-        &batch,
-        "Is this an urgent incident?",
-        "Urgent incident",
-        "Routine event",
-    ).unwrap();
+    let (scores, rep_score) = engine
+        .score_batch(
+            &batch,
+            "Is this an urgent incident?",
+            "Urgent incident",
+            "Routine event",
+        )
+        .unwrap();
     assert_eq!(scores.len(), 2);
     assert!(rep_score.confidence_stats.is_some());
     let score_stats = rep_score.confidence_stats.unwrap();
@@ -269,8 +274,14 @@ fn test_tabular_engine_batch_operations_with_stats() {
 
     // 2. route_batch
     let mut routes = BTreeMap::new();
-    routes.insert("devops".to_string(), "Infrastructure errors and outages".to_string());
-    routes.insert("support".to_string(), "Customer account and billing inquiries".to_string());
+    routes.insert(
+        "devops".to_string(),
+        "Infrastructure errors and outages".to_string(),
+    );
+    routes.insert(
+        "support".to_string(),
+        "Customer account and billing inquiries".to_string(),
+    );
     let (routed, rep_route) = engine.route_batch(&batch, &routes).unwrap();
     assert_eq!(routed.len(), 2);
     assert!(rep_route.confidence_stats.is_some());
@@ -282,12 +293,14 @@ fn test_tabular_engine_batch_operations_with_stats() {
         TabularRow::new("p1", "HTTP 500 error on payment gateway"),
         TabularRow::new("p2", "Account address modification"),
     ]);
-    let (matches, rep_join) = engine.join_batch(
-        &batch,
-        &partners,
-        "Determine if the partner event matches the state incident",
-        0.5,
-    ).unwrap();
+    let (matches, rep_join) = engine
+        .join_batch(
+            &batch,
+            &partners,
+            "Determine if the partner event matches the state incident",
+            0.5,
+        )
+        .unwrap();
     assert!(!matches.is_empty());
     assert!(rep_join.confidence_stats.is_some());
     let join_stats = rep_join.confidence_stats.unwrap();
@@ -332,13 +345,20 @@ fn test_cascade_optimization_and_serialization() {
     // Test direct cascade.evaluate
     let engine = ZevEngine::default();
     // 1. Passing state: has error
-    let rep_pass = cascade.evaluate(&engine, "Critical failure: database error connection refused").unwrap();
+    let rep_pass = cascade
+        .evaluate(
+            &engine,
+            "Critical failure: database error connection refused",
+        )
+        .unwrap();
     assert!(rep_pass.passed);
     assert_eq!(rep_pass.completed_stages, 2);
     assert!(!rep_pass.short_circuited);
 
     // 2. Early rejection short-circuit: normal operation
-    let rep_fail = cascade.evaluate(&engine, "Normal operation: user updated profile picture").unwrap();
+    let rep_fail = cascade
+        .evaluate(&engine, "Normal operation: user updated profile picture")
+        .unwrap();
     assert!(!rep_fail.passed);
     assert_eq!(rep_fail.completed_stages, 1);
     assert!(rep_fail.short_circuited);

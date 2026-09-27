@@ -43,7 +43,10 @@ fn test_probabilistic_gate_and_abstention() {
     let border = engine
         .evaluate_probabilistic(
             GateType::Nand,
-            &[std::f64::consts::FRAC_1_SQRT_2, std::f64::consts::FRAC_1_SQRT_2],
+            &[
+                std::f64::consts::FRAC_1_SQRT_2,
+                std::f64::consts::FRAC_1_SQRT_2,
+            ],
             0.05,
         )
         .unwrap();

@@ -30,7 +30,10 @@ async fn test_mcp_initialize_handshake() {
     assert_eq!(resp["id"], 1);
     assert_eq!(resp["result"]["protocolVersion"], "2024-11-05");
     assert_eq!(resp["result"]["serverInfo"]["name"], "zev-mcp");
-    assert_eq!(resp["result"]["serverInfo"]["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(
+        resp["result"]["serverInfo"]["version"],
+        env!("CARGO_PKG_VERSION")
+    );
     assert!(resp["result"]["capabilities"]["tools"].is_object());
 }
 
@@ -97,10 +100,7 @@ async fn test_mcp_tools_list_schema() {
     let tools = resp["result"]["tools"].as_array().expect("tools array");
     assert_eq!(tools.len(), 4);
 
-    let tool_names: Vec<&str> = tools
-        .iter()
-        .map(|t| t["name"].as_str().unwrap())
-        .collect();
+    let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
 
     assert!(tool_names.contains(&"zev_classify"));
     assert!(tool_names.contains(&"zev_filter"));
@@ -180,8 +180,14 @@ async fn test_mcp_tools_call_classify() {
     assert_eq!(res["winning_option"], "billing");
     assert_eq!(res["decision"], "billing");
     assert!(res["confidence"].as_f64().unwrap() > 0.5);
-    assert!(res["probabilities"]["billing"].as_f64().unwrap() > res["probabilities"]["technical"].as_f64().unwrap());
-    assert!(res["probabilities"]["billing"].as_f64().unwrap() > res["probabilities"]["sales"].as_f64().unwrap());
+    assert!(
+        res["probabilities"]["billing"].as_f64().unwrap()
+            > res["probabilities"]["technical"].as_f64().unwrap()
+    );
+    assert!(
+        res["probabilities"]["billing"].as_f64().unwrap()
+            > res["probabilities"]["sales"].as_f64().unwrap()
+    );
 }
 
 #[tokio::test]
@@ -203,7 +209,9 @@ async fn test_mcp_tools_call_filter() {
         }
     });
 
-    let resp_str = process_message(&req_pass.to_string(), &engine).await.unwrap();
+    let resp_str = process_message(&req_pass.to_string(), &engine)
+        .await
+        .unwrap();
     let resp: Value = serde_json::from_str(&resp_str).unwrap();
     assert_eq!(resp["id"], 11);
     assert_eq!(resp["result"]["isError"], false);
@@ -228,7 +236,9 @@ async fn test_mcp_tools_call_filter() {
         }
     });
 
-    let resp_str = process_message(&req_fail.to_string(), &engine).await.unwrap();
+    let resp_str = process_message(&req_fail.to_string(), &engine)
+        .await
+        .unwrap();
     let resp: Value = serde_json::from_str(&resp_str).unwrap();
     assert_eq!(resp["id"], 12);
     assert_eq!(resp["result"]["isError"], false);
@@ -268,11 +278,18 @@ async fn test_mcp_tools_call_score() {
     let score = res["score"].as_f64().unwrap();
     let expected_val = res["expected_value"].as_f64().unwrap();
     assert_eq!(score, expected_val);
-    assert!(score < 1.5, "Score should be low for terrible experience, got {}", score);
+    assert!(
+        score < 1.5,
+        "Score should be low for terrible experience, got {}",
+        score
+    );
 
     // Verify probabilities are populated for all levels
     assert!(res["level_probabilities"]["terrible"].as_f64().unwrap() > 0.0);
-    assert!(res["level_probabilities"]["excellent"].as_f64().unwrap() < res["level_probabilities"]["terrible"].as_f64().unwrap());
+    assert!(
+        res["level_probabilities"]["excellent"].as_f64().unwrap()
+            < res["level_probabilities"]["terrible"].as_f64().unwrap()
+    );
 }
 
 #[tokio::test]
@@ -332,7 +349,9 @@ async fn test_mcp_error_handling() {
         "id": 90,
         "method": "unsupported/method"
     });
-    let resp_str = process_message(&req_unknown.to_string(), &engine).await.unwrap();
+    let resp_str = process_message(&req_unknown.to_string(), &engine)
+        .await
+        .unwrap();
     let resp: Value = serde_json::from_str(&resp_str).unwrap();
     assert_eq!(resp["error"]["code"], -32601);
 
@@ -346,7 +365,9 @@ async fn test_mcp_error_handling() {
             "arguments": {}
         }
     });
-    let resp_str = process_message(&req_bad_tool.to_string(), &engine).await.unwrap();
+    let resp_str = process_message(&req_bad_tool.to_string(), &engine)
+        .await
+        .unwrap();
     let resp: Value = serde_json::from_str(&resp_str).unwrap();
     assert_eq!(resp["result"]["isError"], true);
 
@@ -363,7 +384,9 @@ async fn test_mcp_error_handling() {
             }
         }
     });
-    let resp_str = process_message(&req_missing_args.to_string(), &engine).await.unwrap();
+    let resp_str = process_message(&req_missing_args.to_string(), &engine)
+        .await
+        .unwrap();
     let resp: Value = serde_json::from_str(&resp_str).unwrap();
     assert_eq!(resp["result"]["isError"], true);
 
@@ -381,7 +404,9 @@ async fn test_mcp_error_handling() {
             }
         }
     });
-    let resp_str = process_message(&req_few_options.to_string(), &engine).await.unwrap();
+    let resp_str = process_message(&req_few_options.to_string(), &engine)
+        .await
+        .unwrap();
     let resp: Value = serde_json::from_str(&resp_str).unwrap();
     assert_eq!(resp["result"]["isError"], true);
 }
@@ -495,9 +520,17 @@ async fn test_mcp_more_error_and_edge_cases() {
             "arguments": {}
         }
     });
-    let resp: Value = serde_json::from_str(&process_message(&req_missing_name.to_string(), &engine).await.unwrap()).unwrap();
+    let resp: Value = serde_json::from_str(
+        &process_message(&req_missing_name.to_string(), &engine)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(resp["error"]["code"], -32602);
-    assert!(resp["error"]["message"].as_str().unwrap().contains("Missing 'name'"));
+    assert!(resp["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Missing 'name'"));
 
     // 2. tools/call with missing params entirely
     let req_missing_params = json!({
@@ -505,9 +538,17 @@ async fn test_mcp_more_error_and_edge_cases() {
         "id": 102,
         "method": "tools/call"
     });
-    let resp2: Value = serde_json::from_str(&process_message(&req_missing_params.to_string(), &engine).await.unwrap()).unwrap();
+    let resp2: Value = serde_json::from_str(
+        &process_message(&req_missing_params.to_string(), &engine)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(resp2["error"]["code"], -32602);
-    assert!(resp2["error"]["message"].as_str().unwrap().contains("Missing params"));
+    assert!(resp2["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Missing params"));
 
     // 3. zev_classify with missing options field
     let req_classify_no_opts = json!({
@@ -522,9 +563,17 @@ async fn test_mcp_more_error_and_edge_cases() {
             }
         }
     });
-    let resp3: Value = serde_json::from_str(&process_message(&req_classify_no_opts.to_string(), &engine).await.unwrap()).unwrap();
+    let resp3: Value = serde_json::from_str(
+        &process_message(&req_classify_no_opts.to_string(), &engine)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(resp3["result"]["isError"], true);
-    assert!(resp3["result"]["content"][0]["text"].as_str().unwrap().contains("Invalid arguments for zev_classify"));
+    assert!(resp3["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid arguments for zev_classify"));
 
     // 4. zev_score with fewer than 2 levels
     let req_score_short = json!({
@@ -540,9 +589,17 @@ async fn test_mcp_more_error_and_edge_cases() {
             }
         }
     });
-    let resp4: Value = serde_json::from_str(&process_message(&req_score_short.to_string(), &engine).await.unwrap()).unwrap();
+    let resp4: Value = serde_json::from_str(
+        &process_message(&req_score_short.to_string(), &engine)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(resp4["result"]["isError"], true);
-    assert!(resp4["result"]["content"][0]["text"].as_str().unwrap().contains("at least 2 entries"));
+    assert!(resp4["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("at least 2 entries"));
 
     // 5. zev_score with invalid arguments
     let req_score_invalid = json!({
@@ -556,9 +613,17 @@ async fn test_mcp_more_error_and_edge_cases() {
             }
         }
     });
-    let resp5: Value = serde_json::from_str(&process_message(&req_score_invalid.to_string(), &engine).await.unwrap()).unwrap();
+    let resp5: Value = serde_json::from_str(
+        &process_message(&req_score_invalid.to_string(), &engine)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(resp5["result"]["isError"], true);
-    assert!(resp5["result"]["content"][0]["text"].as_str().unwrap().contains("Invalid arguments for zev_score"));
+    assert!(resp5["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid arguments for zev_score"));
 
     // 6. zev_filter with invalid arguments
     let req_filter_invalid = json!({
@@ -572,9 +637,17 @@ async fn test_mcp_more_error_and_edge_cases() {
             }
         }
     });
-    let resp6: Value = serde_json::from_str(&process_message(&req_filter_invalid.to_string(), &engine).await.unwrap()).unwrap();
+    let resp6: Value = serde_json::from_str(
+        &process_message(&req_filter_invalid.to_string(), &engine)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(resp6["result"]["isError"], true);
-    assert!(resp6["result"]["content"][0]["text"].as_str().unwrap().contains("Invalid arguments for zev_filter"));
+    assert!(resp6["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid arguments for zev_filter"));
 
     // 7. zev_batch with invalid arguments
     let req_batch_invalid = json!({
@@ -588,9 +661,17 @@ async fn test_mcp_more_error_and_edge_cases() {
             }
         }
     });
-    let resp7: Value = serde_json::from_str(&process_message(&req_batch_invalid.to_string(), &engine).await.unwrap()).unwrap();
+    let resp7: Value = serde_json::from_str(
+        &process_message(&req_batch_invalid.to_string(), &engine)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(resp7["result"]["isError"], true);
-    assert!(resp7["result"]["content"][0]["text"].as_str().unwrap().contains("Invalid arguments for zev_batch"));
+    assert!(resp7["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid arguments for zev_batch"));
 
     // 8. zev_batch with empty rows
     let req_batch_empty = json!({
@@ -606,9 +687,17 @@ async fn test_mcp_more_error_and_edge_cases() {
             }
         }
     });
-    let resp8: Value = serde_json::from_str(&process_message(&req_batch_empty.to_string(), &engine).await.unwrap()).unwrap();
+    let resp8: Value = serde_json::from_str(
+        &process_message(&req_batch_empty.to_string(), &engine)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(resp8["result"]["isError"], false);
-    assert!(resp8["result"]["content"][0]["text"].as_str().unwrap().contains("\"count\": 0"));
+    assert!(resp8["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("\"count\": 0"));
 
     // 9. handle_message synchronous helper directly
     let sync_resp = handle_message("not valid json at all", &engine);

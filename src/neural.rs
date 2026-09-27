@@ -104,11 +104,15 @@ impl ApfelNeuralBackend {
 
         let raw = resp.content.trim();
         let parsed = parse_candidate_choice(raw, candidates);
-        let matched_id = if parsed == "__insufficient__" || !candidates.iter().any(|c| c.id == parsed) {
-            candidates.first().map(|c| c.id.clone()).unwrap_or_else(|| "none".to_string())
-        } else {
-            parsed
-        };
+        let matched_id =
+            if parsed == "__insufficient__" || !candidates.iter().any(|c| c.id == parsed) {
+                candidates
+                    .first()
+                    .map(|c| c.id.clone())
+                    .unwrap_or_else(|| "none".to_string())
+            } else {
+                parsed
+            };
 
         let mut probabilities = std::collections::BTreeMap::new();
         let mut logits = std::collections::BTreeMap::new();
@@ -149,7 +153,8 @@ impl ApfelNeuralBackend {
 
         let decision_val = match question {
             Question::Boolean(_) => {
-                if matched_id.eq_ignore_ascii_case("true") || matched_id.eq_ignore_ascii_case("yes") {
+                if matched_id.eq_ignore_ascii_case("true") || matched_id.eq_ignore_ascii_case("yes")
+                {
                     serde_json::Value::Bool(true)
                 } else {
                     serde_json::Value::Bool(false)

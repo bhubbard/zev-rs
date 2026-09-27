@@ -4,9 +4,27 @@
 //! and long technical documents where 95%+ of the text is irrelevant boilerplate.
 
 const PROMPT_STOPWORDS: &[&str] = &[
-    "classify", "relationship", "between", "contract", "this", "hypothesis",
-    "which", "party", "shall", "that", "from", "with", "have", "been", "these",
-    "following", "criteria", "select", "choose", "accordance", "relevant",
+    "classify",
+    "relationship",
+    "between",
+    "contract",
+    "this",
+    "hypothesis",
+    "which",
+    "party",
+    "shall",
+    "that",
+    "from",
+    "with",
+    "have",
+    "been",
+    "these",
+    "following",
+    "criteria",
+    "select",
+    "choose",
+    "accordance",
+    "relevant",
 ];
 
 /// Extract the most relevant premise window from long text given a query/question.

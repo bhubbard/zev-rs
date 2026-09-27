@@ -73,12 +73,17 @@ fn bench_scale_options(engine: &ZevEngine, num_options: usize, iterations: usize
     let options: Vec<OptionDef> = (0..num_options)
         .map(|k| OptionDef {
             id: format!("route_{k}"),
-            description: format!("Microservice destination cluster #{k} handling traffic operations"),
+            description: format!(
+                "Microservice destination cluster #{k} handling traffic operations"
+            ),
         })
         .collect();
 
     let req = ZevRequest {
-        state: serde_json::Value::String(format!("Route request to microservice destination cluster #{}", num_options / 2)),
+        state: serde_json::Value::String(format!(
+            "Route request to microservice destination cluster #{}",
+            num_options / 2
+        )),
         questions: [(
             "target".into(),
             Question::Choice(ChoiceQuestion {
@@ -133,7 +138,10 @@ fn main() {
     println!();
     println!("1. REAL-TIME LATENCY & COMPARISON TABLE");
     println!("────────────────────────────────────────────────────────────────────────────────────────────────────────");
-    println!("{:<24} | {:<12} | {:<15} | {:<10} | {:<20} | {:<18}", "Workload", "Zev-rs", "Python Upstream", "Speedup", "Order Invariance", "Memory Footprint");
+    println!(
+        "{:<24} | {:<12} | {:<15} | {:<10} | {:<20} | {:<18}",
+        "Workload", "Zev-rs", "Python Upstream", "Speedup", "Order Invariance", "Memory Footprint"
+    );
     println!("─────────────────────────+──────────────+─────────────────+────────────+──────────────────────+───────────────────");
 
     let results = vec![
@@ -174,11 +182,19 @@ fn main() {
     for r in &results {
         println!(
             "{:<24} | {:>8.2} µs | {:>12.1} ms | {:>8.0}x | {:<20} | {:<18}",
-            r.workload, r.zev_latency_us, r.reference_latency_ms, r.speedup, r.order_invariance, r.memory_footprint
+            r.workload,
+            r.zev_latency_us,
+            r.reference_latency_ms,
+            r.speedup,
+            r.order_invariance,
+            r.memory_footprint
         );
     }
     println!("────────────────────────────────────────────────────────────────────────────────────────────────────────");
-    println!("ECE Calibration Overhead: {:.2} ns per evaluation", t_ece_ns);
+    println!(
+        "ECE Calibration Overhead: {:.2} ns per evaluation",
+        t_ece_ns
+    );
     println!();
 
     println!("2. JEVBENCH ACCURACY VS. UPSTREAM PYTHON MODELS (231 Frozen Tasks)");
@@ -194,7 +210,9 @@ fn main() {
     println!();
     println!("3. ARCHITECTURAL ADVANTAGES OVER ORIGINAL PYTHON REPOSITORIES");
     println!("  1. 1,369x to 1,582x faster p50 decision latency (0.37ms vs 500-600ms).");
-    println!("  2. Pure CPU execution with zero CUDA/PyTorch dependencies (< 8 MB RSS vs > 1.6 GB).");
+    println!(
+        "  2. Pure CPU execution with zero CUDA/PyTorch dependencies (< 8 MB RSS vs > 1.6 GB)."
+    );
     println!("  3. Strict 0.0% order flip rate (symmetric permutation-invariant scoring).");
     println!("  4. Full calibration via temperature scaling and rigorous abstention guardrails.");
     println!("══════════════════════════════════════════════════════════════════════════════");

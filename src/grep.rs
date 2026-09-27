@@ -184,56 +184,81 @@ fn extract_rust_declarations(file_path: &str, lines: &[&str]) -> Vec<CodeDeclara
         }
 
         let (kind, name) = if trimmed.starts_with("pub fn ") || trimmed.starts_with("fn ") {
-            let rest = trimmed.strip_prefix("pub fn ").unwrap_or_else(|| {
-                trimmed.strip_prefix("fn ").unwrap_or("")
-            });
+            let rest = trimmed
+                .strip_prefix("pub fn ")
+                .unwrap_or_else(|| trimmed.strip_prefix("fn ").unwrap_or(""));
             let fn_name = rest.split('(').next().unwrap_or("").trim();
             (DeclarationKind::Function, format!("fn {fn_name}"))
         } else if trimmed.starts_with("pub async fn ") || trimmed.starts_with("async fn ") {
-            let rest = trimmed.strip_prefix("pub async fn ").unwrap_or_else(|| {
-                trimmed.strip_prefix("async fn ").unwrap_or("")
-            });
+            let rest = trimmed
+                .strip_prefix("pub async fn ")
+                .unwrap_or_else(|| trimmed.strip_prefix("async fn ").unwrap_or(""));
             let fn_name = rest.split('(').next().unwrap_or("").trim();
             (DeclarationKind::Function, format!("async fn {fn_name}"))
         } else if trimmed.starts_with("pub struct ") || trimmed.starts_with("struct ") {
-            let rest = trimmed.strip_prefix("pub struct ").unwrap_or_else(|| {
-                trimmed.strip_prefix("struct ").unwrap_or("")
-            });
-            let s_name = rest.split_whitespace().next().unwrap_or("").trim_end_matches(['{', ';']);
+            let rest = trimmed
+                .strip_prefix("pub struct ")
+                .unwrap_or_else(|| trimmed.strip_prefix("struct ").unwrap_or(""));
+            let s_name = rest
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .trim_end_matches(['{', ';']);
             (DeclarationKind::Struct, format!("struct {s_name}"))
         } else if trimmed.starts_with("pub enum ") || trimmed.starts_with("enum ") {
-            let rest = trimmed.strip_prefix("pub enum ").unwrap_or_else(|| {
-                trimmed.strip_prefix("enum ").unwrap_or("")
-            });
-            let e_name = rest.split_whitespace().next().unwrap_or("").trim_end_matches(['{', ';']);
+            let rest = trimmed
+                .strip_prefix("pub enum ")
+                .unwrap_or_else(|| trimmed.strip_prefix("enum ").unwrap_or(""));
+            let e_name = rest
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .trim_end_matches(['{', ';']);
             (DeclarationKind::Enum, format!("enum {e_name}"))
         } else if trimmed.starts_with("pub trait ") || trimmed.starts_with("trait ") {
-            let rest = trimmed.strip_prefix("pub trait ").unwrap_or_else(|| {
-                trimmed.strip_prefix("trait ").unwrap_or("")
-            });
-            let t_name = rest.split_whitespace().next().unwrap_or("").trim_end_matches(['{', ';']);
+            let rest = trimmed
+                .strip_prefix("pub trait ")
+                .unwrap_or_else(|| trimmed.strip_prefix("trait ").unwrap_or(""));
+            let t_name = rest
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .trim_end_matches(['{', ';']);
             (DeclarationKind::Trait, format!("trait {t_name}"))
         } else if trimmed.starts_with("impl ") || trimmed.starts_with("impl<") {
             let rest = trimmed.strip_prefix("impl").unwrap_or("").trim();
             let impl_name = rest.split('{').next().unwrap_or("").trim();
             (DeclarationKind::TypeAlias, format!("impl {impl_name}"))
         } else if trimmed.starts_with("pub type ") || trimmed.starts_with("type ") {
-            let rest = trimmed.strip_prefix("pub type ").unwrap_or_else(|| {
-                trimmed.strip_prefix("type ").unwrap_or("")
-            });
+            let rest = trimmed
+                .strip_prefix("pub type ")
+                .unwrap_or_else(|| trimmed.strip_prefix("type ").unwrap_or(""));
             let t_name = rest.split('=').next().unwrap_or("").trim();
             (DeclarationKind::TypeAlias, format!("type {t_name}"))
         } else if trimmed.starts_with("pub mod ") || trimmed.starts_with("mod ") {
-            let rest = trimmed.strip_prefix("pub mod ").unwrap_or_else(|| {
-                trimmed.strip_prefix("mod ").unwrap_or("")
-            });
+            let rest = trimmed
+                .strip_prefix("pub mod ")
+                .unwrap_or_else(|| trimmed.strip_prefix("mod ").unwrap_or(""));
             let m_name = rest.split(';').next().unwrap_or("").trim();
             (DeclarationKind::Module, format!("mod {m_name}"))
         } else if trimmed.starts_with("macro_rules! ") {
-            let m_name = trimmed.strip_prefix("macro_rules! ").unwrap_or("").split('{').next().unwrap_or("").trim();
+            let m_name = trimmed
+                .strip_prefix("macro_rules! ")
+                .unwrap_or("")
+                .split('{')
+                .next()
+                .unwrap_or("")
+                .trim();
             (DeclarationKind::Macro, format!("macro_rules! {m_name}"))
         } else if trimmed.contains(".route(") {
-            let route_line = trimmed.split(".route(").nth(1).unwrap_or("").split(')').next().unwrap_or("").trim();
+            let route_line = trimmed
+                .split(".route(")
+                .nth(1)
+                .unwrap_or("")
+                .split(')')
+                .next()
+                .unwrap_or("")
+                .trim();
             (DeclarationKind::Route, format!("route {route_line}"))
         } else {
             continue;
@@ -264,9 +289,9 @@ fn extract_python_declarations(file_path: &str, lines: &[&str]) -> Vec<CodeDecla
         }
 
         let (kind, name) = if trimmed.starts_with("def ") || trimmed.starts_with("async def ") {
-            let rest = trimmed.strip_prefix("async def ").unwrap_or_else(|| {
-                trimmed.strip_prefix("def ").unwrap_or("")
-            });
+            let rest = trimmed
+                .strip_prefix("async def ")
+                .unwrap_or_else(|| trimmed.strip_prefix("def ").unwrap_or(""));
             let fn_name = rest.split('(').next().unwrap_or("").trim();
             (DeclarationKind::Function, format!("def {fn_name}"))
         } else if trimmed.starts_with("class ") {
@@ -307,27 +332,54 @@ fn extract_ts_js_declarations(file_path: &str, lines: &[&str]) -> Vec<CodeDeclar
             || trimmed.starts_with("async function ")
         {
             let cleaned = trimmed
-                .strip_prefix("export ").unwrap_or(trimmed)
-                .strip_prefix("async ").unwrap_or(trimmed)
-                .strip_prefix("function ").unwrap_or(trimmed);
+                .strip_prefix("export ")
+                .unwrap_or(trimmed)
+                .strip_prefix("async ")
+                .unwrap_or(trimmed)
+                .strip_prefix("function ")
+                .unwrap_or(trimmed);
             let fn_name = cleaned.split('(').next().unwrap_or("").trim();
             (DeclarationKind::Function, format!("function {fn_name}"))
         } else if trimmed.starts_with("export class ") || trimmed.starts_with("class ") {
-            let cleaned = trimmed.strip_prefix("export ").unwrap_or(trimmed).strip_prefix("class ").unwrap_or("");
-            let c_name = cleaned.split_whitespace().next().unwrap_or("").trim_end_matches('{');
+            let cleaned = trimmed
+                .strip_prefix("export ")
+                .unwrap_or(trimmed)
+                .strip_prefix("class ")
+                .unwrap_or("");
+            let c_name = cleaned
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .trim_end_matches('{');
             (DeclarationKind::Class, format!("class {c_name}"))
         } else if trimmed.starts_with("export interface ") || trimmed.starts_with("interface ") {
-            let cleaned = trimmed.strip_prefix("export ").unwrap_or(trimmed).strip_prefix("interface ").unwrap_or("");
-            let i_name = cleaned.split_whitespace().next().unwrap_or("").trim_end_matches('{');
+            let cleaned = trimmed
+                .strip_prefix("export ")
+                .unwrap_or(trimmed)
+                .strip_prefix("interface ")
+                .unwrap_or("");
+            let i_name = cleaned
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .trim_end_matches('{');
             (DeclarationKind::Interface, format!("interface {i_name}"))
         } else if trimmed.starts_with("export type ") || trimmed.starts_with("type ") {
-            let cleaned = trimmed.strip_prefix("export ").unwrap_or(trimmed).strip_prefix("type ").unwrap_or("");
+            let cleaned = trimmed
+                .strip_prefix("export ")
+                .unwrap_or(trimmed)
+                .strip_prefix("type ")
+                .unwrap_or("");
             let t_name = cleaned.split('=').next().unwrap_or("").trim();
             (DeclarationKind::TypeAlias, format!("type {t_name}"))
         } else if (trimmed.starts_with("export const ") || trimmed.starts_with("const "))
             && (trimmed.contains("=>") || trimmed.contains("function"))
         {
-            let cleaned = trimmed.strip_prefix("export ").unwrap_or(trimmed).strip_prefix("const ").unwrap_or("");
+            let cleaned = trimmed
+                .strip_prefix("export ")
+                .unwrap_or(trimmed)
+                .strip_prefix("const ")
+                .unwrap_or("");
             let c_name = cleaned.split(['=', ':']).next().unwrap_or("").trim();
             (DeclarationKind::Function, format!("const {c_name}"))
         } else {
@@ -362,7 +414,9 @@ fn extract_go_declarations(file_path: &str, lines: &[&str]) -> Vec<CodeDeclarati
             let rest = trimmed.strip_prefix("func ").unwrap_or("");
             let fn_name = rest.split('(').next().unwrap_or("").trim();
             (DeclarationKind::Function, format!("func {fn_name}"))
-        } else if trimmed.starts_with("type ") && (trimmed.contains("struct") || trimmed.contains("interface")) {
+        } else if trimmed.starts_with("type ")
+            && (trimmed.contains("struct") || trimmed.contains("interface"))
+        {
             let rest = trimmed.strip_prefix("type ").unwrap_or("");
             let t_name = rest.split_whitespace().next().unwrap_or("").trim();
             let k = if trimmed.contains("struct") {

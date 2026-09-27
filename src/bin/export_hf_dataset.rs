@@ -326,7 +326,12 @@ fn generate_scaled_benchmarks(count: usize) -> Vec<BenchmarkRecord> {
     let domains: &[(&str, &[&str])] = &[
         (
             "fintech",
-            &["wire_transfer", "card_fraud", "chargeback", "kyc_verification"],
+            &[
+                "wire_transfer",
+                "card_fraud",
+                "chargeback",
+                "kyc_verification",
+            ],
         ),
         (
             "healthcare",

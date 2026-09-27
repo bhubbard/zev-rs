@@ -601,8 +601,7 @@ impl ZevEngine {
                     slot_limit.max(2)
                 };
                 if c.options.len() > max_keep {
-                    let shortlisted =
-                        shortlist_options(&c.options, preprocessed_state, max_keep);
+                    let shortlisted = shortlist_options(&c.options, preprocessed_state, max_keep);
                     shortlisted_storage = Some(Question::Choice(ChoiceQuestion {
                         instructions: c.instructions.clone(),
                         options: shortlisted,
@@ -661,10 +660,7 @@ impl ZevEngine {
                         || (c.options[0].id == "true" && c.options[1].id == "false")
                         || (c.options[0].id == "yes" && c.options[1].id == "no"));
                 if is_boolean_choice
-                    && detect_policy_precondition_violation(
-                        preprocessed_state,
-                        &c.instructions,
-                    )
+                    && detect_policy_precondition_violation(preprocessed_state, &c.instructions)
                 {
                     let false_idx = if c.options[0].id == "false" || c.options[0].id == "no" {
                         0
@@ -676,8 +672,7 @@ impl ZevEngine {
                     logits[true_idx] = logits[true_idx].min(logits[false_idx] - 6.0);
                 }
 
-                if apply_mention_vs_request_intent_filter(preprocessed_state, &c.instructions)
-                {
+                if apply_mention_vs_request_intent_filter(preprocessed_state, &c.instructions) {
                     for (idx, opt) in c.options.iter().enumerate() {
                         let id_lower = opt.id.to_lowercase();
                         let desc_lower = opt.description.to_lowercase();
@@ -706,11 +701,9 @@ impl ZevEngine {
                             logits[idx] -= 4.0;
                         }
                     }
-                } else if let Some(target) = detect_customer_intent_action(
-                    preprocessed_state,
-                    &c.instructions,
-                    &opt_ids,
-                ) {
+                } else if let Some(target) =
+                    detect_customer_intent_action(preprocessed_state, &c.instructions, &opt_ids)
+                {
                     for (idx, opt) in c.options.iter().enumerate() {
                         if opt.id == target {
                             logits[idx] += 8.0;
@@ -721,12 +714,21 @@ impl ZevEngine {
                 }
 
                 // Upgrade 2: Hierarchical Intent Sieve (BANKING77 & CLINC150)
-                crate::intent_sieve::apply_hierarchical_intent_sieve(preprocessed_state, &mut logits, &opt_ids);
+                crate::intent_sieve::apply_hierarchical_intent_sieve(
+                    preprocessed_state,
+                    &mut logits,
+                    &opt_ids,
+                );
 
                 // Upgrade 3: Compact Science & Fact Knowledge Trie (ARC-Easy & ARC-Challenge)
-                let opt_descs: Vec<&str> = c.options.iter().map(|o| o.description.as_str()).collect();
+                let opt_descs: Vec<&str> =
+                    c.options.iter().map(|o| o.description.as_str()).collect();
                 let full_query = format!("{} {}", preprocessed_state, c.instructions);
-                crate::concept_knowledge::boost_science_concept_associations(&full_query, &mut logits, &opt_descs);
+                crate::concept_knowledge::boost_science_concept_associations(
+                    &full_query,
+                    &mut logits,
+                    &opt_descs,
+                );
             }
             Question::Score(s) => {
                 if let Some(target_idx) = evaluate_ordinal_severity_ladder(
@@ -780,11 +782,9 @@ impl ZevEngine {
             || answer.uncertainty.margin.is_some_and(|m| m < margin_thresh);
         if should_fallback && !fallback_mode.is_empty() {
             if fallback_mode == "gemma" {
-                if let Ok(gemma_ans) = crate::gemma::evaluate_gemma(
-                    preprocessed_state,
-                    final_question,
-                    &candidates,
-                ) {
+                if let Ok(gemma_ans) =
+                    crate::gemma::evaluate_gemma(preprocessed_state, final_question, &candidates)
+                {
                     answer = gemma_ans;
                 }
             } else if fallback_mode == "clm" {
@@ -793,10 +793,8 @@ impl ZevEngine {
                     let state_emb = crate::clm::embed_text(preprocessed_state, 512);
                     let mut clm_logits = Vec::with_capacity(c.options.len());
                     for opt in &c.options {
-                        let action_emb = crate::clm::embed_text(
-                            &format!("{} {}", opt.id, opt.description),
-                            512,
-                        );
+                        let action_emb =
+                            crate::clm::embed_text(&format!("{} {}", opt.id, opt.description), 512);
                         verifier.register_action_embedding(&opt.id, &action_emb);
                         let score = verifier.head.score(&state_emb, &action_emb);
                         clm_logits.push(score);

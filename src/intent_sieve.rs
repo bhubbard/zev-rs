@@ -61,7 +61,9 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         || state_lower.contains("reservation");
 
     let has_token = |id_str: &str, tok: &str| {
-        id_str.split(|c: char| !c.is_alphanumeric()).any(|w| w == tok)
+        id_str
+            .split(|c: char| !c.is_alphanumeric())
+            .any(|w| w == tok)
     };
 
     for (idx, &id) in candidate_ids.iter().enumerate() {

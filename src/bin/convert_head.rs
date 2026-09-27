@@ -55,7 +55,9 @@ fn object_to_json(obj: &Object) -> serde_json::Value {
     }
 }
 
-fn extract_meta_from_pt<P: AsRef<Path>>(path: P) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+fn extract_meta_from_pt<P: AsRef<Path>>(
+    path: P,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let file = File::open(path)?;
     let mut zip = zip::ZipArchive::new(BufReader::new(file))?;
 
@@ -64,7 +66,9 @@ fn extract_meta_from_pt<P: AsRef<Path>>(path: P) -> Result<serde_json::Value, Bo
         .file_names()
         .find(|name| name.ends_with("data.pkl"))
         .map(|s| s.to_string())
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No data.pkl in archive"))?;
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "No data.pkl in archive")
+        })?;
 
     // Validate archive root against path traversal
     let root = data_pkl_name.split('/').next().unwrap_or("");
@@ -133,7 +137,11 @@ fn convert_checkpoint<P1: AsRef<Path>, P2: AsRef<Path>>(
     serde_json::to_writer_pretty(meta_file, &meta)?;
 
     println!("Converted PyTorch checkpoint to Safetensors:");
-    println!("  • Safetensors: {} ({} tensors)", safetensors_path.display(), tensors.len());
+    println!(
+        "  • Safetensors: {} ({} tensors)",
+        safetensors_path.display(),
+        tensors.len()
+    );
     for summary in &tensor_summaries {
         println!("    - {summary}");
     }

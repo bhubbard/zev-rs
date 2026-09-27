@@ -312,7 +312,11 @@ pub fn check_numeric_guardrails(
             nan_count,
             nan_ratio,
             variance: 0.0,
-            mean: if valid_points > 0 { sum / valid_points as f64 } else { 0.0 },
+            mean: if valid_points > 0 {
+                sum / valid_points as f64
+            } else {
+                0.0
+            },
             min_val: if min_val.is_finite() { min_val } else { 0.0 },
             max_val: if max_val.is_finite() { max_val } else { 0.0 },
             is_flatline: true,

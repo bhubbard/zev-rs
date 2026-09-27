@@ -3,26 +3,26 @@ pub mod calibration;
 pub mod cascade;
 pub mod clm;
 pub mod compaction;
+pub mod concept_knowledge;
 pub mod decoding;
 pub mod engine;
 pub mod error;
+pub mod gemma;
+pub mod grep;
+pub mod intent_sieve;
 pub mod kv_rewind;
 pub mod logic;
 pub mod matrix;
+pub mod mcp;
 pub mod order_invariant;
+pub mod premise_window;
 pub mod preprocessor;
 pub mod readout;
 pub mod shortlist;
 pub mod tabular;
 pub mod tev1;
 pub mod types;
-pub mod mcp;
 pub mod wire;
-pub mod grep;
-pub mod concept_knowledge;
-pub mod gemma;
-pub mod intent_sieve;
-pub mod premise_window;
 
 #[cfg(feature = "server")]
 pub mod server;
@@ -42,6 +42,7 @@ pub use compaction::{ToolCallRecord, ToolCompactionAction, ToolCompactionDecisio
 pub use decoding::{decode_decision, generate_candidates, summarize_moments};
 pub use engine::{DecisionEngine, Evaluable, ZevEngine};
 pub use error::{Result, ZevError};
+pub use grep::*;
 pub use kv_rewind::{BlockTable, PagedContextArena, DEFAULT_PAGE_SIZE};
 pub use logic::{
     AluMode, AluOp, AluReport, CircuitGate, CircuitReport, ClockMode, ClockPulse, CpuCycleReport,
@@ -65,7 +66,6 @@ pub use tabular::{
 };
 pub use tev1::{Tev1Request, Tev1Response};
 pub use types::*;
-pub use grep::*;
 
 #[cfg(feature = "server")]
 pub use server::create_router;

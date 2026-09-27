@@ -290,7 +290,8 @@ impl SequentialCascadeRunner {
     }
 
     pub fn evaluate_step(&mut self, engine: &ZevEngine, state: &str) -> Result<CascadeReport> {
-        self.cascade.evaluate_stream_step(engine, state, &mut self.streaks)
+        self.cascade
+            .evaluate_stream_step(engine, state, &mut self.streaks)
     }
 
     pub fn reset_streaks(&mut self) {
