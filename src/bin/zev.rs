@@ -75,6 +75,10 @@ enum Commands {
         /// Speculative fallback backend ("gemma", "apfel", "clm", "none")
         #[arg(short, long)]
         backend: Option<String>,
+
+        /// Minimum confidence threshold [0.0 - 1.0]. If top probability is below this, cascades to --backend
+        #[arg(long, default_value_t = 0.0)]
+        min_confidence: f64,
     },
 
     /// Evaluate a Tev1 decision request from JSON, raw prompt text, or CLI flags
@@ -317,10 +321,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             routes,
             distribution,
             backend,
+            min_confidence,
         } => {
             if let Some(b) = backend {
+                if (b == "apfel" || b == "neural") && !cfg!(feature = "neural") {
+                    eprintln!(
+                        "Warning: fallback backend '{}' requested, but zev was compiled without '--features neural'. Reverting to default SIMD heuristics.",
+                        b
+                    );
+                }
                 std::env::set_var("ZEV_FALLBACK", b);
+            } else if min_confidence > 0.0 && std::env::var("ZEV_FALLBACK").is_err() {
+                #[cfg(target_os = "macos")]
+                std::env::set_var("ZEV_FALLBACK", "apfel");
+                #[cfg(not(target_os = "macos"))]
+                std::env::set_var("ZEV_FALLBACK", "gemma");
             }
+
+            if min_confidence > 0.0 {
+                std::env::set_var("ZEV_FALLBACK_CONFIDENCE", min_confidence.to_string());
+            }
+
             let text = match (state, file) {
                 (Some(s), _) => s,
                 (None, Some(f)) => {
@@ -339,7 +360,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            let map: BTreeMap<String, String> = serde_json::from_str(&routes)?;
+            #[derive(serde::Deserialize)]
+            #[serde(untagged)]
+            enum RouteTarget {
+                Simple(String),
+                Detailed {
+                    description: String,
+                    #[serde(default)]
+                    negative: Option<String>,
+                },
+            }
+
+            let raw_map: BTreeMap<String, RouteTarget> = serde_json::from_str(&routes)?;
+            let map: BTreeMap<String, String> = raw_map
+                .into_iter()
+                .map(|(k, v)| {
+                    let desc = match v {
+                        RouteTarget::Simple(s) => s,
+                        RouteTarget::Detailed {
+                            description,
+                            negative,
+                        } => {
+                            if let Some(neg) = negative {
+                                format!("{description}. Exclude: {neg}")
+                            } else {
+                                description
+                            }
+                        }
+                    };
+                    (k, desc)
+                })
+                .collect();
+
             let engine = ZevEngine::default();
             let (dest, prob, dist) = engine.route_with_distribution(&text, map)?;
 

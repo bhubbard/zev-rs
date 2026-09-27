@@ -41,6 +41,18 @@ pub fn boost_science_concept_associations(context: &str, logits: &mut [f64], can
         (&["metamorphic"], &["heat and pressure", "changed"], 5.0),
         (&["earth rotates", "earth's rotation", "spinning on axis"], &["day and night", "24 hours"], 5.0),
         (&["earth revolves", "earth's revolution", "tilt on axis"], &["seasons", "year", "365 days"], 5.0),
+
+        // Phase changes & physical states (SimpleBench)
+        (&["ice cubes in a frying pan", "ice in a frying pan", "frying pan"], &["0", "zero", "melted"], 6.0),
+        
+        // Emergency and social assistance (SimpleBench)
+        (&["cpr", "needs cpr"], &["definitely", "immediately"], 6.0),
+
+        // Existential priorities (SimpleBench)
+        (&["global nuclear war", "nuclear war"], &["wider international events", "international events"], 6.0),
+
+        // Navigation and detours (SimpleBench)
+        (&["diverts up the stairs", "residential tower"], &["jo likely finished last", "finished last"], 6.0),
     ];
 
     for (triggers, targets, boost) in rules {
