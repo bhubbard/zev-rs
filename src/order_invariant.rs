@@ -51,20 +51,28 @@ fn starts_with_word(text: &str, word: &str) -> bool {
     if text.len() == word.len() {
         return true;
     }
-    let next = text[word.len()..].chars().next().unwrap();
-    !next.is_alphanumeric() && next != '_'
+    match text.get(word.len()..).and_then(|s| s.chars().next()) {
+        Some(next) => !next.is_alphanumeric() && next != '_',
+        None => false,
+    }
 }
 
 #[inline]
 fn ends_with_word(text: &str, word: &str) -> bool {
-    if !text.ends_with(word) {
+    if text.len() < word.len() || !text.ends_with(word) {
         return false;
     }
     if text.len() == word.len() {
         return true;
     }
-    let prev = text[..text.len() - word.len()].chars().last().unwrap();
-    !prev.is_alphanumeric() && prev != '_'
+    let prefix_len = text.len() - word.len();
+    if !text.is_char_boundary(prefix_len) {
+        return false;
+    }
+    match text.get(..prefix_len).and_then(|s| s.chars().last()) {
+        Some(prev) => !prev.is_alphanumeric() && prev != '_',
+        None => false,
+    }
 }
 
 #[inline]
@@ -73,22 +81,30 @@ fn contains_bounded_in(haystack: &str, pattern: &str) -> bool {
         return false;
     }
     let mut start = 0;
-    while let Some(pos) = haystack[start..].find(pattern) {
+    while let Some(sub) = haystack.get(start..) {
+        let pos = match sub.find(pattern) {
+            Some(p) => p,
+            None => break,
+        };
         let actual_pos = start + pos;
         let end_pos = actual_pos + pattern.len();
 
         let left_ok = if actual_pos == 0 {
             true
         } else {
-            let prev = haystack[..actual_pos].chars().last().unwrap();
-            !prev.is_alphanumeric() && prev != '_'
+            match haystack.get(..actual_pos).and_then(|s| s.chars().last()) {
+                Some(prev) => !prev.is_alphanumeric() && prev != '_',
+                None => false,
+            }
         };
 
         let right_ok = if end_pos == haystack.len() {
             true
         } else {
-            let next = haystack[end_pos..].chars().next().unwrap();
-            !next.is_alphanumeric() && next != '_'
+            match haystack.get(end_pos..).and_then(|s| s.chars().next()) {
+                Some(next) => !next.is_alphanumeric() && next != '_',
+                None => false,
+            }
         };
 
         if left_ok && right_ok {
@@ -117,22 +133,30 @@ fn find_clause_start(text: &str) -> usize {
 
     // Check for whole word "but"
     let mut search_start = 0;
-    while let Some(pos) = text[search_start..].find("but") {
+    while let Some(sub) = text.get(search_start..) {
+        let pos = match sub.find("but") {
+            Some(p) => p,
+            None => break,
+        };
         let actual_pos = search_start + pos;
         let end_pos = actual_pos + 3;
 
         let left_ok = if actual_pos == 0 {
             true
         } else {
-            let prev = text[..actual_pos].chars().last().unwrap();
-            !prev.is_alphanumeric() && prev != '_'
+            match text.get(..actual_pos).and_then(|s| s.chars().last()) {
+                Some(prev) => !prev.is_alphanumeric() && prev != '_',
+                None => false,
+            }
         };
 
         let right_ok = if end_pos == text.len() {
             true
         } else {
-            let next = text[end_pos..].chars().next().unwrap();
-            !next.is_alphanumeric() && next != '_'
+            match text.get(end_pos..).and_then(|s| s.chars().next()) {
+                Some(next) => !next.is_alphanumeric() && next != '_',
+                None => false,
+            }
         };
 
         if left_ok && right_ok {
@@ -215,9 +239,9 @@ impl PremiseContext {
         if let Some(positions) = self.token_positions.get(w) {
             for &pos in positions {
                 let actual_pos = pos as usize;
-                let clause_start = find_clause_start(&self.raw_lower[..actual_pos]);
+                let clause_start = find_clause_start(self.raw_lower.get(..actual_pos).unwrap_or(""));
 
-                let prefix = self.raw_lower[clause_start..actual_pos].trim_end();
+                let prefix = self.raw_lower.get(clause_start..actual_pos).unwrap_or("").trim_end();
                 for &neg in PREFIX_NEGATORS {
                     if ends_with_word(prefix, neg) {
                         return true;
@@ -226,10 +250,10 @@ impl PremiseContext {
 
                 // Window check for scoped negations and disclaimers (Winnow-12B protocol)
                 let mut check_window_start = actual_pos.saturating_sub(45).max(clause_start);
-                while !self.raw_lower.is_char_boundary(check_window_start) {
+                while check_window_start < self.raw_lower.len() && !self.raw_lower.is_char_boundary(check_window_start) {
                     check_window_start += 1;
                 }
-                let window = &self.raw_lower[check_window_start..actual_pos];
+                let window = self.raw_lower.get(check_window_start..actual_pos).unwrap_or("");
                 for &neg in SCOPED_NEGATORS {
                     if contains_bounded_in(window, neg) {
                         return true;
@@ -246,7 +270,11 @@ impl PremiseContext {
 
         // Fallback for multi-word or non-standard patterns
         let mut start = 0;
-        while let Some(pos) = self.raw_lower[start..].find(w) {
+        while let Some(sub) = self.raw_lower.get(start..) {
+            let pos = match sub.find(w) {
+                Some(p) => p,
+                None => break,
+            };
             let actual_pos = start + pos;
             let end_pos = actual_pos + w.len();
 
@@ -254,15 +282,19 @@ impl PremiseContext {
             let left_ok = if actual_pos == 0 {
                 true
             } else {
-                let prev = self.raw_lower[..actual_pos].chars().last().unwrap();
-                !prev.is_alphanumeric() && prev != '_'
+                match self.raw_lower.get(..actual_pos).and_then(|s| s.chars().last()) {
+                    Some(prev) => !prev.is_alphanumeric() && prev != '_',
+                    None => false,
+                }
             };
 
             let right_ok = if end_pos == self.raw_lower.len() {
                 true
             } else {
-                let next = self.raw_lower[end_pos..].chars().next().unwrap();
-                !next.is_alphanumeric() && next != '_'
+                match self.raw_lower.get(end_pos..).and_then(|s| s.chars().next()) {
+                    Some(next) => !next.is_alphanumeric() && next != '_',
+                    None => false,
+                }
             };
 
             if !left_ok || !right_ok {
@@ -270,9 +302,9 @@ impl PremiseContext {
                 continue;
             }
 
-            let clause_start = find_clause_start(&self.raw_lower[..actual_pos]);
+            let clause_start = find_clause_start(self.raw_lower.get(..actual_pos).unwrap_or(""));
 
-            let prefix = self.raw_lower[clause_start..actual_pos].trim_end();
+            let prefix = self.raw_lower.get(clause_start..actual_pos).unwrap_or("").trim_end();
             for &neg in PREFIX_NEGATORS {
                 if ends_with_word(prefix, neg) {
                     return true;
@@ -281,10 +313,10 @@ impl PremiseContext {
 
             // Window check for scoped negations and disclaimers (Winnow-12B protocol)
             let mut check_window_start = actual_pos.saturating_sub(45).max(clause_start);
-            while !self.raw_lower.is_char_boundary(check_window_start) {
+            while check_window_start < self.raw_lower.len() && !self.raw_lower.is_char_boundary(check_window_start) {
                 check_window_start += 1;
             }
-            let window = &self.raw_lower[check_window_start..actual_pos];
+            let window = self.raw_lower.get(check_window_start..actual_pos).unwrap_or("");
             for &neg in SCOPED_NEGATORS {
                 if contains_bounded_in(window, neg) {
                     return true;
@@ -351,20 +383,28 @@ impl PremiseContext {
     fn find_last_bounded_pos(&self, word: &str) -> Option<usize> {
         let mut last_pos = None;
         let mut start = 0;
-        while let Some(pos) = self.raw_lower[start..].find(word) {
+        while let Some(sub) = self.raw_lower.get(start..) {
+            let pos = match sub.find(word) {
+                Some(p) => p,
+                None => break,
+            };
             let actual_pos = start + pos;
             let end_pos = actual_pos + word.len();
             let left_ok = if actual_pos == 0 {
                 true
             } else {
-                let prev = self.raw_lower[..actual_pos].chars().last().unwrap();
-                !prev.is_alphanumeric() && prev != '_'
+                match self.raw_lower.get(..actual_pos).and_then(|s| s.chars().last()) {
+                    Some(prev) => !prev.is_alphanumeric() && prev != '_',
+                    None => false,
+                }
             };
             let right_ok = if end_pos == self.raw_lower.len() {
                 true
             } else {
-                let next = self.raw_lower[end_pos..].chars().next().unwrap();
-                !next.is_alphanumeric() && next != '_'
+                match self.raw_lower.get(end_pos..).and_then(|s| s.chars().next()) {
+                    Some(next) => !next.is_alphanumeric() && next != '_',
+                    None => false,
+                }
             };
             if left_ok && right_ok {
                 last_pos = Some(actual_pos);
@@ -575,7 +615,7 @@ impl PremiseContext {
                     }
                 } else if is_ascii && char_count >= 5 {
                     // Stem prefix check
-                    let stem = &word_str[..word_str.len() - 1];
+                    let stem = word_str.get(..word_str.len() - 1).unwrap_or("");
                     if self.contains_bounded(stem) {
                         let w = self.recency_weight(stem);
                         if self.is_negated(stem) {
@@ -881,5 +921,48 @@ mod tests {
         assert!(!empty_ctx.contains_bounded("test"));
         assert!(!empty_ctx.is_negated(""));
         assert!(!empty_ctx.is_negated("test"));
+    }
+
+    #[test]
+    fn test_utf8_multibyte_safety() {
+        // starts_with_word
+        assert!(starts_with_word("🦀 hello", "🦀"));
+        assert!(!starts_with_word("🦀hello", "🦀"));
+        assert!(starts_with_word("café latte", "café"));
+        assert!(!starts_with_word("caféteria", "café"));
+        assert!(starts_with_word("word", "word"));
+        assert!(!starts_with_word("", "word"));
+
+        // ends_with_word
+        assert!(ends_with_word("hello 🦀", "🦀"));
+        assert!(!ends_with_word("hello🦀", "🦀"));
+        assert!(ends_with_word("latte café", "café"));
+        assert!(!ends_with_word("decafé", "café"));
+        assert!(ends_with_word("🦀", "🦀"));
+        assert!(!ends_with_word("", "🦀"));
+
+        // contains_bounded_in
+        assert!(contains_bounded_in("test 🦀 foo", "🦀"));
+        assert!(contains_bounded_in("Привет мир", "мир"));
+        assert!(!contains_bounded_in("Здравствуйте", "здрав"));
+        assert!(!contains_bounded_in("", "мир"));
+        assert!(!contains_bounded_in("мир", ""));
+
+        // find_clause_start with multibyte
+        assert_eq!(find_clause_start("Привет; but мир"), 17);
+        assert_eq!(find_clause_start("Hello 🚀. Next"), 11);
+
+        // PremiseContext with unicode & emoji
+        let ctx = PremiseContext::new("Запрос 🚀: order is not ready yet.");
+        assert!(ctx.is_negated("ready"));
+        assert!(ctx.contains_bounded("ready"));
+
+        let cand_ready = Candidate {
+            id: "ready".into(),
+            description: "Ready".into(),
+            value: None,
+        };
+        let score = ctx.score_candidate(&cand_ready);
+        assert!(score < 0.5); // negated
     }
 }

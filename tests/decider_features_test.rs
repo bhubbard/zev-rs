@@ -67,6 +67,7 @@ fn test_per_type_temperature_calibration_resolution() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.evaluate(&req).unwrap();
@@ -118,6 +119,7 @@ fn test_per_type_temperature_calibration_resolution() {
         model: None,
         temperature: Some(1.75),
         enable_temporal_facts: false,
+        images: None,
     };
     let resp_override = engine.evaluate(&req_override).unwrap();
     let ans_override = resp_override.answers.get("dept").unwrap();
@@ -263,6 +265,7 @@ fn test_natural_language_abstention_routing_and_decision_preservation() {
             model: None,
             temperature: None,
             enable_temporal_facts: false,
+            images: None,
         })
         .unwrap();
 

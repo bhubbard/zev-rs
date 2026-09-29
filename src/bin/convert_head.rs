@@ -27,7 +27,16 @@ struct Args {
     output_dir: PathBuf,
 }
 
+const MAX_OBJECT_DEPTH: usize = 64;
+
 fn object_to_json(obj: &Object) -> serde_json::Value {
+    object_to_json_bounded(obj, 0)
+}
+
+fn object_to_json_bounded(obj: &Object, depth: usize) -> serde_json::Value {
+    if depth > MAX_OBJECT_DEPTH {
+        return serde_json::Value::String("<recursion depth limit exceeded>".into());
+    }
     match obj {
         Object::Unicode(s) => serde_json::Value::String(s.clone()),
         Object::Int(i) => serde_json::Value::Number((*i).into()),
@@ -38,7 +47,7 @@ fn object_to_json(obj: &Object) -> serde_json::Value {
         Object::Bool(b) => serde_json::Value::Bool(*b),
         Object::None => serde_json::Value::Null,
         Object::Tuple(items) | Object::List(items) => {
-            serde_json::Value::Array(items.iter().map(object_to_json).collect())
+            serde_json::Value::Array(items.iter().map(|item| object_to_json_bounded(item, depth + 1)).collect())
         }
         Object::Dict(kvs) => {
             let mut map = serde_json::Map::new();
@@ -47,7 +56,7 @@ fn object_to_json(obj: &Object) -> serde_json::Value {
                     Object::Unicode(s) => s.clone(),
                     other => format!("{other:?}"),
                 };
-                map.insert(key_str, object_to_json(v));
+                map.insert(key_str, object_to_json_bounded(v, depth + 1));
             }
             serde_json::Value::Object(map)
         }

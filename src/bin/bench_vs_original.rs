@@ -54,6 +54,7 @@ fn bench_intent_routing(engine: &ZevEngine, iterations: usize) -> f64 {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     // Warmup
@@ -96,6 +97,7 @@ fn bench_scale_options(engine: &ZevEngine, num_options: usize, iterations: usize
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let start = Instant::now();

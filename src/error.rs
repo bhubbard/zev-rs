@@ -23,6 +23,9 @@ pub enum ZevError {
     #[error("Evaluation error: {0}")]
     Evaluation(String),
 
+    #[error("Evaluation failed: {0}")]
+    EvaluationFailed(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 

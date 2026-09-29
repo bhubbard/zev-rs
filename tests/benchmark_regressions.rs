@@ -120,6 +120,7 @@ fn test_easy_extraction_06_short_token_size() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -169,6 +170,7 @@ fn test_easy_fact_03_morphological_negation_unpaid() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -207,6 +209,7 @@ fn test_easy_fact_09_morphological_negation_disabled() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -287,6 +290,7 @@ fn test_original_policy_04_1_open_dispute_reminder() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -325,6 +329,7 @@ fn test_original_policy_05_0_suspension_file_access() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -363,6 +368,7 @@ fn test_original_adequacy_05_0_two_words_constraint() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -411,6 +417,7 @@ fn test_original_intent_05_0_mention_vs_request_clarity() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -455,6 +462,7 @@ fn test_original_intent_05_1_mention_vs_request_gratitude() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -501,6 +509,7 @@ fn test_original_ordinal_01_0_severity_cosmetic() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -543,6 +552,7 @@ fn test_original_ordinal_03_0_severity_blocked_core_function() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -587,6 +597,7 @@ fn test_original_ordinal_04_0_severity_irreversible_loss() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -643,6 +654,7 @@ fn test_easy_intent_04_billing_question() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -693,6 +705,7 @@ fn test_easy_intent_08_weather() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -727,6 +740,7 @@ fn test_original_intent_04_0_cancel_imperative() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -759,6 +773,7 @@ fn test_original_intent_06_0_status_with_past_cancellation() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -792,6 +807,7 @@ fn test_original_extraction_01_1_depot_pickup_replacing_courier() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -823,6 +839,7 @@ fn test_original_extraction_02_0_unknown_delivery_hypothetical() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");
@@ -863,6 +880,7 @@ fn test_laya_377_cancellation_negation_inversion() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.eval(&req).expect("evaluation failed");

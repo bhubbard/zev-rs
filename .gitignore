@@ -5,3 +5,5 @@ bin/*-bin
 lcov.info
 coverage/
 target/llvm-cov*
+coverage_report
+target/coverage

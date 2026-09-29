@@ -64,6 +64,7 @@ fn test_feature_2_quantile_volatility_spread() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine.evaluate(&req).unwrap();

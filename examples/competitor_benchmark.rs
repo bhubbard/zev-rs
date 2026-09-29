@@ -100,6 +100,7 @@ fn main() {
                     model: None,
                     temperature: None,
                     enable_temporal_facts: true,
+                    images: None,
                 };
 
                 let t0 = Instant::now();

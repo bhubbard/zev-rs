@@ -939,7 +939,11 @@ impl ZevEngine {
             images: None,
         };
         let resp = self.evaluate(&req)?;
-        let ans = resp.answers.get("gate").cloned().unwrap();
+        let ans = resp
+            .answers
+            .get("gate")
+            .cloned()
+            .ok_or_else(|| ZevError::EvaluationFailed("Missing question 'gate' in response".into()))?;
         let pass = ans.confidence >= threshold && ans.status == "ok";
         Ok((pass, ans))
     }
@@ -982,7 +986,10 @@ impl ZevEngine {
             images: None,
         };
         let resp = self.evaluate(&req)?;
-        let ans = resp.answers.get("route").unwrap();
+        let ans = resp
+            .answers
+            .get("route")
+            .ok_or_else(|| ZevError::EvaluationFailed("Missing question 'route' in response".into()))?;
         let choice = match &ans.decision {
             Some(serde_json::Value::String(s)) => s.clone(),
             _ => "".into(),
@@ -1269,6 +1276,37 @@ mod tests {
         let resp = engine.evaluate(&req).expect("Multimodal eval should succeed");
         let ans = resp.answers.get("category").expect("answer should be present");
         assert_eq!(ans.decision, Some(serde_json::Value::String("technical".to_string())));
+    }
+
+    #[test]
+    fn test_confidence_gate_and_route() {
+        let engine = ZevEngine::default();
+        let q = Question::Choice(ChoiceQuestion {
+            instructions: "Is this urgent?".to_string(),
+            options: vec![
+                OptionDef {
+                    id: "urgent".to_string(),
+                    description: "Urgent emergency outage".to_string(),
+                },
+                OptionDef {
+                    id: "low".to_string(),
+                    description: "Low priority minor update".to_string(),
+                },
+            ],
+            policy: Policy::default(),
+        });
+
+        let (pass, ans) = engine.confidence_gate("Critical database failure and network outage", q, 0.5).unwrap();
+        assert_eq!(ans.decision, Some(serde_json::Value::String("urgent".to_string())));
+        assert!(pass);
+
+        let mut routes = BTreeMap::new();
+        routes.insert("support".to_string(), "Customer service and technical support".to_string());
+        routes.insert("billing".to_string(), "Billing, payments, and invoice disputes".to_string());
+        let (dest, prob, dist) = engine.route_with_distribution("I want a refund on my last invoice", routes).unwrap();
+        assert_eq!(dest, "billing");
+        assert!(prob > 0.0);
+        assert!(dist.contains_key("billing"));
     }
 }
 

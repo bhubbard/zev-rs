@@ -188,6 +188,7 @@ fn benchmark_speed_and_accuracy_improvements() {
         enable_temporal_facts: false,
         model: None,
         temperature: None,
+        images: None,
     };
     let clear_resp = engine.evaluate(&clear_req).unwrap();
     let clear_spread = clear_resp.answers["clarity"]
@@ -217,6 +218,7 @@ fn benchmark_speed_and_accuracy_improvements() {
         enable_temporal_facts: false,
         model: None,
         temperature: None,
+        images: None,
     };
     let ambig_resp = engine.evaluate(&ambig_req).unwrap();
     let ambig_spread = ambig_resp.answers["clarity"]

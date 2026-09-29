@@ -65,6 +65,7 @@ fn test_order_invariance() {
             model: None,
             temperature: None,
             enable_temporal_facts: false,
+            images: None,
         })
         .unwrap();
 
@@ -75,6 +76,7 @@ fn test_order_invariance() {
             model: None,
             temperature: None,
             enable_temporal_facts: false,
+            images: None,
         })
         .unwrap();
 
@@ -125,6 +127,7 @@ fn test_abstention_guardrails() {
             model: None,
             temperature: None,
             enable_temporal_facts: false,
+            images: None,
         })
         .unwrap();
 
@@ -497,6 +500,7 @@ fn test_engine_shortlisting_in_evaluate() {
         model: None,
         temperature: None,
         enable_temporal_facts: true,
+        images: None,
     };
 
     let resp = engine.evaluate(&req).unwrap();
@@ -591,6 +595,7 @@ fn test_multi_permutation_order_invariance() {
                 model: None,
                 temperature: None,
                 enable_temporal_facts: false,
+                images: None,
             })
             .unwrap();
 
@@ -844,6 +849,7 @@ fn test_multitask_gameplay_combat_decision() {
             model: None,
             temperature: None,
             enable_temporal_facts: false,
+            images: None,
         })
         .unwrap();
 
@@ -934,6 +940,7 @@ fn test_apfel_neural_speculative_hybrid() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
 
     let resp = engine
@@ -970,6 +977,7 @@ fn test_r10_request_limits_enforcement() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
     let err = engine.evaluate(&req_q_limit).unwrap_err();
     match err {
@@ -1021,6 +1029,7 @@ fn test_r10_request_limits_enforcement() {
         model: None,
         temperature: None,
         enable_temporal_facts: false,
+        images: None,
     };
     let err_state = engine.evaluate(&req_state_limit).unwrap_err();
     match err_state {
