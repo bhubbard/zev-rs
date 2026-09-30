@@ -379,11 +379,12 @@ impl Decider {
         // plan_rows: one row per question; an isolated score question one yes/no row per level
         let mut rows = Vec::new();
         let mut kinds = Vec::new();
-        let number = regex::Regex::new(r"^\s*-?\d+\s*:\s*").unwrap();
+        static NUMBER_RE: std::sync::LazyLock<regex::Regex> =
+            std::sync::LazyLock::new(|| regex::Regex::new(r"^\s*-?\d+\s*:\s*").unwrap());
         for q in &rqs {
             if self.isolated && q.kind == "score" {
                 for l in q.legend.as_ref().unwrap() {
-                    let level = number.replace(l, "");
+                    let level = NUMBER_RE.replace(l, "");
                     let text = format!(
                         "{}\nProposed answer: {level}\nDoes the proposed answer fit?",
                         q.text
@@ -417,7 +418,10 @@ impl Decider {
         for q in &rqs {
             let a = if self.isolated && q.kind == "score" {
                 let n = q.legend.as_ref().unwrap().len();
-                let fit: Vec<f64> = probs[at..at + n].iter().map(|p| p[1]).collect();
+                let fit: Vec<f64> = probs[at..at + n]
+                    .iter()
+                    .map(|p| p.get(1).copied().unwrap_or(0.0))
+                    .collect();
                 at += n;
                 let tot: f64 = fit.iter().sum::<f64>().max(1e-9);
                 let mut a = format_decider(q, &fit.iter().map(|x| x / tot).collect::<Vec<_>>());
