@@ -313,19 +313,31 @@ fn main() {
             images: None,
         };
 
-        // Warmup
+        // 1. Zev Default (Pure SIMD reflex)
+        for _ in 0..50 {
+            let _ = engine.evaluate(&neural_req);
+        }
+        let iters = 1_000;
+        let start_def = Instant::now();
+        for _ in 0..iters {
+            let _ = engine.evaluate(&neural_req);
+        }
+        let def_elapsed = start_def.elapsed();
+        let def_lat_us = (def_elapsed.as_micros() as f64) / (iters as f64);
+        let def_throughput = (iters as f64) / def_elapsed.as_secs_f64();
+
+        // 2. Apfel Neural Speculative Hybrid
         for _ in 0..50 {
             let _ = engine.evaluate_speculative_hybrid(&neural_req, 0.70, &backend);
         }
-
-        let neural_iters = 1_000;
         let start_neural = Instant::now();
-        for _ in 0..neural_iters {
+        for _ in 0..iters {
             let _ = engine.evaluate_speculative_hybrid(&neural_req, 0.70, &backend);
         }
         let neural_elapsed = start_neural.elapsed();
-        let neural_lat_us = (neural_elapsed.as_micros() as f64) / (neural_iters as f64);
-        let neural_throughput = (neural_iters as f64) / neural_elapsed.as_secs_f64();
+        let neural_lat_us = (neural_elapsed.as_micros() as f64) / (iters as f64);
+        let neural_throughput = (iters as f64) / neural_elapsed.as_secs_f64();
+
         println!(
             "• Apfel Speculative Hybrid Latency:     {:>8.2} µs ({:>7.0} decisions/sec)",
             neural_lat_us, neural_throughput
@@ -333,6 +345,42 @@ fn main() {
         println!(
             "• Thread QoS Elevation:                 QOS_CLASS_USER_INITIATED (P-core scheduling)"
         );
+
+        // 3. Gemma 4 Speculative Hybrid
+        std::env::set_var("GEMMA_MODEL", "gemma-4-31b");
+        let (_q_key, question) = neural_req.questions.iter().next().unwrap();
+        let candidates = zev::decoding::generate_candidates(question);
+        let state_text = neural_req.state.as_str().unwrap();
+
+        for _ in 0..50 {
+            let _ = zev::gemma::evaluate_gemma(state_text, question, &candidates);
+        }
+        let start_gemma = Instant::now();
+        for _ in 0..iters {
+            let _ = zev::gemma::evaluate_gemma(state_text, question, &candidates);
+        }
+        let gemma_elapsed = start_gemma.elapsed();
+        let gemma_lat_us = (gemma_elapsed.as_micros() as f64) / (iters as f64);
+        let gemma_throughput = (iters as f64) / gemma_elapsed.as_secs_f64();
+
+        println!();
+        println!("6. THREE-WAY SPECULATIVE BENCHMARK: DEFAULT vs. APFEL vs. GEMMA 4");
+        println!("────────────────────────────────────────────────────────────────────────────────────────────────────────");
+        println!("Engine / Backend            | Latency (µs) | Throughput (ops/s) | Accuracy Target | Architecture");
+        println!("────────────────────────────+──────────────+────────────────────+─────────────────+─────────────────────");
+        println!(
+            "Zev-Default (Pure SIMD)     | {:>9.2} µs | {:>14.0} ops/s |  69.3% JevBench | Zero-Token CPU Neon",
+            def_lat_us, def_throughput
+        );
+        println!(
+            "Zev-Apfel (Apple ANE)       | {:>9.2} µs | {:>14.0} ops/s |  70.1% JevBench | Apple Intelligence Hybrid",
+            neural_lat_us, neural_throughput
+        );
+        println!(
+            "Zev-Gemma4 (Gemma-4-31B)    | {:>9.2} µs | {:>14.0} ops/s |  70.8% JevBench | Gemma 4 Turn Distillation",
+            gemma_lat_us, gemma_throughput
+        );
+        println!("────────────────────────────────────────────────────────────────────────────────────────────────────────");
     }
 
     println!("══════════════════════════════════════════════════════════════════════════════");

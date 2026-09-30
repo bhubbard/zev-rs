@@ -268,6 +268,10 @@ fn evaluate_gemma_distilled(
 
     let mut best_score = -1.0;
     let mut best_idx = 0;
+    let state_tokens: Vec<&str> = state_lower
+        .split(|ch: char| !ch.is_alphanumeric())
+        .filter(|w| w.len() > 2)
+        .collect();
 
     for (idx, c) in effective_candidates.iter().enumerate() {
         let id_lower = c.id.to_lowercase();
@@ -275,25 +279,40 @@ fn evaluate_gemma_distilled(
 
         let mut score = 0.0;
 
-        // Word overlap
+        // Candidate ID tokens in state & instructions
         for word in id_lower
             .split(|ch: char| !ch.is_alphanumeric())
-            .filter(|w| w.len() > 3)
+            .filter(|w| w.len() > 2)
         {
             if state_lower.contains(word) {
-                score += 3.0;
+                score += 4.0;
             }
             if instr_lower.contains(word) {
                 score += 1.0;
             }
         }
 
+        // Candidate description tokens in state
         for word in desc_lower
             .split(|ch: char| !ch.is_alphanumeric())
-            .filter(|w| w.len() > 3)
+            .filter(|w| w.len() > 2)
         {
             if state_lower.contains(word) {
                 score += 2.0;
+            }
+        }
+
+        // Bi-directional state tokens in candidate id & description
+        for sw in &state_tokens {
+            if id_lower.contains(sw) || (sw.len() >= 4 && id_lower.starts_with(sw)) {
+                score += 3.0;
+            } else if desc_lower.contains(sw)
+                || (sw.len() >= 4
+                    && desc_lower
+                        .split_whitespace()
+                        .any(|dw| dw.starts_with(sw) || sw.starts_with(dw)))
+            {
+                score += 1.5;
             }
         }
 

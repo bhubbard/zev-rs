@@ -1,6 +1,6 @@
 [package]
 name = "zev-rs"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 authors = ["Brandon Hubbard", "zev-rs contributors"]
 license = "MIT"
@@ -57,7 +57,7 @@ clap = { version = "4.5", features = ["derive"] }
 tokio = { version = "1.40", features = ["full"] }
 chrono = { version = "0.4", features = ["serde"] }
 axum = { version = "0.8", optional = true }
-apfel = { package = "apfel-rs", version = "0.1", path = "../apfel-rs", optional = true }
+apfel = { package = "apfel-rs", version = "0.1", git = "https://github.com/bhubbard/apfel-rs", optional = true }
 smallvec = "1.14"
 candle-core = { version = "0.11", optional = true }
 candle-nn = { version = "0.11", optional = true }

@@ -534,14 +534,23 @@ mod tests {
         ];
 
         let ans = backend
-            .evaluate_candidates("Customer was double charged on invoice #5512", &q, &candidates)
+            .evaluate_candidates(
+                "Customer was double charged on invoice #5512",
+                &q,
+                &candidates,
+            )
             .expect("Evaluation should succeed");
 
-        assert_eq!(ans.decision, Some(serde_json::Value::String("billing".into())));
+        assert_eq!(
+            ans.decision,
+            Some(serde_json::Value::String("billing".into()))
+        );
         assert_eq!(ans.question_type, "choice");
 
         // Verify exact payload forwarded to apfel engine
-        let last_req = mock.last_request().expect("Engine must receive GenerateRequest");
+        let last_req = mock
+            .last_request()
+            .expect("Engine must receive GenerateRequest");
         assert_eq!(last_req.use_case, Some("content_tagging".to_string()));
         assert_eq!(last_req.temperature, Some(0.0));
         assert_eq!(last_req.top_p, None);
@@ -568,15 +577,30 @@ mod tests {
         ];
 
         // Bracket with trailing punctuation
-        assert_eq!(super::parse_candidate_choice("The answer is [billing].", &candidates), "billing");
+        assert_eq!(
+            super::parse_candidate_choice("The answer is [billing].", &candidates),
+            "billing"
+        );
         // Bracket with leading text
-        assert_eq!(super::parse_candidate_choice("Decision: [hardware]", &candidates), "hardware");
+        assert_eq!(
+            super::parse_candidate_choice("Decision: [hardware]", &candidates),
+            "hardware"
+        );
         // Insufficient context
-        assert_eq!(super::parse_candidate_choice("[__insufficient__]", &candidates), "__insufficient__");
+        assert_eq!(
+            super::parse_candidate_choice("[__insufficient__]", &candidates),
+            "__insufficient__"
+        );
         // Keyword fallback without brackets
-        assert_eq!(super::parse_candidate_choice("This seems like a billing matter.", &candidates), "billing");
+        assert_eq!(
+            super::parse_candidate_choice("This seems like a billing matter.", &candidates),
+            "billing"
+        );
         // Unmatched fallback
-        assert_eq!(super::parse_candidate_choice("Random unrelated chatter", &candidates), "__insufficient__");
+        assert_eq!(
+            super::parse_candidate_choice("Random unrelated chatter", &candidates),
+            "__insufficient__"
+        );
     }
 
     #[test]
@@ -620,6 +644,9 @@ mod tests {
             .evaluate_candidates("Counted five items", &q_num, &candidates)
             .expect("Numeric evaluation should succeed");
         assert_eq!(ans_num.question_type, "numeric");
-        assert_eq!(ans_num.decision, Some(serde_json::Value::String("5".into())));
+        assert_eq!(
+            ans_num.decision,
+            Some(serde_json::Value::String("5".into()))
+        );
     }
 }
