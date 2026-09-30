@@ -42,6 +42,9 @@ pub fn resolve(spec: &str) -> Res<PathBuf> {
         return Ok(spec.into());
     }
     let (repo, rev) = spec.split_once('@').unwrap_or((spec, "main"));
+    if repo.contains("..") || rev.contains('/') || rev.contains('\\') || rev.contains("..") {
+        return Err(format!("invalid model spec: {spec}").into());
+    }
     let root = hub_dir().join(format!("models--{}", repo.replace('/', "--")));
     let sha = std::fs::read_to_string(root.join("refs").join(rev))
         .map(|s| s.trim().to_string())
@@ -94,12 +97,18 @@ fn download(repo: &str, rev: &str, root: &Path) -> Res<PathBuf> {
     };
     for s in info["siblings"].as_array().into_iter().flatten() {
         let f = s["rfilename"].as_str().unwrap_or("");
+        // Validate against path traversal or absolute destinations
+        if f.is_empty() || f.contains("..") || Path::new(f).is_absolute() {
+            continue;
+        }
         let dst = snap.join(f);
         if !wanted(f) || dst.exists() {
             continue;
         }
         eprintln!("zev: downloading {repo}/{f}");
-        std::fs::create_dir_all(dst.parent().unwrap())?;
+        if let Some(parent) = dst.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let tmp = dst.with_extension("part");
         let mut resp = get(&format!("https://huggingface.co/{repo}/resolve/{sha}/{f}"))?;
         let mut out = std::fs::File::create(&tmp)?;

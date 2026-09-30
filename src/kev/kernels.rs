@@ -801,6 +801,9 @@ mod cu {
 
     pub fn empty(d: &CudaDevice, n: usize, dt: DType) -> Result<Tensor> {
         let n1 = n.max(1);
+        // SAFETY: `d` is an active CUDA device context. Allocates `n1` contiguous elements via the
+        // CUDA stream-ordered allocator. The returned slice safely owns the allocation lifetime and is
+        // populated by destination kernels before host reading.
         let s = match dt {
             DType::F32 => CudaStorage::wrap_cuda_slice(unsafe { d.alloc::<f32>(n1)? }, d.clone()),
             DType::BF16 => {
@@ -898,6 +901,8 @@ mod cu {
             block_dim: (block, 1, 1),
             shared_mem_bytes: smem,
         };
+        // SAFETY: `d` is an active CUDA context; function attributes and parameter bindings match
+        // the compiled NVRTC kernel signature, and all referenced device buffers are valid for the launch.
         unsafe { b.launch(cfg) }.w()?;
         Ok(())
     }
