@@ -312,15 +312,13 @@ impl Decider {
                 };
                 let (f, tr) = (c.get("false"), c.get("true"));
                 let opts = vec![
-                    if empty(f) {
-                        "no".into()
-                    } else {
-                        format!("no: {}", txt(f.unwrap()))
+                    match f {
+                        Some(val) if !empty(Some(val)) => format!("no: {}", txt(val)),
+                        _ => "no".into(),
                     },
-                    if empty(tr) {
-                        "yes".into()
-                    } else {
-                        format!("yes: {}", txt(tr.unwrap()))
+                    match tr {
+                        Some(val) if !empty(Some(val)) => format!("yes: {}", txt(val)),
+                        _ => "yes".into(),
                     },
                 ];
                 (opts, vec![json!(false), json!(true)], None)
@@ -383,14 +381,16 @@ impl Decider {
             std::sync::LazyLock::new(|| regex::Regex::new(r"^\s*-?\d+\s*:\s*").unwrap());
         for q in &rqs {
             if self.isolated && q.kind == "score" {
-                for l in q.legend.as_ref().unwrap() {
-                    let level = NUMBER_RE.replace(l, "");
-                    let text = format!(
-                        "{}\nProposed answer: {level}\nDoes the proposed answer fit?",
-                        q.text
-                    );
-                    rows.push(self.piece(&text, &["no".into(), "yes".into()])?);
-                    kinds.push((q.kind.as_str(), 2));
+                if let Some(legend) = &q.legend {
+                    for l in legend {
+                        let level = NUMBER_RE.replace(l, "");
+                        let text = format!(
+                            "{}\nProposed answer: {level}\nDoes the proposed answer fit?",
+                            q.text
+                        );
+                        rows.push(self.piece(&text, &["no".into(), "yes".into()])?);
+                        kinds.push((q.kind.as_str(), 2));
+                    }
                 }
             } else {
                 rows.push(self.piece(&q.text, &q.options)?);
@@ -417,8 +417,10 @@ impl Decider {
         let mut at = 0;
         for q in &rqs {
             let a = if self.isolated && q.kind == "score" {
-                let n = q.legend.as_ref().unwrap().len();
-                let fit: Vec<f64> = probs[at..at + n]
+                let n = q.legend.as_ref().map_or(0, |l| l.len());
+                let fit: Vec<f64> = probs
+                    .get(at..at + n)
+                    .unwrap_or(&[])
                     .iter()
                     .map(|p| p.get(1).copied().unwrap_or(0.0))
                     .collect();

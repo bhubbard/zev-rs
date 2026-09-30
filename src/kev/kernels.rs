@@ -719,10 +719,14 @@ fn rounder(dt: DType) -> fn(f32) -> f32 {
 pub fn tune(dev: &Device) -> Result<()> {
     use candle_core::cuda_backend::cudarc::driver::sys;
     if let Device::Cuda(d) = dev {
+        // SAFETY: `d` is an active, valid CudaDevice context; disabling driver event tracking
+        // avoids redundant per-allocation events on candle's single-stream model runner.
         unsafe { d.disable_event_tracking() };
         let ctx = d.cuda_stream().context().clone();
         let mut pool: sys::CUmemoryPool = std::ptr::null_mut();
         let mut keep: u64 = u64::MAX;
+        // SAFETY: `ctx` provides an active CUDA context; `&mut pool` and `&mut keep` are valid stack
+        // pointers for FFI types (`sys::CUmemoryPool` and `u64`). Adjusts release threshold without freeing buffers.
         unsafe {
             if sys::cuDeviceGetDefaultMemPool(&mut pool, ctx.cu_device())
                 .result()

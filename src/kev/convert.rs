@@ -7,7 +7,16 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
+const MAX_OBJECT_DEPTH: usize = 64;
+
 pub fn object_to_json(obj: &Object) -> serde_json::Value {
+    object_to_json_depth(obj, 0)
+}
+
+fn object_to_json_depth(obj: &Object, depth: usize) -> serde_json::Value {
+    if depth > MAX_OBJECT_DEPTH {
+        return serde_json::Value::Null;
+    }
     match obj {
         Object::Unicode(s) => serde_json::Value::String(s.clone()),
         Object::Int(i) => serde_json::Value::Number((*i).into()),
@@ -17,9 +26,12 @@ pub fn object_to_json(obj: &Object) -> serde_json::Value {
             .unwrap_or(serde_json::Value::Null),
         Object::Bool(b) => serde_json::Value::Bool(*b),
         Object::None => serde_json::Value::Null,
-        Object::Tuple(items) | Object::List(items) => {
-            serde_json::Value::Array(items.iter().map(object_to_json).collect())
-        }
+        Object::Tuple(items) | Object::List(items) => serde_json::Value::Array(
+            items
+                .iter()
+                .map(|item| object_to_json_depth(item, depth + 1))
+                .collect(),
+        ),
         Object::Dict(kvs) => {
             let mut map = serde_json::Map::new();
             for (k, v) in kvs {
@@ -27,7 +39,7 @@ pub fn object_to_json(obj: &Object) -> serde_json::Value {
                     Object::Unicode(s) => s.clone(),
                     other => format!("{other:?}"),
                 };
-                map.insert(key_str, object_to_json(v));
+                map.insert(key_str, object_to_json_depth(v, depth + 1));
             }
             serde_json::Value::Object(map)
         }
