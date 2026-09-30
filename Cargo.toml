@@ -41,6 +41,10 @@ name = "convert_head"
 path = "src/bin/convert_head.rs"
 required-features = ["candle"]
 
+[[example]]
+name = "kev_logits"
+required-features = ["candle"]
+
 [[bin]]
 name = "bench_vs_original"
 path = "src/bin/bench_vs_original.rs"

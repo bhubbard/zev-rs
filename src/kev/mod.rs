@@ -1,8 +1,15 @@
-//! Candle backend: Kev checkpoints (Qwen3.5 hybrid backbone + LoRA + pointer head) served on /v1/systemone with the
-//! request mapping of kev `api.py` / `model.py::encode` (row form, state prefix cached across requests).
+//! Candle backend: decision models served on /v1/systemone. Backbones (model.rs) run packed passes on the kernels
+//! (kernels.rs); readouts (readout.rs) turn picked hidden states into probabilities; entrants (entrant.rs) render each
+//! model family's prompt and answers. This file holds Kev's request mapping (kev `api.py` / `model.py::encode`: row
+//! form, state prefix cached across requests).
 
+pub mod convert;
+pub mod entrant;
 pub mod kernels;
+pub mod load;
 pub mod model;
+pub mod pyjson;
+pub mod readout;
 pub mod serve;
 
 use serde_json::{Map, Value};
@@ -171,12 +178,13 @@ pub fn to_record(req: &Value) -> Result<(String, Vec<Question>), String> {
     Ok((render(state, 0), out))
 }
 
-/// A question's causal row after the state: its tokens and the readout offsets within it.
+/// A causal row after the state: its tokens and the offsets within it whose hidden states the readout reads (for the
+/// pointer head: <decide>, then each option's </opt>; for label logits: the answer slots, each with its label ids).
 #[derive(Debug)]
 pub struct RowSpec {
     pub ids: Vec<u32>,
-    pub decide: usize,
-    pub opts: Vec<usize>,
+    pub picks: Vec<usize>,
+    pub labels: Vec<std::sync::Arc<[u32]>>,
 }
 
 #[derive(Debug)]
@@ -231,10 +239,12 @@ impl Encoder {
             if br.len() > SERVE_MAX_BRANCH - s.len() {
                 return Err(format!("branch too long: {} tokens with a {}-token state (row limit {SERVE_MAX_BRANCH})", br.len(), s.len()));
             }
+            let mut picks = vec![br.len() - 1];
+            picks.extend(opts);
             rows.push(RowSpec {
-                decide: br.len() - 1,
-                opts,
+                picks,
                 ids: br,
+                labels: Vec::new(),
             });
         }
         Ok((s, rows))

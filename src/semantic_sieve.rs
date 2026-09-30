@@ -90,11 +90,7 @@ impl SemanticSieve {
         scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         let top1 = scores[0].clone();
-        let top2_score = if scores.len() > 1 {
-            scores[1].1
-        } else {
-            0.0
-        };
+        let top2_score = if scores.len() > 1 { scores[1].1 } else { 0.0 };
         let margin = top1.1 - top2_score;
 
         let decisive = margin >= self.margin_threshold && top1.1 >= self.min_confidence;
@@ -155,25 +151,40 @@ mod tests {
         let mut sieve = SemanticSieve::new(0.20, 0.40);
 
         // Pre-embed candidates into 64-dim vector space
-        let billing_vec = SemanticSieve::hash_embed("invoice billing payment charge refund payment subscription", 64);
-        let tech_vec = SemanticSieve::hash_embed("database server outage cluster connection error crash", 64);
-        let sales_vec = SemanticSieve::hash_embed("enterprise contract discount pricing custom quote sales", 64);
+        let billing_vec = SemanticSieve::hash_embed(
+            "invoice billing payment charge refund payment subscription",
+            64,
+        );
+        let tech_vec =
+            SemanticSieve::hash_embed("database server outage cluster connection error crash", 64);
+        let sales_vec = SemanticSieve::hash_embed(
+            "enterprise contract discount pricing custom quote sales",
+            64,
+        );
 
         sieve.add_candidate("billing", billing_vec);
         sieve.add_candidate("tech", tech_vec);
         sieve.add_candidate("sales", sales_vec);
 
         // Test Query 1: Billing inquiry
-        let query_billing = SemanticSieve::hash_embed("I have an unexpected charge on my subscription invoice", 64);
-        let res1 = sieve.evaluate_vector(&query_billing).expect("Evaluation should succeed");
+        let query_billing =
+            SemanticSieve::hash_embed("I have an unexpected charge on my subscription invoice", 64);
+        let res1 = sieve
+            .evaluate_vector(&query_billing)
+            .expect("Evaluation should succeed");
 
         assert_eq!(res1.candidate_id, "billing");
         assert!(res1.decisive);
         assert!(res1.margin >= 0.20);
 
         // Test Query 2: Technical outage
-        let query_tech = SemanticSieve::hash_embed("Production database has connection error and server crashed", 64);
-        let res2 = sieve.evaluate_vector(&query_tech).expect("Evaluation should succeed");
+        let query_tech = SemanticSieve::hash_embed(
+            "Production database has connection error and server crashed",
+            64,
+        );
+        let res2 = sieve
+            .evaluate_vector(&query_tech)
+            .expect("Evaluation should succeed");
 
         assert_eq!(res2.candidate_id, "tech");
         assert!(res2.decisive);
