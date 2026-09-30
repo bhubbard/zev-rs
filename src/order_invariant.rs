@@ -240,9 +240,14 @@ impl PremiseContext {
         if let Some(positions) = self.token_positions.get(w) {
             for &pos in positions {
                 let actual_pos = pos as usize;
-                let clause_start = find_clause_start(self.raw_lower.get(..actual_pos).unwrap_or(""));
+                let clause_start =
+                    find_clause_start(self.raw_lower.get(..actual_pos).unwrap_or(""));
 
-                let prefix = self.raw_lower.get(clause_start..actual_pos).unwrap_or("").trim_end();
+                let prefix = self
+                    .raw_lower
+                    .get(clause_start..actual_pos)
+                    .unwrap_or("")
+                    .trim_end();
                 for &neg in PREFIX_NEGATORS {
                     if ends_with_word(prefix, neg) {
                         return true;
@@ -251,10 +256,15 @@ impl PremiseContext {
 
                 // Window check for scoped negations and disclaimers (Winnow-12B protocol)
                 let mut check_window_start = actual_pos.saturating_sub(45).max(clause_start);
-                while check_window_start < self.raw_lower.len() && !self.raw_lower.is_char_boundary(check_window_start) {
+                while check_window_start < self.raw_lower.len()
+                    && !self.raw_lower.is_char_boundary(check_window_start)
+                {
                     check_window_start += 1;
                 }
-                let window = self.raw_lower.get(check_window_start..actual_pos).unwrap_or("");
+                let window = self
+                    .raw_lower
+                    .get(check_window_start..actual_pos)
+                    .unwrap_or("");
                 for &neg in SCOPED_NEGATORS {
                     if contains_bounded_in(window, neg) {
                         return true;
@@ -283,7 +293,11 @@ impl PremiseContext {
             let left_ok = if actual_pos == 0 {
                 true
             } else {
-                match self.raw_lower.get(..actual_pos).and_then(|s| s.chars().last()) {
+                match self
+                    .raw_lower
+                    .get(..actual_pos)
+                    .and_then(|s| s.chars().last())
+                {
                     Some(prev) => !prev.is_alphanumeric() && prev != '_',
                     None => false,
                 }
@@ -305,7 +319,11 @@ impl PremiseContext {
 
             let clause_start = find_clause_start(self.raw_lower.get(..actual_pos).unwrap_or(""));
 
-            let prefix = self.raw_lower.get(clause_start..actual_pos).unwrap_or("").trim_end();
+            let prefix = self
+                .raw_lower
+                .get(clause_start..actual_pos)
+                .unwrap_or("")
+                .trim_end();
             for &neg in PREFIX_NEGATORS {
                 if ends_with_word(prefix, neg) {
                     return true;
@@ -314,10 +332,15 @@ impl PremiseContext {
 
             // Window check for scoped negations and disclaimers (Winnow-12B protocol)
             let mut check_window_start = actual_pos.saturating_sub(45).max(clause_start);
-            while check_window_start < self.raw_lower.len() && !self.raw_lower.is_char_boundary(check_window_start) {
+            while check_window_start < self.raw_lower.len()
+                && !self.raw_lower.is_char_boundary(check_window_start)
+            {
                 check_window_start += 1;
             }
-            let window = self.raw_lower.get(check_window_start..actual_pos).unwrap_or("");
+            let window = self
+                .raw_lower
+                .get(check_window_start..actual_pos)
+                .unwrap_or("");
             for &neg in SCOPED_NEGATORS {
                 if contains_bounded_in(window, neg) {
                     return true;
@@ -394,7 +417,11 @@ impl PremiseContext {
             let left_ok = if actual_pos == 0 {
                 true
             } else {
-                match self.raw_lower.get(..actual_pos).and_then(|s| s.chars().last()) {
+                match self
+                    .raw_lower
+                    .get(..actual_pos)
+                    .and_then(|s| s.chars().last())
+                {
                     Some(prev) => !prev.is_alphanumeric() && prev != '_',
                     None => false,
                 }

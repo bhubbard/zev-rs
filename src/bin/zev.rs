@@ -112,6 +112,12 @@ enum Commands {
         #[arg(short, long)]
         temperature: Option<f64>,
 
+        /// Serve a model on the Candle backend: a checkpoint dir or a Hub id[@revision] (repeat to serve several; the
+        /// request's `model` picks one, the first is the default). The family (Kev, decider, JevK5) is detected.
+        #[cfg(feature = "candle")]
+        #[arg(long = "model")]
+        models: Vec<String>,
+
         /// Serve a Kev checkpoint on the Candle backend: the adapter snapshot (adapter_model.safetensors,
         /// adapter_config.json, head.safetensors + head_meta.json converted from head.pt)
         #[cfg(feature = "candle")]
@@ -133,10 +139,20 @@ enum Commands {
         #[arg(long, default_value = "bf16")]
         dtype: String,
 
-        /// States kept in the prefix cache
+        /// States kept in the prefix cache (per model worker)
         #[cfg(feature = "candle")]
         #[arg(long, default_value_t = 8)]
         prefix_cache: usize,
+
+        /// Token budget of one batched pass (a larger single request runs alone)
+        #[cfg(feature = "candle")]
+        #[arg(long, default_value_t = 8192)]
+        pass_tokens: usize,
+
+        /// CUDA devices to run a model worker on, e.g. 0,1 (one per GPU) or 0,0 (two instances on GPU 0)
+        #[cfg(feature = "candle")]
+        #[arg(long, default_value = "0")]
+        devices: String,
     },
 
     /// Execute batch tabular decisions (filter, score, route) over a JSONL file
@@ -421,6 +437,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             port,
             temperature,
             #[cfg(feature = "candle")]
+            models,
+            #[cfg(feature = "candle")]
             kev,
             #[cfg(feature = "candle")]
             base,
@@ -430,17 +448,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             dtype,
             #[cfg(feature = "candle")]
             prefix_cache,
+            #[cfg(feature = "candle")]
+            pass_tokens,
+            #[cfg(feature = "candle")]
+            devices,
         } => {
             #[cfg(feature = "candle")]
-            let router = if let (Some(kev), Some(base)) = (kev, base) {
-                kev_router(
-                    &kev,
-                    &base,
-                    &head.unwrap_or(kev.clone()),
-                    &dtype,
-                    prefix_cache,
+            let router = if !models.is_empty() || kev.is_some() {
+                use zev::kev::load;
+                let o = load::LoadOpts {
+                    dtype: match dtype.as_str() {
+                        "f32" | "fp32" => candle_core::DType::F32,
+                        _ => candle_core::DType::BF16,
+                    },
+                    devices: devices
+                        .split(',')
+                        .filter(|d| !d.is_empty())
+                        .map(|d| d.trim().parse())
+                        .collect::<Result<_, _>>()?,
+                    serve: zev::kev::serve::Opts {
+                        prefix_cache,
+                        pass_tokens,
+                    },
                     temperature,
-                )?
+                };
+                if kev.is_some() && base.is_none() {
+                    return Err(
+                        "zev serve: --base <dir> is required when --kev is specified".into(),
+                    );
+                }
+                let mut served = Vec::new();
+                if let (Some(kev), Some(base)) = (&kev, &base) {
+                    served.push(load::load_kev(kev, base, head.as_ref().unwrap_or(kev), &o)?);
+                }
+                for m in &models {
+                    served.push(load::load(m, &o)?);
+                }
+                if served.is_empty() {
+                    return Err(
+                        "zev serve: no models loaded. Specify --model <dir|hub_id> or --kev and --base".into(),
+                    );
+                }
+                zev::kev::serve::router(served)
             } else {
                 create_router(Arc::new(ZevEngine::new(temperature)))
             };
@@ -570,43 +619,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-}
-
-#[cfg(feature = "candle")]
-fn kev_router(
-    kev: &std::path::Path,
-    base: &std::path::Path,
-    head: &std::path::Path,
-    dtype: &str,
-    prefix_cache: usize,
-    temperature: Option<f64>,
-) -> Result<axum::Router, Box<dyn std::error::Error>> {
-    use zev::kev::{model::Model, serve, Encoder};
-    let dev = if cfg!(feature = "cuda") {
-        candle_core::Device::new_cuda(0)?
-    } else {
-        candle_core::Device::Cpu
-    };
-    #[cfg(feature = "cuda")]
-    zev::kev::kernels::tune(&dev)?;
-    let dt = match dtype {
-        "f32" | "fp32" => candle_core::DType::F32,
-        _ => candle_core::DType::BF16,
-    };
-    let t0 = std::time::Instant::now();
-    let model = Model::load(base, kev, head, dt, &dev, temperature)?;
-    let tok =
-        tokenizers::Tokenizer::from_file(base.join("tokenizer.json")).map_err(|e| e.to_string())?;
-    let enc = Encoder::new(tok)?;
-    eprintln!(
-        "kev: loaded {} in {:.1}s on {:?}",
-        kev.display(),
-        t0.elapsed().as_secs_f64(),
-        dev
-    );
-    let card = serde_json::json!({
-        "description": format!("Kev pointer head on {}, Candle backend, temperature {:.2}", base.display(), model.temperature),
-        "release_date": "2026-09-25", "backend": "candle", "dtype": dtype, "temperature": model.temperature,
-    });
-    Ok(serve::router(serve::spawn(model, enc, prefix_cache, card)))
 }

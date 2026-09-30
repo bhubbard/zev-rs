@@ -941,11 +941,9 @@ impl ZevEngine {
             images: None,
         };
         let resp = self.evaluate(&req)?;
-        let ans = resp
-            .answers
-            .get("gate")
-            .cloned()
-            .ok_or_else(|| ZevError::EvaluationFailed("Missing question 'gate' in response".into()))?;
+        let ans = resp.answers.get("gate").cloned().ok_or_else(|| {
+            ZevError::EvaluationFailed("Missing question 'gate' in response".into())
+        })?;
         let pass = ans.confidence >= threshold && ans.status == "ok";
         Ok((pass, ans))
     }
@@ -988,10 +986,9 @@ impl ZevEngine {
             images: None,
         };
         let resp = self.evaluate(&req)?;
-        let ans = resp
-            .answers
-            .get("route")
-            .ok_or_else(|| ZevError::EvaluationFailed("Missing question 'route' in response".into()))?;
+        let ans = resp.answers.get("route").ok_or_else(|| {
+            ZevError::EvaluationFailed("Missing question 'route' in response".into())
+        })?;
         let choice = match &ans.decision {
             Some(serde_json::Value::String(s)) => s.clone(),
             _ => "".into(),
@@ -1251,11 +1248,14 @@ mod tests {
         questions.insert(
             "category".to_string(),
             Question::Choice(ChoiceQuestion {
-                instructions: "Categorize the ticket inquiry based on text and attached visual context.".to_string(),
+                instructions:
+                    "Categorize the ticket inquiry based on text and attached visual context."
+                        .to_string(),
                 options: vec![
                     OptionDef {
                         id: "technical".to_string(),
-                        description: "Technical issues, errors, crashes, stack traces, bugs".to_string(),
+                        description: "Technical issues, errors, crashes, stack traces, bugs"
+                            .to_string(),
                     },
                     OptionDef {
                         id: "billing".to_string(),
@@ -1275,9 +1275,17 @@ mod tests {
             images: Some(vec!["attachment_system_error_dialog_crash.png".to_string()]),
         };
 
-        let resp = engine.evaluate(&req).expect("Multimodal eval should succeed");
-        let ans = resp.answers.get("category").expect("answer should be present");
-        assert_eq!(ans.decision, Some(serde_json::Value::String("technical".to_string())));
+        let resp = engine
+            .evaluate(&req)
+            .expect("Multimodal eval should succeed");
+        let ans = resp
+            .answers
+            .get("category")
+            .expect("answer should be present");
+        assert_eq!(
+            ans.decision,
+            Some(serde_json::Value::String("technical".to_string()))
+        );
     }
 
     #[test]
@@ -1298,17 +1306,29 @@ mod tests {
             policy: Policy::default(),
         });
 
-        let (pass, ans) = engine.confidence_gate("Critical database failure and network outage", q, 0.5).unwrap();
-        assert_eq!(ans.decision, Some(serde_json::Value::String("urgent".to_string())));
+        let (pass, ans) = engine
+            .confidence_gate("Critical database failure and network outage", q, 0.5)
+            .unwrap();
+        assert_eq!(
+            ans.decision,
+            Some(serde_json::Value::String("urgent".to_string()))
+        );
         assert!(pass);
 
         let mut routes = BTreeMap::new();
-        routes.insert("support".to_string(), "Customer service and technical support".to_string());
-        routes.insert("billing".to_string(), "Billing, payments, and invoice disputes".to_string());
-        let (dest, prob, dist) = engine.route_with_distribution("I want a refund on my last invoice", routes).unwrap();
+        routes.insert(
+            "support".to_string(),
+            "Customer service and technical support".to_string(),
+        );
+        routes.insert(
+            "billing".to_string(),
+            "Billing, payments, and invoice disputes".to_string(),
+        );
+        let (dest, prob, dist) = engine
+            .route_with_distribution("I want a refund on my last invoice", routes)
+            .unwrap();
         assert_eq!(dest, "billing");
         assert!(prob > 0.0);
         assert!(dist.contains_key("billing"));
     }
 }
-
