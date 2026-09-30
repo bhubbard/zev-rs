@@ -1,7 +1,7 @@
 use crate::engine::ZevEngine;
 use crate::types::{
-    SystemOneRequest, SystemOneResponse, ZevRequest, ZevResponse, DEFAULT_MODEL, MAX_QUESTIONS,
-    MAX_SLOTS, MODEL_ALIAS,
+    DlqClusterReport, DlqTriageRequest, DlqTriageResponse, SystemOneRequest, SystemOneResponse,
+    ZevRequest, ZevResponse, DEFAULT_MODEL, MAX_QUESTIONS, MAX_SLOTS, MODEL_ALIAS,
 };
 use axum::{
     extract::State,
@@ -38,6 +38,8 @@ pub fn create_router(engine: Arc<ZevEngine>) -> Router {
         .route("/v1/evaluate", post(systemone_handler))
         .route("/tev1", post(tev1_handler))
         .route("/v1/tev1", post(tev1_handler))
+        .route("/dlq/triage", post(dlq_triage_handler))
+        .route("/v1/dlq/triage", post(dlq_triage_handler))
         .with_state(state)
 }
 
@@ -176,4 +178,108 @@ async fn tev1_handler(
         ),
     ];
     Ok((headers, Json(resp)))
+}
+
+async fn dlq_triage_handler(
+    Json(req): Json<DlqTriageRequest>,
+) -> Result<
+    (
+        [(axum::http::HeaderName, String); 2],
+        Json<DlqTriageResponse>,
+    ),
+    (StatusCode, String),
+> {
+    let start = std::time::Instant::now();
+
+    if req.messages.is_empty() {
+        let headers = [
+            (
+                axum::http::HeaderName::from_static("server-timing"),
+                "eval;dur=0.000".to_string(),
+            ),
+            (
+                axum::http::HeaderName::from_static("x-inference-time-ms"),
+                "0.000".to_string(),
+            ),
+        ];
+        return Ok((
+            headers,
+            Json(DlqTriageResponse {
+                total_messages: 0,
+                cluster_count: 0,
+                clusters: Vec::new(),
+                execution_device: "none".to_string(),
+            }),
+        ));
+    }
+
+    let b = req.messages.len();
+    let dim = 64;
+    let embeddings: Vec<Vec<f32>> = req
+        .messages
+        .iter()
+        .map(|msg| crate::semantic_sieve::SemanticSieve::hash_embed(msg, dim))
+        .collect();
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64", feature = "mlx"))]
+    let (clusters_raw, device) = {
+        let clusters =
+            crate::mlx::MlxDlqClusterer::cluster_failures(&embeddings, req.similarity_threshold)
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        let mapped = clusters
+            .into_iter()
+            .map(|c| (c.representative_index, c.item_indices))
+            .collect::<Vec<_>>();
+        (mapped, "metal-gpu")
+    };
+
+    #[cfg(not(all(target_os = "macos", target_arch = "aarch64", feature = "mlx")))]
+    let (clusters_raw, device) = {
+        let clusters = crate::semantic_sieve::SemanticSieve::cluster_vectors_cpu(
+            &embeddings,
+            req.similarity_threshold,
+        );
+        (clusters, "simd-cpu")
+    };
+
+    let mut clusters = Vec::new();
+    for (cluster_id, (rep_idx, members)) in clusters_raw.into_iter().enumerate() {
+        if let Some(max_c) = req.max_clusters {
+            if cluster_id >= max_c {
+                break;
+            }
+        }
+        let size = members.len();
+        let pct = (size as f64 / b as f64) * 100.0;
+        let rep_msg = req.messages[rep_idx].clone();
+        clusters.push(DlqClusterReport {
+            cluster_id,
+            size,
+            percentage: pct,
+            representative_message: rep_msg,
+            message_indices: members,
+        });
+    }
+
+    let eval_ms = start.elapsed().as_secs_f64() * 1000.0;
+    let headers = [
+        (
+            axum::http::HeaderName::from_static("server-timing"),
+            format!("eval;dur={eval_ms:.3}"),
+        ),
+        (
+            axum::http::HeaderName::from_static("x-inference-time-ms"),
+            format!("{eval_ms:.3}"),
+        ),
+    ];
+
+    Ok((
+        headers,
+        Json(DlqTriageResponse {
+            total_messages: b,
+            cluster_count: clusters.len(),
+            clusters,
+            execution_device: device.to_string(),
+        }),
+    ))
 }

@@ -5,6 +5,30 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.3] - 2026-09-30
+
+### 🚀 Highlights & Features
+- **Apple Silicon MLX Acceleration (`--features mlx`)**:
+  - Direct Metal GPU matrix multiplication (`MlxSemanticSieve`) delivering 326,969 vectors/sec throughput on unified memory.
+  - Zero-token local quantized SLM classification (`MlxTriageClassifier`) supporting Gemma 4, Gemma 2, and Qwen.
+  - GPU-accelerated Dead-Letter Queue (DLQ) clustering (`MlxDlqClusterer`) via `POST /v1/dlq/triage` with automatic CPU fallback.
+- **Apfel-rs v0.1.2 Integration**:
+  - Performance core scheduling via Thread QoS elevation (`QOS_CLASS_USER_INITIATED`) on macOS `aarch64`.
+  - Dynamic multi-backend support (`create_engine`) in `ApfelNeuralBackend` with `APFEL_ENGINE` and `APFEL_MODEL`.
+  - Disabled Nagle's algorithm (`TCP_NODELAY`) on Axum server listeners for jitter-free low latency.
+- **Remote `/v1/embeddings` Provider**:
+  - Added `RemoteEmbeddingProvider` supporting OpenAI, `apfel serve`, and Ollama `/v1/embeddings` and `/api/embeddings` protocols.
+- **Supply Chain Governance & Toolchain Pinning**:
+  - Added `rust-toolchain.toml` targeting `stable` with `rustfmt` and `clippy`.
+  - Added `deny.toml` configuring cargo-deny policies for security advisories and license compliance.
+  - Added multi-platform GitHub Actions build matrix (`ubuntu-latest` and `macos-15`).
+
+### 🧪 Tests & Quality Assurance
+- Expanded test suite to **2,040+ tests** passing across SIMD, neural, and MLX suites.
+- Code coverage expanded to **82.77% overall** (**95.29%** on `neural.rs`, **95.30%** on `semantic_sieve.rs`).
+
+---
+
 ## [0.2.0] - 2026-09-24
 
 ### 🚀 Highlights & Benchmark Records

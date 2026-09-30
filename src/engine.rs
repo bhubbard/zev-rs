@@ -516,6 +516,7 @@ impl ZevEngine {
             ));
         }
 
+        crate::qos::elevate_thread_qos();
         let start = Instant::now();
 
         // 1. Text Preprocessing & Temporal Grounding
@@ -862,6 +863,25 @@ impl ZevEngine {
                 #[cfg(not(target_os = "macos"))]
                 {
                     // Graceful fallback on non-macOS environments (e.g. Linux RTX 6000 pod)
+                }
+            }
+            #[cfg(feature = "mlx")]
+            if fallback_mode == "mlx" {
+                #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+                {
+                    if let Ok(Some(mlx_ans)) = crate::mlx::evaluate_speculative_mlx(
+                        preprocessed_state,
+                        final_question,
+                        &candidates,
+                        conf_thresh,
+                        margin_thresh,
+                    ) {
+                        answer = mlx_ans;
+                    }
+                }
+                #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+                {
+                    // Graceful no-op fallback on non-Apple-Silicon environments
                 }
             }
         }

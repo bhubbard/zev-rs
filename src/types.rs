@@ -441,6 +441,42 @@ pub struct ZevResponse {
 
 pub use crate::wire::*;
 
+/// Request payload for batch Dead-Letter Queue (DLQ) triage
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqTriageRequest {
+    /// Array of failure message payloads or error logs to categorize
+    pub messages: Vec<String>,
+    /// Minimum pairwise cosine similarity threshold to group into the same cluster (default: 0.60)
+    #[serde(default = "default_similarity_threshold")]
+    pub similarity_threshold: f32,
+    /// Maximum number of clusters to return (None for all)
+    #[serde(default)]
+    pub max_clusters: Option<usize>,
+}
+
+fn default_similarity_threshold() -> f32 {
+    0.60
+}
+
+/// Response payload from batch Dead-Letter Queue (DLQ) triage
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqTriageResponse {
+    pub total_messages: usize,
+    pub cluster_count: usize,
+    pub clusters: Vec<DlqClusterReport>,
+    pub execution_device: String,
+}
+
+/// Detailed cluster summary in DLQ triage
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqClusterReport {
+    pub cluster_id: usize,
+    pub size: usize,
+    pub percentage: f64,
+    pub representative_message: String,
+    pub message_indices: Vec<usize>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

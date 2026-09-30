@@ -1128,3 +1128,79 @@ fn test_o1_r8_protocol_unification_and_confidence() {
     assert!(p_refund > p_support);
     assert!((p_refund + p_support - 1.0).abs() < 1e-4);
 }
+
+// --- 14. Remote Embedding Provider (/v1/embeddings) HTTP Integration ---
+#[cfg(feature = "server")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_remote_embedding_provider_http_mock() {
+    use axum::routing::post;
+    use axum::{Json, Router};
+    use serde_json::Value;
+
+    async fn mock_embeddings_handler(Json(payload): Json<Value>) -> Json<Value> {
+        let input = payload.get("input").unwrap();
+        let texts: Vec<String> = if let Some(arr) = input.as_array() {
+            arr.iter()
+                .map(|v| v.as_str().unwrap().to_string())
+                .collect()
+        } else {
+            vec![input.as_str().unwrap().to_string()]
+        };
+
+        let mut data = Vec::new();
+        for (i, text) in texts.into_iter().enumerate() {
+            let vec = zev::SemanticSieve::hash_embed(&text, 16);
+            data.push(serde_json::json!({
+                "object": "embedding",
+                "index": i,
+                "embedding": vec,
+            }));
+        }
+
+        Json(serde_json::json!({
+            "object": "list",
+            "data": data,
+            "model": "mock-embeddings",
+        }))
+    }
+
+    let router = Router::new().route("/v1/embeddings", post(mock_embeddings_handler));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+
+    let (res, candidates_count) = tokio::task::spawn_blocking(move || {
+        let provider = zev::RemoteEmbeddingProvider::new(
+            format!("http://{addr}/v1/embeddings"),
+            "mock-embeddings",
+        );
+
+        let mut sieve = zev::SemanticSieve::new(0.15, 0.40);
+        provider
+            .populate_sieve(
+                &mut sieve,
+                &[
+                    ("refund", "I need my money refunded for the product"),
+                    ("support", "The application crashes on startup error"),
+                ],
+            )
+            .expect("populate_sieve must succeed");
+
+        let candidates_count = sieve.candidates.len();
+        let res = provider
+            .route_query(&sieve, "Please refund my money back")
+            .expect("route_query must succeed")
+            .expect("must return SieveResult");
+
+        (res, candidates_count)
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(candidates_count, 2);
+    assert_eq!(res.candidate_id, "refund");
+    assert!(res.top_score > 0.40);
+}

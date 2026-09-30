@@ -58,6 +58,21 @@ impl SemanticSieve {
         }
     }
 
+    /// Compiles this `SemanticSieve` into a Metal GPU-accelerated `MlxSemanticSieve`.
+    #[cfg(feature = "mlx")]
+    pub fn to_mlx(&self) -> crate::error::Result<crate::mlx::MlxSemanticSieve> {
+        let pairs: Vec<(String, Vec<f32>)> = self
+            .candidates
+            .iter()
+            .map(|c| (c.id.clone(), c.vector.clone()))
+            .collect();
+        crate::mlx::MlxSemanticSieve::from_candidates(
+            &pairs,
+            self.margin_threshold,
+            self.min_confidence,
+        )
+    }
+
     /// Dot product between two normalized vectors (cosine similarity)
     pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
         let len = a.len().min(b.len());
@@ -66,6 +81,40 @@ impl SemanticSieve {
             dot += a[i] * b[i];
         }
         dot
+    }
+
+    /// Clusters vectors on CPU using pairwise cosine similarity.
+    pub fn cluster_vectors_cpu(
+        vectors: &[Vec<f32>],
+        similarity_threshold: f32,
+    ) -> Vec<(usize, Vec<usize>)> {
+        let b = vectors.len();
+        let mut visited = vec![false; b];
+        let mut clusters = Vec::new();
+
+        for i in 0..b {
+            if visited[i] {
+                continue;
+            }
+            visited[i] = true;
+            let mut members = vec![i];
+
+            for j in (i + 1)..b {
+                if visited[j] {
+                    continue;
+                }
+                let sim = Self::cosine_similarity(&vectors[i], &vectors[j]);
+                if sim >= similarity_threshold {
+                    visited[j] = true;
+                    members.push(j);
+                }
+            }
+
+            clusters.push((i, members));
+        }
+
+        clusters.sort_by_key(|(_, m)| std::cmp::Reverse(m.len()));
+        clusters
     }
 
     /// Evaluates a query embedding vector against all candidates
@@ -142,9 +191,218 @@ impl SemanticSieve {
     }
 }
 
+/// Request payload for remote embedding endpoints (/v1/embeddings).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteEmbeddingRequest {
+    pub model: String,
+    pub input: Vec<String>,
+}
+
+/// Individual item in remote embedding response data array.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteEmbeddingItem {
+    #[serde(default)]
+    pub index: usize,
+    pub embedding: Vec<f32>,
+}
+
+/// Standard response payload for remote embeddings (compatible with apfel-rs, Ollama, OpenAI).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteEmbeddingResponse {
+    #[serde(default)]
+    pub data: Vec<RemoteEmbeddingItem>,
+    #[serde(default)]
+    pub embedding: Option<Vec<f32>>,
+}
+
+/// Remote HTTP embedding client querying `/v1/embeddings` (compatible with `apfel serve`, Ollama, vLLM).
+#[derive(Debug, Clone)]
+pub struct RemoteEmbeddingProvider {
+    pub endpoint: String,
+    pub model: String,
+    pub api_key: Option<String>,
+    pub timeout_secs: u64,
+}
+
+impl RemoteEmbeddingProvider {
+    pub fn new(endpoint: impl Into<String>, model: impl Into<String>) -> Self {
+        Self {
+            endpoint: endpoint.into(),
+            model: model.into(),
+            api_key: None,
+            timeout_secs: 10,
+        }
+    }
+
+    pub fn with_api_key(mut self, key: impl Into<String>) -> Self {
+        self.api_key = Some(key.into());
+        self
+    }
+
+    pub fn with_timeout_secs(mut self, timeout_secs: u64) -> Self {
+        self.timeout_secs = timeout_secs;
+        self
+    }
+
+    /// Creates provider from environment variables:
+    /// - `ZEV_EMBEDDING_URL` or `APFEL_EMBEDDING_URL` or `APFEL_URL` (appends `/v1/embeddings`)
+    /// - `ZEV_EMBEDDING_MODEL` (defaults to "default")
+    /// - `ZEV_EMBEDDING_API_KEY` (optional)
+    pub fn from_env() -> Option<Self> {
+        let endpoint = std::env::var("ZEV_EMBEDDING_URL")
+            .or_else(|_| std::env::var("APFEL_EMBEDDING_URL"))
+            .or_else(|_| {
+                std::env::var("APFEL_URL")
+                    .map(|base| format!("{}/v1/embeddings", base.trim_end_matches('/')))
+            })
+            .ok()?;
+
+        let model = std::env::var("ZEV_EMBEDDING_MODEL").unwrap_or_else(|_| "default".to_string());
+        let api_key = std::env::var("ZEV_EMBEDDING_API_KEY").ok();
+
+        Some(Self {
+            endpoint,
+            model,
+            api_key,
+            timeout_secs: 10,
+        })
+    }
+
+    /// Parse response body string into normalized float vectors.
+    pub fn parse_response_body(body: &str) -> crate::error::Result<Vec<Vec<f32>>> {
+        let parsed: RemoteEmbeddingResponse = serde_json::from_str(body).map_err(|e| {
+            crate::error::ZevError::Internal(format!(
+                "Failed parsing embedding JSON: {e} (body: {body})"
+            ))
+        })?;
+
+        let mut vectors = if !parsed.data.is_empty() {
+            let mut sorted = parsed.data;
+            sorted.sort_by_key(|item| item.index);
+            sorted.into_iter().map(|item| item.embedding).collect()
+        } else if let Some(single) = parsed.embedding {
+            vec![single]
+        } else {
+            return Err(crate::error::ZevError::Internal(
+                "Remote embedding response contained neither 'data' nor 'embedding'".to_string(),
+            ));
+        };
+
+        for v in vectors.iter_mut() {
+            SemanticSieve::normalize_l2(v);
+        }
+        Ok(vectors)
+    }
+
+    /// Embed a single text string into a normalized dense vector.
+    pub fn embed_text(&self, text: &str) -> crate::error::Result<Vec<f32>> {
+        let mut results = self.embed_batch(&[text])?;
+        results.pop().ok_or_else(|| {
+            crate::error::ZevError::Internal("Remote embedding returned empty vector".to_string())
+        })
+    }
+
+    /// Embed a batch of texts into normalized dense vectors.
+    pub fn embed_batch(&self, texts: &[&str]) -> crate::error::Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let payload = RemoteEmbeddingRequest {
+            model: self.model.clone(),
+            input: texts.iter().map(|s| s.to_string()).collect(),
+        };
+
+        let mut req = ureq::post(&self.endpoint);
+        if let Some(ref key) = self.api_key {
+            req = req.header("Authorization", &format!("Bearer {}", key));
+        }
+
+        let mut resp = req.send_json(&payload).map_err(|e| {
+            crate::error::ZevError::Internal(format!("Embedding HTTP request failed: {e}"))
+        })?;
+
+        use std::io::Read;
+        let mut body_str = String::new();
+        resp.body_mut()
+            .as_reader()
+            .read_to_string(&mut body_str)
+            .map_err(|e| {
+                crate::error::ZevError::Internal(format!("Failed reading response body: {e}"))
+            })?;
+
+        Self::parse_response_body(&body_str)
+    }
+
+    /// Populate a `SemanticSieve` with candidates by embedding their text descriptions.
+    pub fn populate_sieve(
+        &self,
+        sieve: &mut SemanticSieve,
+        candidates: &[(&str, &str)],
+    ) -> crate::error::Result<()> {
+        let texts: Vec<&str> = candidates.iter().map(|(_, desc)| *desc).collect();
+        let vectors = self.embed_batch(&texts)?;
+
+        for ((id, _), vec) in candidates.iter().zip(vectors) {
+            sieve.add_candidate(*id, vec);
+        }
+
+        Ok(())
+    }
+
+    /// Queries the remote provider to embed `query_text` and evaluates against the sieve.
+    pub fn route_query(
+        &self,
+        sieve: &SemanticSieve,
+        query_text: &str,
+    ) -> crate::error::Result<Option<SieveResult>> {
+        let vec = self.embed_text(query_text)?;
+        Ok(sieve.evaluate_vector(&vec))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_remote_embedding_parse_v1_format() {
+        let json_payload = r#"{
+            "object": "list",
+            "data": [
+                { "object": "embedding", "index": 1, "embedding": [0.0, 3.0, 4.0] },
+                { "object": "embedding", "index": 0, "embedding": [1.0, 0.0, 0.0] }
+            ],
+            "model": "text-embedding-3-small"
+        }"#;
+
+        let parsed = RemoteEmbeddingProvider::parse_response_body(json_payload)
+            .expect("Parsing OpenAI/apfel-rs format must succeed");
+
+        assert_eq!(parsed.len(), 2);
+        // Index 0 was [1.0, 0.0, 0.0], normalized = [1.0, 0.0, 0.0]
+        assert!((parsed[0][0] - 1.0).abs() < 1e-5);
+        // Index 1 was [0.0, 3.0, 4.0], norm = 5.0, normalized = [0.0, 0.6, 0.8]
+        assert!((parsed[1][1] - 0.6).abs() < 1e-5);
+        assert!((parsed[1][2] - 0.8).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_remote_embedding_parse_ollama_format() {
+        let json_payload = r#"{
+            "embedding": [0.0, 5.0, 12.0]
+        }"#;
+
+        let parsed = RemoteEmbeddingProvider::parse_response_body(json_payload)
+            .expect("Parsing Ollama direct format must succeed");
+
+        assert_eq!(parsed.len(), 1);
+        // [0.0, 5.0, 12.0], norm = 13.0, normalized = [0.0, 5/13, 12/13]
+        let expected_y = 5.0 / 13.0;
+        let expected_z = 12.0 / 13.0;
+        assert!((parsed[0][1] - expected_y).abs() < 1e-5);
+        assert!((parsed[0][2] - expected_z).abs() < 1e-5);
+    }
 
     #[test]
     fn test_semantic_sieve_decisive_routing() {
@@ -188,5 +446,94 @@ mod tests {
 
         assert_eq!(res2.candidate_id, "tech");
         assert!(res2.decisive);
+    }
+
+    #[test]
+    fn test_remote_embedding_builder_and_env() {
+        let p = RemoteEmbeddingProvider::new("http://localhost:11434/v1/embeddings", "nomic-embed")
+            .with_api_key("secret-key")
+            .with_timeout_secs(30);
+
+        assert_eq!(p.endpoint, "http://localhost:11434/v1/embeddings");
+        assert_eq!(p.model, "nomic-embed");
+        assert_eq!(p.api_key.as_deref(), Some("secret-key"));
+        assert_eq!(p.timeout_secs, 30);
+
+        // from_env with ZEV_EMBEDDING_URL
+        std::env::set_var("ZEV_EMBEDDING_URL", "http://custom-host:8080/v1/embeddings");
+        std::env::set_var("ZEV_EMBEDDING_MODEL", "custom-model");
+        std::env::set_var("ZEV_EMBEDDING_API_KEY", "env-key");
+        let p_env = RemoteEmbeddingProvider::from_env().expect("Must read from env");
+        assert_eq!(p_env.endpoint, "http://custom-host:8080/v1/embeddings");
+        assert_eq!(p_env.model, "custom-model");
+        assert_eq!(p_env.api_key.as_deref(), Some("env-key"));
+        std::env::remove_var("ZEV_EMBEDDING_URL");
+        std::env::remove_var("ZEV_EMBEDDING_MODEL");
+        std::env::remove_var("ZEV_EMBEDDING_API_KEY");
+
+        // from_env with APFEL_URL (trailing slash)
+        std::env::set_var("APFEL_URL", "http://localhost:9000/");
+        let p_apfel = RemoteEmbeddingProvider::from_env().expect("Must read from APFEL_URL");
+        assert_eq!(p_apfel.endpoint, "http://localhost:9000/v1/embeddings");
+        std::env::remove_var("APFEL_URL");
+    }
+
+    #[test]
+    fn test_remote_embedding_parse_errors() {
+        assert!(RemoteEmbeddingProvider::parse_response_body("").is_err());
+        assert!(RemoteEmbeddingProvider::parse_response_body("{bad-json").is_err());
+        assert!(RemoteEmbeddingProvider::parse_response_body("{}").is_err());
+    }
+
+    #[test]
+    fn test_normalize_l2_zero_and_tiny() {
+        let mut zero = vec![0.0f32; 4];
+        SemanticSieve::normalize_l2(&mut zero);
+        assert_eq!(zero, vec![0.0f32; 4]);
+
+        let mut tiny = vec![1e-11f32; 4];
+        SemanticSieve::normalize_l2(&mut tiny);
+        assert_eq!(tiny, vec![1e-11f32; 4]);
+
+        let mut normal = vec![3.0f32, 4.0f32];
+        SemanticSieve::normalize_l2(&mut normal);
+        assert!((normal[0] - 0.6).abs() < 1e-6);
+        assert!((normal[1] - 0.8).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cluster_vectors_cpu_edge_cases() {
+        assert!(SemanticSieve::cluster_vectors_cpu(&[], 0.8).is_empty());
+
+        let single = vec![vec![1.0f32, 0.0f32]];
+        let clusters = SemanticSieve::cluster_vectors_cpu(&single, 0.8);
+        assert_eq!(clusters.len(), 1);
+        assert_eq!(clusters[0].1, vec![0]);
+
+        // Orthogonal vectors
+        let orthogonal = vec![vec![1.0f32, 0.0f32], vec![0.0f32, 1.0f32]];
+        let ortho_clusters = SemanticSieve::cluster_vectors_cpu(&orthogonal, 0.5);
+        assert_eq!(ortho_clusters.len(), 2);
+    }
+
+    #[test]
+    fn test_semantic_sieve_edge_cases() {
+        let empty_sieve = SemanticSieve::new(0.2, 0.5);
+        assert!(empty_sieve.evaluate_vector(&[1.0, 0.0]).is_none());
+
+        // Single candidate
+        let mut single_sieve = SemanticSieve::new(0.2, 0.5);
+        single_sieve.add_candidate("only_one", vec![1.0, 0.0]);
+        let res = single_sieve.evaluate_vector(&[1.0, 0.0]).unwrap();
+        assert_eq!(res.candidate_id, "only_one");
+        assert_eq!(res.margin, res.top_score);
+        assert!(res.decisive);
+
+        // Indecisive candidate (low confidence)
+        let mut strict_sieve = SemanticSieve::new(0.2, 0.99);
+        strict_sieve.add_candidate("c1", vec![1.0, 0.0]);
+        strict_sieve.add_candidate("c2", vec![0.0, 1.0]);
+        let low_conf_res = strict_sieve.evaluate_vector(&[0.707, 0.707]).unwrap();
+        assert!(!low_conf_res.decisive);
     }
 }

@@ -72,7 +72,7 @@ enum Commands {
         #[arg(short, long)]
         distribution: bool,
 
-        /// Speculative fallback backend ("gemma", "apfel", "clm", "none")
+        /// Speculative fallback backend ("mlx", "gemma", "apfel", "clm", "none")
         #[arg(short, long)]
         backend: Option<String>,
 
@@ -345,10 +345,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "Warning: fallback backend '{}' requested, but zev was compiled without '--features neural'. Reverting to default SIMD heuristics.",
                         b
                     );
+                } else if b == "mlx" && !cfg!(feature = "mlx") {
+                    eprintln!(
+                        "Warning: fallback backend 'mlx' requested, but zev was compiled without '--features mlx'. Reverting to default SIMD heuristics."
+                    );
                 }
                 std::env::set_var("ZEV_FALLBACK", b);
             } else if min_confidence > 0.0 && std::env::var("ZEV_FALLBACK").is_err() {
-                #[cfg(target_os = "macos")]
+                #[cfg(all(target_os = "macos", feature = "mlx"))]
+                std::env::set_var("ZEV_FALLBACK", "mlx");
+                #[cfg(all(target_os = "macos", not(feature = "mlx"), feature = "neural"))]
                 std::env::set_var("ZEV_FALLBACK", "apfel");
                 #[cfg(not(target_os = "macos"))]
                 std::env::set_var("ZEV_FALLBACK", "gemma");
@@ -495,9 +501,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             #[cfg(not(feature = "candle"))]
             let router = create_router(Arc::new(ZevEngine::new(temperature)));
+            use axum::serve::ListenerExt;
             let addr = format!("{}:{}", host, port);
-            let listener = tokio::net::TcpListener::bind(&addr).await?;
-            println!("Zev API server running on http://{}", addr);
+            let listener = tokio::net::TcpListener::bind(&addr)
+                .await?
+                .tap_io(|tcp_stream| {
+                    let _ = tcp_stream.set_nodelay(true);
+                });
+            println!(
+                "Zev API server running on http://{} (TCP_NODELAY enabled)",
+                addr
+            );
             axum::serve(listener, router).await?;
         }
 

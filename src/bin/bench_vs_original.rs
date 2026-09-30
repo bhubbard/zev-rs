@@ -217,5 +217,123 @@ fn main() {
     );
     println!("  3. Strict 0.0% order flip rate (symmetric permutation-invariant scoring).");
     println!("  4. Full calibration via temperature scaling and rigorous abstention guardrails.");
+
+    #[cfg(feature = "mlx")]
+    {
+        println!();
+        println!("4. MLX APPLE SILICON (METAL GPU) ACCELERATION");
+        println!("──────────────────────────────────────────────────────────────────────────────");
+        let dim = 64;
+        let n_cands = 20;
+        let mut cpu_sieve = zev::SemanticSieve::new(0.15, 0.40);
+        for i in 0..n_cands {
+            let vec = zev::SemanticSieve::hash_embed(
+                &format!("Microservice candidate destination cluster #{i}"),
+                dim,
+            );
+            cpu_sieve.add_candidate(format!("dest_{i}"), vec);
+        }
+
+        let mlx_sieve = cpu_sieve
+            .to_mlx()
+            .expect("Failed to compile MlxSemanticSieve");
+        let query_vec =
+            zev::SemanticSieve::hash_embed("Microservice candidate destination cluster #10", dim);
+
+        // Warmup
+        for _ in 0..100 {
+            let _ = mlx_sieve.evaluate_vector(&query_vec);
+        }
+
+        let mlx_iters = 5_000;
+        let start = Instant::now();
+        for _ in 0..mlx_iters {
+            let _ = mlx_sieve.evaluate_vector(&query_vec);
+        }
+        let mlx_elapsed = start.elapsed();
+        let mlx_lat_us = (mlx_elapsed.as_micros() as f64) / (mlx_iters as f64);
+        let mlx_throughput = (mlx_iters as f64) / mlx_elapsed.as_secs_f64();
+
+        println!(
+            "• MLX Single Query Matmul Latency:      {:>8.2} µs ({:>7.0} req/sec)",
+            mlx_lat_us, mlx_throughput
+        );
+
+        // Batch dispatch [100, 64] @ [64, 20]
+        let batch_size = 100;
+        let batch_queries: Vec<Vec<f32>> = (0..batch_size)
+            .map(|i| zev::SemanticSieve::hash_embed(&format!("Batch query intent item #{i}"), dim))
+            .collect();
+
+        let batch_iters = 500;
+        let start_batch = Instant::now();
+        for _ in 0..batch_iters {
+            let _ = mlx_sieve.evaluate_batch(&batch_queries);
+        }
+        let batch_elapsed = start_batch.elapsed();
+        let total_items = batch_size * batch_iters;
+        let batch_throughput = (total_items as f64) / batch_elapsed.as_secs_f64();
+        println!(
+            "• MLX Batch Matrix Dispatch Throughput: {:>8.0} vectors/sec (batch size = {})",
+            batch_throughput, batch_size
+        );
+    }
+
+    #[cfg(feature = "neural")]
+    {
+        println!();
+        println!("5. APFEL-RS NEURAL SPECULATIVE HYBRID");
+        println!("──────────────────────────────────────────────────────────────────────────────");
+        let backend = zev::ApfelNeuralBackend::new();
+        let neural_req = ZevRequest {
+            state: serde_json::Value::String(
+                "System crashed with critical unhandled memory panic in kernel cluster".into(),
+            ),
+            questions: [(
+                "priority".into(),
+                Question::Choice(ChoiceQuestion {
+                    instructions: "Triage incident severity".into(),
+                    options: vec![
+                        OptionDef {
+                            id: "p0_critical".into(),
+                            description: "Outage or kernel panic crash".into(),
+                        },
+                        OptionDef {
+                            id: "p3_low".into(),
+                            description: "Minor cosmetic UI issue".into(),
+                        },
+                    ],
+                    policy: Default::default(),
+                }),
+            )]
+            .into(),
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+            images: None,
+        };
+
+        // Warmup
+        for _ in 0..50 {
+            let _ = engine.evaluate_speculative_hybrid(&neural_req, 0.70, &backend);
+        }
+
+        let neural_iters = 1_000;
+        let start_neural = Instant::now();
+        for _ in 0..neural_iters {
+            let _ = engine.evaluate_speculative_hybrid(&neural_req, 0.70, &backend);
+        }
+        let neural_elapsed = start_neural.elapsed();
+        let neural_lat_us = (neural_elapsed.as_micros() as f64) / (neural_iters as f64);
+        let neural_throughput = (neural_iters as f64) / neural_elapsed.as_secs_f64();
+        println!(
+            "• Apfel Speculative Hybrid Latency:     {:>8.2} µs ({:>7.0} decisions/sec)",
+            neural_lat_us, neural_throughput
+        );
+        println!(
+            "• Thread QoS Elevation:                 QOS_CLASS_USER_INITIATED (P-core scheduling)"
+        );
+    }
+
     println!("══════════════════════════════════════════════════════════════════════════════");
 }

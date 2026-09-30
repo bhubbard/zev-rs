@@ -18,6 +18,7 @@ pub mod multimodal;
 pub mod order_invariant;
 pub mod premise_window;
 pub mod preprocessor;
+pub mod qos;
 pub mod readout;
 pub mod semantic_sieve;
 pub mod shortlist;
@@ -59,10 +60,11 @@ pub use order_invariant::{
     compute_order_invariant_logits, compute_order_invariant_logits_with_context, PremiseContext,
 };
 pub use preprocessor::{clean_text, inject_temporal_facts, preprocess_state};
+pub use qos::elevate_thread_qos;
 pub use readout::{
     BinaryReadout, ClassTokenPool, PrunedHead, DEFAULT_FALSE_SPELLINGS, DEFAULT_TRUE_SPELLINGS,
 };
-pub use semantic_sieve::{CandidateVector, SemanticSieve, SieveResult};
+pub use semantic_sieve::{CandidateVector, RemoteEmbeddingProvider, SemanticSieve, SieveResult};
 pub use shortlist::shortlist_options;
 pub use tabular::{
     BatchExecutionReport, RunningStats, TabularBatch, TabularEngine, TabularFilterPredicate,
@@ -81,3 +83,11 @@ pub mod kev;
 pub mod neural;
 #[cfg(feature = "neural")]
 pub use neural::ApfelNeuralBackend;
+
+#[cfg(feature = "mlx")]
+pub mod mlx;
+#[cfg(feature = "mlx")]
+pub use mlx::{
+    DlqClusterSummary, MlxDlqClusterer, MlxProjectionHead, MlxSemanticSieve, MlxTriageClassifier,
+    SlmModelFamily,
+};

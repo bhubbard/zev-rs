@@ -11,8 +11,12 @@ env:
 
 jobs:
   check:
-    name: Check, Lint & Test
-    runs-on: ubuntu-latest
+    name: Check, Lint & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
     steps:
       - uses: actions/checkout@v7
 
@@ -31,10 +35,25 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Clippy (Candle Feature)
+        if: matrix.os == 'ubuntu-latest'
         run: cargo clippy --features candle -- -D warnings
+
+      - name: Clippy (MLX Feature)
+        if: matrix.os == 'macos-15'
+        run: cargo clippy --features mlx -- -D warnings
 
       - name: Run Tests (Default Features)
         run: cargo test
 
       - name: Run Tests (Candle Feature)
+        if: matrix.os == 'ubuntu-latest'
         run: cargo test --features candle --lib
+
+      - name: Run Tests (MLX Feature)
+        if: matrix.os == 'macos-15'
+        run: cargo test --features mlx --test mlx_sieve_test
+
+      - name: Cargo Deny Check
+        if: matrix.os == 'ubuntu-latest'
+        uses: EmbarkStudios/cargo-deny-action@v2
+

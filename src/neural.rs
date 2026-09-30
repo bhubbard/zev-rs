@@ -27,9 +27,7 @@ impl std::fmt::Debug for ApfelNeuralBackend {
 #[cfg(feature = "neural")]
 impl Default for ApfelNeuralBackend {
     fn default() -> Self {
-        Self {
-            engine: default_engine(),
-        }
+        Self::from_env()
     }
 }
 
@@ -39,17 +37,40 @@ impl ApfelNeuralBackend {
         Self::default()
     }
 
+    /// Initializes backend from `APFEL_ENGINE` ("foundation", "mlx", "mock") and `APFEL_MODEL` environment variables.
+    pub fn from_env() -> Self {
+        let engine_name = std::env::var("APFEL_ENGINE").ok();
+        let model_name = std::env::var("APFEL_MODEL").ok();
+        if engine_name.is_some() || model_name.is_some() {
+            Self {
+                engine: apfel::create_engine(engine_name.as_deref(), model_name.as_deref()),
+            }
+        } else {
+            Self {
+                engine: default_engine(),
+            }
+        }
+    }
+
+    /// Creates an Apfel neural backend with specific engine and model identifiers.
+    pub fn with_engine_and_model(engine_name: Option<&str>, model_name: Option<&str>) -> Self {
+        Self {
+            engine: apfel::create_engine(engine_name, model_name),
+        }
+    }
+
     pub fn with_engine(engine: Arc<dyn BackendEngine>) -> Self {
         Self { engine }
     }
 
-    /// Evaluates candidates using on-device Apple Intelligence FoundationModels
+    /// Evaluates candidates using on-device Apple Intelligence FoundationModels or MLX
     pub fn evaluate_candidates(
         &self,
         state: &str,
         question: &Question,
         candidates: &[Candidate],
     ) -> Result<ZevAnswer> {
+        crate::qos::elevate_thread_qos();
         let mut prompt = format!(
             "You are a strict classifier. Classify the input context into EXACTLY one of the candidate IDs, or '__insufficient__' if the context is unrelated, out-of-domain, or lacks evidence.\n\n\
             Example 1:\n\
@@ -98,10 +119,11 @@ impl ApfelNeuralBackend {
             system_prompt: Some("You are an accurate, deterministic on-device classifier. Respond strictly with [id] or [__insufficient__].".into()),
             messages: None,
             temperature: Some(0.0),
-            top_p: Some(0.9),
-            max_tokens: Some(32),
+            top_p: None,
+            max_tokens: Some(4),
             permissive: true,
             seed: Some(42),
+            use_case: Some("content_tagging".into()),
         };
 
         let resp = self
@@ -256,4 +278,348 @@ fn parse_candidate_choice(raw: &str, candidates: &[Candidate]) -> String {
     }
 
     "__insufficient__".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{BooleanQuestion, ChoiceQuestion, OptionDef, Policy};
+
+    #[test]
+    fn test_parse_candidate_choice_brackets_and_keywords() {
+        let candidates = vec![
+            Candidate {
+                id: "billing".into(),
+                description: "Invoices".into(),
+                value: None,
+            },
+            Candidate {
+                id: "technical".into(),
+                description: "Crashes".into(),
+                value: None,
+            },
+        ];
+
+        // 1. Bracket matches
+        assert_eq!(parse_candidate_choice("[billing]", &candidates), "billing");
+        assert_eq!(
+            parse_candidate_choice("Decision: [technical] please", &candidates),
+            "technical"
+        );
+        assert_eq!(parse_candidate_choice("[BILLING]", &candidates), "billing");
+        assert_eq!(
+            parse_candidate_choice("[__insufficient__]", &candidates),
+            "__insufficient__"
+        );
+        assert_eq!(
+            parse_candidate_choice("[insufficient]", &candidates),
+            "__insufficient__"
+        );
+        assert_eq!(
+            parse_candidate_choice("[none]", &candidates),
+            "__insufficient__"
+        );
+
+        // 2. Insufficient phrases
+        assert_eq!(
+            parse_candidate_choice("This input is unrelated to the context", &candidates),
+            "__insufficient__"
+        );
+        assert_eq!(
+            parse_candidate_choice("The query is out of domain", &candidates),
+            "__insufficient__"
+        );
+        assert_eq!(
+            parse_candidate_choice("none of the options fit", &candidates),
+            "__insufficient__"
+        );
+
+        // 3. Numbered prefixes
+        assert_eq!(parse_candidate_choice("1", &candidates), "billing");
+        assert_eq!(parse_candidate_choice("1.", &candidates), "billing");
+        assert_eq!(parse_candidate_choice("1. billing", &candidates), "billing");
+        assert_eq!(
+            parse_candidate_choice("2 technical support", &candidates),
+            "technical"
+        );
+        assert_eq!(parse_candidate_choice("Option 1", &candidates), "billing");
+        assert_eq!(parse_candidate_choice("Option 2", &candidates), "technical");
+
+        // 4. Exact matches and substring
+        assert_eq!(parse_candidate_choice("billing", &candidates), "billing");
+        assert_eq!(
+            parse_candidate_choice("TECHNICAL", &candidates),
+            "technical"
+        );
+        assert_eq!(
+            parse_candidate_choice("The selected category is billing today", &candidates),
+            "billing"
+        );
+
+        // 5. Unmatched
+        assert_eq!(
+            parse_candidate_choice("completely unrelated banana fruit", &candidates),
+            "__insufficient__"
+        );
+    }
+
+    #[test]
+    fn test_apfel_neural_backend_mock_choice_and_boolean() {
+        let backend = ApfelNeuralBackend::with_engine_and_model(Some("mock"), None);
+        let debug_str = format!("{:?}", backend);
+        assert!(debug_str.contains("ApfelNeuralBackend"));
+
+        let q_choice = Question::Choice(ChoiceQuestion {
+            instructions: "Select category".into(),
+            options: vec![
+                OptionDef {
+                    id: "billing".into(),
+                    description: "Billing questions".into(),
+                },
+                OptionDef {
+                    id: "tech".into(),
+                    description: "Technical questions".into(),
+                },
+            ],
+            policy: Policy::default(),
+        });
+
+        let candidates = vec![
+            Candidate {
+                id: "billing".into(),
+                description: "Billing questions".into(),
+                value: None,
+            },
+            Candidate {
+                id: "tech".into(),
+                description: "Technical questions".into(),
+                value: None,
+            },
+        ];
+
+        let ans = backend
+            .evaluate_candidates(
+                "Customer needs invoice payment help",
+                &q_choice,
+                &candidates,
+            )
+            .expect("Evaluation with mock engine must succeed");
+
+        assert_eq!(ans.question_type, "choice");
+        assert_eq!(ans.source.as_deref(), Some("neural"));
+        assert!(
+            ans.probabilities.contains_key("billing") || ans.probabilities.contains_key("tech")
+        );
+
+        // Boolean question
+        let q_bool = Question::Boolean(BooleanQuestion {
+            instructions: "Is this urgent?".into(),
+            true_description: "Yes urgent".into(),
+            false_description: "No routine".into(),
+            policy: Policy::default(),
+        });
+        let bool_candidates = vec![
+            Candidate {
+                id: "true".into(),
+                description: "Yes urgent".into(),
+                value: None,
+            },
+            Candidate {
+                id: "false".into(),
+                description: "No routine".into(),
+                value: None,
+            },
+        ];
+
+        let bool_ans = backend
+            .evaluate_candidates(
+                "Production is down critical outage",
+                &q_bool,
+                &bool_candidates,
+            )
+            .expect("Boolean evaluation must succeed");
+
+        assert_eq!(bool_ans.question_type, "boolean");
+        assert!(bool_ans.decision.is_some());
+    }
+
+    #[test]
+    fn test_apfel_neural_backend_shortlisting_many_candidates() {
+        let backend = ApfelNeuralBackend::with_engine_and_model(Some("mock"), None);
+
+        let mut options = Vec::new();
+        let mut candidates = Vec::new();
+        for i in 0..10 {
+            let id = format!("dept_{i}");
+            let desc = format!("Department number {i} for specific tasks");
+            options.push(OptionDef {
+                id: id.clone(),
+                description: desc.clone(),
+            });
+            candidates.push(Candidate {
+                id,
+                description: desc,
+                value: None,
+            });
+        }
+
+        let q_many = Question::Choice(ChoiceQuestion {
+            instructions: "Select department".into(),
+            options,
+            policy: Policy::default(),
+        });
+
+        let ans = backend
+            .evaluate_candidates("Task for department number 3", &q_many, &candidates)
+            .expect("Shortlisting evaluation must succeed");
+
+        assert_eq!(ans.question_type, "choice");
+    }
+
+    #[test]
+    fn test_apfel_neural_backend_from_env() {
+        std::env::set_var("APFEL_ENGINE", "mock");
+        std::env::set_var("APFEL_MODEL", "mock-model");
+        let backend = ApfelNeuralBackend::from_env();
+        std::env::remove_var("APFEL_ENGINE");
+        std::env::remove_var("APFEL_MODEL");
+
+        let q = Question::Choice(ChoiceQuestion {
+            instructions: "Test question".into(),
+            options: vec![OptionDef {
+                id: "a".into(),
+                description: "A".into(),
+            }],
+            policy: Policy::default(),
+        });
+        let candidates = vec![Candidate {
+            id: "a".into(),
+            description: "A".into(),
+            value: None,
+        }];
+        let res = backend.evaluate_candidates("Testing state", &q, &candidates);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_apfel_neural_payload_properties_content_tagging() {
+        let mock = Arc::new(apfel::backend::MockEngine::with_response("[billing]"));
+        let backend = ApfelNeuralBackend::with_engine(mock.clone());
+
+        let q = Question::Choice(ChoiceQuestion {
+            instructions: "Classify incoming customer request".into(),
+            options: vec![
+                OptionDef {
+                    id: "billing".into(),
+                    description: "Invoices and subscription payments".into(),
+                },
+                OptionDef {
+                    id: "technical".into(),
+                    description: "Bug reports and API errors".into(),
+                },
+            ],
+            policy: Policy::default(),
+        });
+        let candidates = vec![
+            Candidate {
+                id: "billing".into(),
+                description: "Invoices and subscription payments".into(),
+                value: None,
+            },
+            Candidate {
+                id: "technical".into(),
+                description: "Bug reports and API errors".into(),
+                value: None,
+            },
+        ];
+
+        let ans = backend
+            .evaluate_candidates("Customer was double charged on invoice #5512", &q, &candidates)
+            .expect("Evaluation should succeed");
+
+        assert_eq!(ans.decision, Some(serde_json::Value::String("billing".into())));
+        assert_eq!(ans.question_type, "choice");
+
+        // Verify exact payload forwarded to apfel engine
+        let last_req = mock.last_request().expect("Engine must receive GenerateRequest");
+        assert_eq!(last_req.use_case, Some("content_tagging".to_string()));
+        assert_eq!(last_req.temperature, Some(0.0));
+        assert_eq!(last_req.top_p, None);
+        assert_eq!(last_req.max_tokens, Some(4));
+        assert_eq!(last_req.seed, Some(42));
+        assert!(last_req.permissive);
+        assert!(last_req.prompt.contains("billing"));
+        assert!(last_req.prompt.contains("Customer was double charged"));
+    }
+
+    #[test]
+    fn test_parse_candidate_choice_edge_cases() {
+        let candidates = vec![
+            Candidate {
+                id: "billing".into(),
+                description: "Billing issues".into(),
+                value: None,
+            },
+            Candidate {
+                id: "hardware".into(),
+                description: "Device broken".into(),
+                value: None,
+            },
+        ];
+
+        // Bracket with trailing punctuation
+        assert_eq!(super::parse_candidate_choice("The answer is [billing].", &candidates), "billing");
+        // Bracket with leading text
+        assert_eq!(super::parse_candidate_choice("Decision: [hardware]", &candidates), "hardware");
+        // Insufficient context
+        assert_eq!(super::parse_candidate_choice("[__insufficient__]", &candidates), "__insufficient__");
+        // Keyword fallback without brackets
+        assert_eq!(super::parse_candidate_choice("This seems like a billing matter.", &candidates), "billing");
+        // Unmatched fallback
+        assert_eq!(super::parse_candidate_choice("Random unrelated chatter", &candidates), "__insufficient__");
+    }
+
+    #[test]
+    fn test_apfel_neural_backend_score_and_numeric() {
+        let mock = Arc::new(apfel::backend::MockEngine::with_response("[5]"));
+        let backend = ApfelNeuralBackend::with_engine(mock);
+
+        let q_score = Question::Score(crate::types::ScoreQuestion {
+            instructions: "Rate satisfaction 1-5".into(),
+            levels: vec!["1".into(), "2".into(), "3".into(), "4".into(), "5".into()],
+            policy: Policy::default(),
+        });
+        let candidates = vec![
+            Candidate {
+                id: "1".into(),
+                description: "Poor".into(),
+                value: Some(1.0),
+            },
+            Candidate {
+                id: "5".into(),
+                description: "Great".into(),
+                value: Some(5.0),
+            },
+        ];
+
+        let ans = backend
+            .evaluate_candidates("Amazing service, five stars!", &q_score, &candidates)
+            .expect("Score evaluation should succeed");
+
+        assert_eq!(ans.question_type, "score");
+        assert_eq!(ans.decision, Some(serde_json::Value::String("5".into())));
+
+        // Test Numeric question as well
+        let q_num = Question::Numeric(crate::types::NumericQuestion {
+            instructions: "Count total items".into(),
+            unit: "items".into(),
+            anchors: Vec::new(),
+            policy: Policy::default(),
+        });
+        let ans_num = backend
+            .evaluate_candidates("Counted five items", &q_num, &candidates)
+            .expect("Numeric evaluation should succeed");
+        assert_eq!(ans_num.question_type, "numeric");
+        assert_eq!(ans_num.decision, Some(serde_json::Value::String("5".into())));
+    }
 }
