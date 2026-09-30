@@ -176,13 +176,9 @@ impl CustomOp3 for GdnOp {
             .arg(&ti)
             .arg(&hk)
             .arg(&hv);
-        // SAFETY:
-        // - CUDA context validity: `dev` is a valid, active CUDA device context.
-        // - Pointer non-null invariants & GPU buffer alignment: `qkv`, `gb`, `s0`, `dst`, and `lens`
-        //   are valid, non-null device pointers allocated by candle/cudarc, properly aligned for `f32`
-        //   and `u32`, with buffer capacities matching the kernel dimension requirements.
-        // - Memory lifetime guarantees: All input and output buffers remain allocated and valid for
-        //   the duration of the kernel execution on the CUDA stream.
+        // SAFETY: `dev` is an active CUDA context; `qkv`, `gb`, `s0`, `dst`, and `lens` are valid,
+        // non-null device pointers aligned for `f32`/`u32`; buffer capacities match kernel dimensions;
+        // all input and output allocations remain valid throughout execution on the CUDA stream.
         unsafe { lb.launch(cfg) }.w()?;
         Ok((
             candle_core::CudaStorage::wrap_cuda_slice(dst, dev),
@@ -260,13 +256,9 @@ impl CustomOp3 for ConvSilu {
         let kk = l3.shape().dims2()?.0;
         let dev = s1.device().clone();
         let n = b * t * self.c;
-        // SAFETY:
-        // - CUDA context validity: `dev` is a valid, active CUDA device context.
-        // - Pointer non-null invariants & GPU buffer alignment: Allocates `n` elements of `f32` on the
-        //   GPU using the driver's stream-ordered allocator. The returned pointer is guaranteed to be non-null
-        //   and aligned to at least 256 bytes (suitable for all `f32` CUDA load/store operations).
-        // - Memory lifetime guarantees: The returned `CudaSlice<f32>` owns this allocation, which is fully
-        //   written by the subsequent `conv_silu_*` kernel before being read.
+        // SAFETY: `dev` is an active CUDA context. Allocates `n` elements of `f32` via stream-ordered
+        // allocator, returning a non-null pointer aligned to >= 256 bytes. The returned `CudaSlice<f32>`
+        // owns the memory, which is fully written by the subsequent `conv_silu_*` kernel before being read.
         let dst = unsafe { dev.alloc::<f32>(n)? };
         let w = view::<f32>(s3, l3)?;
         let args = [t as i32, ld as i32, self.c as i32, kk as i32];
@@ -290,13 +282,9 @@ impl CustomOp3 for ConvSilu {
                     .arg(&args[1])
                     .arg(&args[2])
                     .arg(&args[3]);
-                // SAFETY:
-                // - CUDA context validity: `dev` is a valid, active CUDA device context.
-                // - Pointer non-null invariants & GPU buffer alignment: `p`, `st`, `w`, and `dst` are valid,
-                //   non-null device pointers properly aligned for `bf16` and `f32` operands. Launch parameters
-                //   and grid size `(n.div_ceil(256), 1, 1)` strictly match output slice bounds `n64`.
-                // - Memory lifetime guarantees: All input tensors and destination buffer remain allocated
-                //   and valid throughout kernel execution on the CUDA stream.
+                // SAFETY: `dev` is an active CUDA context; `p`, `st`, `w`, and `dst` are valid, non-null device
+                // pointers aligned for `bf16`/`f32`; grid size `(n.div_ceil(256), 1, 1)` matches output bounds `n64`;
+                // all tensors remain allocated and valid throughout execution on the CUDA stream.
                 unsafe { lb.launch(cfg) }.w()?;
             }
             DType::F32 => {
@@ -312,13 +300,9 @@ impl CustomOp3 for ConvSilu {
                     .arg(&args[1])
                     .arg(&args[2])
                     .arg(&args[3]);
-                // SAFETY:
-                // - CUDA context validity: `dev` is a valid, active CUDA device context.
-                // - Pointer non-null invariants & GPU buffer alignment: `p`, `st`, `w`, and `dst` are valid,
-                //   non-null device pointers properly aligned for `f32` operands. Launch parameters and grid size
-                //   `(n.div_ceil(256), 1, 1)` strictly match output slice bounds `n64`.
-                // - Memory lifetime guarantees: All input tensors and destination buffer remain allocated
-                //   and valid throughout kernel execution on the CUDA stream.
+                // SAFETY: `dev` is an active CUDA context; `p`, `st`, `w`, and `dst` are valid, non-null device
+                // pointers aligned for `f32`; grid size `(n.div_ceil(256), 1, 1)` matches output bounds `n64`;
+                // all tensors remain allocated and valid throughout execution on the CUDA stream.
                 unsafe { lb.launch(cfg) }.w()?;
             }
             d => candle_core::bail!("conv-silu: unsupported dtype {d:?}"),
@@ -393,13 +377,9 @@ impl CustomOp1 for MaskedSoftmax {
         let (b, h, r, sk) = l1.shape().dims4()?;
         let dev = s1.device().clone();
         let s = view::<f32>(s1, l1)?;
-        // SAFETY:
-        // - CUDA context validity: `dev` is a valid, active CUDA device context.
-        // - Pointer non-null invariants & GPU buffer alignment: Allocates `b * h * r * sk` contiguous
-        //   `f32` elements via CUDA stream-ordered allocator, returning a valid, non-null pointer aligned
-        //   to at least 256 bytes.
-        // - Memory lifetime guarantees: The resulting `CudaSlice<f32>` owns this allocation, ensuring memory
-        //   remains reserved until transferred to `CudaStorage`. Written in full by `masked_softmax` before use.
+        // SAFETY: `dev` is an active CUDA context. Allocates `b * h * r * sk` contiguous `f32` elements via
+        // stream-ordered allocator (aligned >= 256 bytes). The resulting `CudaSlice<f32>` safely owns the memory
+        // and is written in full by `masked_softmax` before any read.
         let dst = unsafe { dev.alloc::<f32>(b * h * r * sk)? };
         let plen = upload(&dev, &self.plen)?;
         let args = [
@@ -421,13 +401,9 @@ impl CustomOp1 for MaskedSoftmax {
             lb.arg(a);
         }
         lb.arg(&self.scale);
-        // SAFETY:
-        // - CUDA context validity: `dev` is a valid, active CUDA device context.
-        // - Pointer non-null invariants & GPU buffer alignment: `s`, `dst`, and `plen` are non-null device
-        //   pointers properly aligned for `f32` and `u32`. The launch grid `(b * h * r, 1, 1)` and block `(256, 1, 1)`
-        //   correctly index within bounds of `b * h * r * sk` score elements and `b` batch lengths.
-        // - Memory lifetime guarantees: All source tensors, length vectors, and destination buffers remain
-        //   allocated and valid for the duration of the kernel launch.
+        // SAFETY: `dev` is an active CUDA context; `s`, `dst`, and `plen` are non-null and aligned for `f32`/`u32`;
+        // grid `(b * h * r, 1, 1)` and block `(256, 1, 1)` strictly index within slice bounds; all tensors remain
+        // valid on the stream for the duration of the kernel launch.
         unsafe { lb.launch(cfg) }.w()?;
         Ok((
             candle_core::CudaStorage::wrap_cuda_slice(dst, dev),
@@ -452,13 +428,9 @@ pub fn tune(dev: &candle_core::Device) -> Result<()> {
         let ctx = d.cuda_stream().context().clone();
         let mut pool: sys::CUmemoryPool = std::ptr::null_mut();
         let mut keep: u64 = u64::MAX;
-        // SAFETY:
-        // - CUDA context validity: `ctx` is an active, valid CUDA context from `d.cuda_stream().context()`.
-        // - Pointer non-null invariants & GPU buffer alignment: `&mut pool` and `&mut keep` are valid stack
-        //   pointers properly aligned for their respective FFI types (`sys::CUmemoryPool` and `u64`), non-null,
-        //   and writeable for the duration of the CUDA driver calls.
-        // - Memory lifetime guarantees: Changes only driver mempool release threshold attributes for the device pool;
-        //   no allocated buffers or driver memory mappings are invalidated or freed.
+        // SAFETY: `ctx` is an active CUDA context; `&mut pool` and `&mut keep` are valid, aligned stack
+        // pointers for FFI types (`sys::CUmemoryPool` and `u64`); modifies driver mempool release threshold
+        // without invalidating or freeing allocated buffers.
         unsafe {
             sys::cuDeviceGetDefaultMemPool(&mut pool, ctx.cu_device())
                 .result()
@@ -492,12 +464,9 @@ mod cuda {
     }
 
     pub fn upload(dev: &CudaDevice, v: &[u32]) -> Result<CudaSlice<u32>> {
-        // SAFETY:
-        // - CUDA context validity: `dev` is a valid, active `CudaDevice` context.
-        // - Pointer non-null invariants & GPU buffer alignment: Allocates at least 1 element of `u32`
-        //   via CUDA driver allocator, returning a valid, non-null device pointer aligned to 32-bit boundaries.
-        // - Memory lifetime guarantees: `memcpy_htod` immediately populates the allocated buffer from host slice `v`,
-        //   preventing uninitialized device memory reads. The returned `CudaSlice<u32>` safely owns the buffer lifetime.
+        // SAFETY: `dev` is an active CUDA context. Allocates at least 1 element of `u32` aligned to 32-bit boundaries.
+        // `memcpy_htod` immediately initializes the allocated buffer from host slice `v` before any read, and the
+        // returned `CudaSlice<u32>` safely owns the buffer lifetime.
         let mut d = unsafe { dev.alloc::<u32>(v.len().max(1))? };
         dev.memcpy_htod(v, &mut d)?;
         Ok(d)

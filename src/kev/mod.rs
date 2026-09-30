@@ -86,6 +86,7 @@ fn option_text(name: &str, desc: Option<&Value>) -> String {
 }
 
 /// One question as the model sees it plus what the answer needs.
+#[derive(Debug)]
 pub struct Question {
     pub id: String,
     pub kind: String,
@@ -171,12 +172,14 @@ pub fn to_record(req: &Value) -> Result<(String, Vec<Question>), String> {
 }
 
 /// A question's causal row after the state: its tokens and the readout offsets within it.
+#[derive(Debug)]
 pub struct RowSpec {
     pub ids: Vec<u32>,
     pub decide: usize,
     pub opts: Vec<usize>,
 }
 
+#[derive(Debug)]
 pub struct Encoder {
     pub tok: Tokenizer,
     special: [u32; 5],

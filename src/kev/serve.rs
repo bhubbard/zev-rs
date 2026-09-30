@@ -295,6 +295,16 @@ pub struct KevState {
     card: Arc<Value>,
 }
 
+impl std::fmt::Debug for KevState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Never print the API key; only whether one is configured.
+        f.debug_struct("KevState")
+            .field("enc", &self.enc)
+            .field("api_key", &self.api_key.as_ref().map(|_| "<redacted>"))
+            .finish_non_exhaustive()
+    }
+}
+
 pub fn spawn(m: Model, enc: Encoder, prefix_cache: usize, card: Value) -> KevState {
     let (tx, rx) = mpsc::sync_channel::<Job>(MAX_QUEUE_DEPTH);
     std::thread::Builder::new()

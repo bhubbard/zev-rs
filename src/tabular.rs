@@ -160,6 +160,7 @@ pub struct BatchExecutionReport {
 }
 
 /// High-performance tabular execution engine for batch AI operations.
+#[derive(Debug)]
 pub struct TabularEngine {
     zev: ZevEngine,
 }

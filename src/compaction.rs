@@ -46,7 +46,7 @@ pub struct ToolCompactionDecision {
 }
 
 /// Agent context compaction engine.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ToolCompactor {
     engine: DecisionEngine,
 }

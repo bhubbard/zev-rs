@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 const INDEX_HTML: &str = include_str!("../assets/index.html");
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ServerState {
     pub engine: Arc<ZevEngine>,
 }

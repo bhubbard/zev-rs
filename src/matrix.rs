@@ -156,6 +156,7 @@ impl PartnerMatrix {
 }
 
 /// Evaluator coordinating fast Anchor-Partner asymmetric scoring.
+#[derive(Debug)]
 pub struct AnchorPartnerEvaluator {
     matrix: PartnerMatrix,
     temperature: f64,

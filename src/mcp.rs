@@ -138,7 +138,7 @@ pub fn handle_message(msg_str: &str, engine: &ZevEngine) -> Option<String> {
                     data: None,
                 }),
             };
-            return Some(serde_json::to_string(&err_resp).unwrap());
+            return Some(to_json_line(&err_resp));
         }
     };
 
@@ -155,7 +155,7 @@ pub fn handle_message(msg_str: &str, engine: &ZevEngine) -> Option<String> {
                     data: None,
                 }),
             };
-            return Some(serde_json::to_string(&err_resp).unwrap());
+            return Some(to_json_line(&err_resp));
         }
     };
 
@@ -183,7 +183,15 @@ pub fn handle_message(msg_str: &str, engine: &ZevEngine) -> Option<String> {
         },
     };
 
-    Some(serde_json::to_string(&resp).unwrap())
+    Some(to_json_line(&resp))
+}
+
+/// Serializes a JSON-RPC message, falling back to a fixed internal-error reply
+/// instead of panicking if serialization ever fails.
+fn to_json_line<T: Serialize>(msg: &T) -> String {
+    serde_json::to_string(msg).unwrap_or_else(|_| {
+        r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Internal error: failed to serialize response"}}"#.to_string()
+    })
 }
 
 /// Asynchronous in-memory message processing helper for deterministic testing without blocking on stdin.
@@ -383,11 +391,22 @@ fn handle_tools_call(id: Value, params: Option<Value>, engine: &ZevEngine) -> Js
         },
     };
 
+    let (result, error) = match serde_json::to_value(&tool_res) {
+        Ok(v) => (Some(v), None),
+        Err(e) => (
+            None,
+            Some(JsonRpcError {
+                code: -32603,
+                message: format!("Internal error: {e}"),
+                data: None,
+            }),
+        ),
+    };
     JsonRpcResponse {
         jsonrpc: "2.0".to_string(),
         id,
-        result: Some(serde_json::to_value(&tool_res).unwrap()),
-        error: None,
+        result,
+        error,
     }
 }
 

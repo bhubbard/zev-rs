@@ -42,6 +42,8 @@ pub struct VectorArena {
 
 impl VectorArena {
     pub fn new(capacity: usize, dim: usize) -> Self {
+        // A zero-capacity arena would panic on the first insert (nothing to evict).
+        let capacity = capacity.max(1);
         let mut free_slots = Vec::with_capacity(capacity);
         for i in (0..capacity).rev() {
             free_slots.push(i);

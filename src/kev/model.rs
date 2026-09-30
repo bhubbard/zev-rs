@@ -223,18 +223,11 @@ impl Model {
             .collect();
         shards.sort();
         let ld = Loader {
-            // SAFETY:
-            // - Pointer non-null invariants & memory lifetime guarantees: `shards` paths reference
-            //   existing, valid safetensors files on disk. Memory mappings are read-only, non-null,
-            //   and remain mapped and valid for the lifetime of `Loader` (and the returned model).
-            // - Concurrency invariants: The underlying files are assumed immutable during model loading
-            //   and inference, preventing data races or undefined behavior from concurrent file modification.
+            // SAFETY: `shards` reference valid safetensors files on disk; mappings are read-only, non-null,
+            // and remain valid for the Loader's lifetime; files are assumed immutable during model inference.
             base: unsafe { MmapedSafetensors::multi(&shards)? },
-            // SAFETY:
-            // - Pointer non-null invariants & memory lifetime guarantees: `adapter_model.safetensors`
-            //   is a valid, readable safetensors file in `kev_dir`. Memory map is read-only, non-null,
-            //   and remains alive for the entire duration of `Loader` usage.
-            // - Concurrency invariants: The adapter weights file remains unmodified for the process duration.
+            // SAFETY: `adapter_model.safetensors` is a valid safetensors file in `kev_dir`; read-only
+            // memory map remains valid and non-null for the duration of Loader without concurrent modification.
             lora: unsafe { MmapedSafetensors::new(kev_dir.join("adapter_model.safetensors"))? },
             scale,
             dev: dev.clone(),

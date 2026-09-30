@@ -367,6 +367,7 @@ pub fn evaluate_ordinal_severity_ladder(
     None
 }
 
+#[derive(Debug)]
 pub struct DecisionEngine {
     pub inner: ZevEngine,
 }
@@ -452,6 +453,7 @@ pub fn determine_question_family(question: &Question) -> &'static str {
     }
 }
 
+#[derive(Debug)]
 pub struct ZevEngine {
     pub default_temperature: f64,
     pub type_temperatures: TypeTemperatureConfig,

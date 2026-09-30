@@ -18,6 +18,13 @@ pub struct ApfelNeuralBackend {
 }
 
 #[cfg(feature = "neural")]
+impl std::fmt::Debug for ApfelNeuralBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ApfelNeuralBackend").finish_non_exhaustive()
+    }
+}
+
+#[cfg(feature = "neural")]
 impl Default for ApfelNeuralBackend {
     fn default() -> Self {
         Self {

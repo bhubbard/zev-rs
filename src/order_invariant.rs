@@ -168,6 +168,7 @@ fn find_clause_start(text: &str) -> usize {
     boundary_end
 }
 
+#[derive(Debug)]
 pub struct PremiseContext {
     pub raw_lower: String,
     pub token_positions: HashMap<String, SmallVec<[u32; 4]>>,
