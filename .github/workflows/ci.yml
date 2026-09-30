@@ -53,7 +53,11 @@ jobs:
         if: matrix.os == 'macos-15'
         run: cargo test --features mlx --test mlx_sieve_test
 
+      - name: Install cargo-deny
+        if: matrix.os == 'ubuntu-latest'
+        uses: taiki-e/install-action@cargo-deny
+
       - name: Cargo Deny Check
         if: matrix.os == 'ubuntu-latest'
-        uses: EmbarkStudios/cargo-deny-action@v2
+        run: cargo deny check
 
