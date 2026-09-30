@@ -59,8 +59,9 @@ impl Prefixes {
         let v = self.map.get(k).cloned()?;
         if self.order.back().is_none_or(|last| last.as_slice() != k) {
             if let Some(pos) = self.order.iter().position(|x| x.as_slice() == k) {
-                let item = self.order.remove(pos).unwrap();
-                self.order.push_back(item);
+                if let Some(item) = self.order.remove(pos) {
+                    self.order.push_back(item);
+                }
             }
         }
         Some(v)
