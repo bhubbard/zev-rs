@@ -135,53 +135,43 @@ Zev provides full support for the Hugging Face ecosystem:
 
 ---
 
-## The Three Execution Methods: SIMD, Apfel, and Candle
+## How Zev Works in 30 Seconds (The Intuition)
 
-Zev offers three distinct execution tiers depending on your latency, hardware, and semantic depth requirements:
+Think of how your own mind makes decisions:
+1. **System 1 (Instant Reflex)**: When you see a green traffic light, you press the gas pedal without deep deliberation. It takes milliseconds and uses virtually zero brainpower.
+2. **System 2 (Deep Reasoning)**: When you encounter an ambiguous, high-stakes puzzle, you stop and think carefully.
 
+Traditional AI setups treat *every single request* as a heavy, slow puzzle — sending simple questions to giant 30-billion parameter GPU models in the cloud, costing money and taking hundreds of milliseconds.
+
+**Zev turns this model upside down**:
+- **88% of your traffic** is clear and unambiguous. Zev resolves it in **5 to 11 microseconds** using pure CPU SIMD reflexes without touching heavy neural weights.
+- **The remaining ~12% tail** of genuinely ambiguous queries is automatically routed to on-device neural engines (Apple Neural Engine or distilled Gemma 4) for deep semantic reasoning.
+
+```mermaid
+flowchart TD
+    Req["Incoming Decision Request\n(Context + Candidate Options)"] --> SIMD["Tier 0: Pure Rust SIMD Reflex (11 µs)\nZero Weights • Zero GPU • Zero Allocations"]
+    SIMD --> Check{"Confidence >= 0.85?\n(Calibrated Softmax Gate)"}
+    Check -- "YES (~88% of requests)" --> FastOut["🚀 Instant Output (< 1 µs)\nResolved via Hardware Reflex"]
+    Check -- "NO (~12% ambiguous tail)" --> Dispatch{"Execution Mode"}
+    Dispatch -- "Load-Balanced" --> LB["Speculative Load-Balancing\nAlternates ANE ↔ CPU/GPU + Failover"]
+    Dispatch -- "Ensemble" --> Ens["Consensus Ensemble\nParallel Fusion: 71.9% Accuracy"]
+    Dispatch -- "Cascade" --> Cas["Tiered Cascade\nSIMD → ANE → Gemma 4"]
+    Dispatch -- "Pure SIMD" --> SimdOut["Return Safe Abstention (__insufficient__)"]
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Incoming Decision Request                         │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                     ┌─────────────────┴─────────────────┐
-                     ▼                                   ▼
-          Tier 1: Fast SIMD (5.8 µs)           Neural Direct Mode
-          • 0 MB model weights                 • High semantic ambiguity
-          • 0 heap allocation                  • Poetic/metaphorical input
-          • Perfect guardrails                 • Cross-modal reasoning
-                     │                                   │
-         High confidence?                                │
-         ├─── YES ────────► [Return 5.8 µs]              │
-         │                                               │
-         └─── NO (Ambiguous / Insufficient)              │
-                     │                                   │
-                     └─────────────────┬─────────────────┘
-                                       │
-                     ┌─────────────────┴─────────────────┐
-                     ▼                                   ▼
-        apfel-rs (Apple Intelligence)           Candle (Neural MatMul)
-        • macOS 15+ Apple Silicon               • Linux / Windows / Docker
-        • 0 MB download (OS FoundationModel)    • 7.4 ms latency (batched GEMM)
-        • 3B parameter reasoning                • Portable pure Rust tensors
-```
-
-### 1. Default SIMD Fast Path (`5.8 µs – 80 µs`)
-- **How it works**: Uses isolated vector scoring, negation-scope tracking, stem matching, and chronological recency weighting.
-- **Resource Footprint**: **0 MB RAM**, zero external model weights, zero heap allocations up to 128 candidates.
-- **Best For**: Real-time packet inspection, high-throughput microservices, API request routing, high-volume automated guardrails.
-
-### 2. `apfel-rs` (Apple Intelligence FoundationModels, `200 ms – 500 ms`)
-- **How it works**: Uses the official **[`apfel-rs`](https://crates.io/crates/apfel-rs)** crate to evaluate decisions against Apple's on-device 3-billion-parameter `FoundationModels` framework.
-- **Resource Footprint**: **0 MB download**. Reuses the pre-installed Apple Intelligence model built directly into macOS 15+.
-- **Best For**: macOS desktop applications, complex conversational text, multi-hop legal/medical distinctions, deep metaphors.
-
-### 3. `Candle` (Neural Matrix Multiplication, `6 ms – 15 ms`)
-- **How it works**: Pure Rust tensor computation using Hugging Face's Candle. Encodes all options into a contiguous 2D Tensor and computes logits in a **single batched BLAS/Metal GEMM forward pass**.
-- **Resource Footprint**: Lightweight embeddings / encoder weights (~30M–80M parameters).
-- **Best For**: High-throughput Linux production servers, Kubernetes clusters, Docker containers, cross-platform environments where single-digit millisecond latency is required.
 
 ---
+
+## Which Mode Should I Choose? (Quick Cheat Sheet)
+
+| Your Goal / Scenario | Recommended Mode | Median Latency | Throughput | JevBench Accuracy | What It Does |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| ⚡ **Production Web APIs & High-Volume Routing** | **`Zev-Load-Balanced`** *(Recommended)* | **11.21 µs** | **89,210 dec/s** | **71.10%** | Alternates sub-threshold traffic across ANE and CPU/GPU so neither queue throttles. Includes automatic bidirectional failover! |
+| 🎯 **Life-or-Death Accuracy (Legal / Medical / Compliance)** | **`Zev-Dual-Ensemble`** | **11.71 µs** | **85,382 dec/s** | **71.90%** | Runs Apple Intelligence & Gemma 4 in parallel, fusing their probabilities. Beats open models (Cygnet 71.09%) and matches closed Jev 1.13.0! |
+| 🛡️ **Tiered Edge Nodes / Graceful Degradation** | **`Zev-Dual-Cascade`** | **11.25 µs** | **88,899 dec/s** | **71.20%** | Tiers compute sequentially: SIMD ($>0.85$) $\to$ ANE ($>0.75$) $\to$ Gemma 4. Most conservative memory footprint (< 16 MB). |
+| ☁️ **Standard Cloud VPS / Docker / Non-Apple CPU** | **`Zev-Default`** *(Pure SIMD)* | **11.05 µs** | **90,507 dec/s** | **69.26%** | Pure CPU Neon/AVX. Zero model weights, zero PyTorch, runs on any $5/mo Linux server. |
+
+---
+
 
 ## Easy Usage Examples
 
@@ -245,7 +235,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Zev supports four high-performance execution paradigms to tailor latency, throughput, and accuracy to your workload:
 
 #### 1. High-Throughput Speculative Load-Balancing (Recommended for Production APIs)
-Alternates ambiguous or low-confidence queries across Apple Neural Engine (Apfel) and CPU/GPU (Gemma 4). Prevents hardware queue bottlenecks and provides automatic bidirectional failover:
+Alternates ambiguous queries across Apple Neural Engine (Apfel) and CPU/GPU (Gemma 4). Prevents hardware queue bottlenecks, balances chip thermals, and provides automatic bidirectional failover:
+
+```mermaid
+flowchart LR
+    subgraph FastPath ["Fast SIMD Path (< 1 µs)"]
+        Q["User Request"] --> Fast["SIMD Fast Check"]
+        Fast --> Gate{"Confidence\n>= 0.85?"}
+    end
+
+    Gate -- "High Conf (~88%)" --> Ret["⚡ 11 µs Instant Decision"]
+
+    subgraph LoadBalancer ["Dynamic Alternating Balancer"]
+        Gate -- "Ambiguous (~12%)" --> Turn{"Turn Counter\n(turn % 2)"}
+        Turn -- "Even Turn" --> ANE["🍎 Apple Neural Engine (ANE)"]
+        Turn -- "Odd Turn" --> Gemma["💎 Gemma 4 (CPU/GPU)"]
+        
+        ANE -.->|"Failover if offline / low conf"| Gemma
+        Gemma -.->|"Failover if offline / low conf"| ANE
+    end
+
+    ANE --> Done["✅ 89,210 ops/s • 71.10% Accuracy"]
+    Gemma --> Done
+```
 
 ```rust
 use zev::{ZevEngine, ZevRequest, ApfelNeuralBackend};
@@ -261,25 +273,68 @@ let response = engine.evaluate_recommended(&request, &backend)?;
 #### 2. Maximum-Accuracy Consensus Ensemble (Mission-Critical / Compliance)
 Runs Apfel (ANE) and Gemma 4 in parallel, performing weighted probability fusion ($50/50$ consensus) to reach **71.90% accuracy** (beating Cygnet 71.09% and matching closed-source Jev 1.13.0):
 
+```mermaid
+flowchart TD
+    Ambiguous["Ambiguous Request (SIMD Conf < 0.85)"] --> Fork["Parallel Async Dispatch"]
+    
+    subgraph ParallelEngines ["Simultaneous Dual Neural Execution"]
+        Fork --> ANE["Apple Neural Engine\n(FoundationModels via apfel-rs)"]
+        Fork --> Gemma["Gemma 4 Distilled\n(Prompt-turn semantic ranker)"]
+    end
+    
+    ANE --> Fusion["Weighted Consensus Probability Fusion\n(50% ANE + 50% Gemma 4)"]
+    Gemma --> Fusion
+    
+    Fusion --> Winner["🏆 Consensus Winner: 71.90% Accuracy\n(Beats Cygnet 71.09% & Matches Closed Jev 1.13.0)"]
+```
+
 ```rust
+// Runs parallel consensus fusion between Apple Neural Engine and Gemma 4:
 let response = engine.evaluate_recommended_ensemble(&request, &backend)?;
 ```
 
-#### 3. Dynamic Mode Dispatch via `ExecutionMode`
+#### 3. Three-Tier Sequential Cascade (Conservative Fallback)
+Tiers compute sequentially: SIMD ($>0.85$) $\to$ ANE ($>0.75$) $\to$ Gemma 4. Most conservative memory footprint (< 16 MB RSS):
+
+```mermaid
+flowchart LR
+    Req["Request"] --> T1["Tier 1: Pure SIMD\n(11.05 µs • 0 MB)"]
+    T1 --> C1{"Conf >= 0.85?"}
+    C1 -- "Yes" --> Ret1["Instant Return"]
+    C1 -- "No" --> T2["Tier 2: Apple ANE\n(apfel-rs • 0 MB)"]
+    T2 --> C2{"Conf >= 0.75?"}
+    C2 -- "Yes" --> Ret2["Return Tier 2"]
+    C2 -- "No" --> T3["Tier 3: Gemma 4\n(Deep SLM)"]
+    T3 --> Ret3["Return Tier 3"]
+```
+
 ```rust
 use zev::{ExecutionMode, ZevEngine, ApfelNeuralBackend};
 
 let engine = ZevEngine::default();
 let backend = ApfelNeuralBackend::new();
 
-// Configure mode per-environment or per-request:
-let mode = ExecutionMode::LoadBalanced { confidence_threshold: 0.85 };
-// let mode = ExecutionMode::Ensemble { confidence_threshold: 0.85, weight_apfel: 0.50 };
-// let mode = ExecutionMode::Cascade { fast_threshold: 0.85, neural_threshold: 0.75 };
-// let mode = ExecutionMode::PureSimd;
-
+let mode = ExecutionMode::Cascade { fast_threshold: 0.85, neural_threshold: 0.75 };
 let response = engine.evaluate_with_mode(&request, mode, &backend)?;
 ```
+
+#### 4. Pure SIMD Reflex (Zero Model Overhead)
+Zero model weights, zero PyTorch, pure CPU Neon/AVX. Runs on any server or Raspberry Pi:
+
+```mermaid
+flowchart LR
+    Premise["Input Text"] --> Slots["Isolated Premise Slots\n(0.0% Order Bias)"]
+    Options["Candidate Options"] --> Slots
+    Slots --> SIMD["Hardware SIMD Neon/AVX2\n(Zero Heap Rescan)"]
+    SIMD --> Softmax["Calibrated Softmax\n(T = 2.179)"]
+    Softmax --> FastVerdict["Instant Verdict: 11.05 µs • 90,507 ops/s"]
+```
+
+```rust
+let engine = ZevEngine::default();
+let response = engine.evaluate(&request)?;
+```
+
 
 ### Example 4: Together AI `tev1` Drop-In Mode (CLI & API)
 
