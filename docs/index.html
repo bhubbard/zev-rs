@@ -1681,20 +1681,20 @@
         <div class="config-card" style="border-color: var(--signal-emerald);">
           <div class="config-header">
             <span class="config-tag" style="color: var(--signal-emerald);">MODE 2 // MAXIMUM ACCURACY CONSENSUS</span>
-            <h3 class="config-title">Zev-Dual-Ensemble 🏆</h3>
+            <h3 class="config-title">Zev-Dual-Ensemble (PoE) 🏆</h3>
             <p style="color: #999; font-size: 14px;">
-              Parallel dual-model consensus fusion. Dispatches sub-threshold queries to Apple Neural Engine and Gemma 4 simultaneously, fusing their calibrated probability vectors.
+              Parallel dual-model consensus fusion. Dispatches sub-threshold queries to Apple Neural Engine and Gemma 4 simultaneously, fusing them via Bayesian Log-Linear Product of Experts.
             </p>
           </div>
           <div class="config-specs">
-            <div><span class="lbl">Latency (p50):</span> <span class="val" style="color: var(--signal-emerald);">11.71 µs</span></div>
-            <div><span class="lbl">Throughput:</span> <span class="val">85,382 dec/s</span></div>
-            <div><span class="lbl">JevBench Accuracy:</span> <span class="val" style="color: var(--signal-emerald); font-weight: 700;">71.90% (166/231) 🏆</span></div>
+            <div><span class="lbl">Latency (p50):</span> <span class="val" style="color: var(--signal-emerald);">11.75 µs</span></div>
+            <div><span class="lbl">Throughput:</span> <span class="val">85,106 dec/s</span></div>
+            <div><span class="lbl">JevBench Accuracy:</span> <span class="val" style="color: var(--signal-emerald); font-weight: 700;">74.89% (173/231) 🏆</span></div>
             <div><span class="lbl">Hardware Target:</span> <span class="val">ANE + GPU Parallel</span></div>
             <div><span class="lbl">Best For:</span> <span class="val">Legal, Medical, Compliance Audit</span></div>
           </div>
           <p style="font-size: 13px; color: var(--steel);">
-            Beats Cygnet (71.09%, #1 open model on Benchmark Heaven) and matches closed-source Jev 1.13.0 (72.00%) at $0.00 cost per 1,000 decisions.
+            Takes #1 globally: eclipses Winnow-12B (74.43%), djev (72.33%), and Jev 1.13.0 (72.00%) at $0.00 cost per 1,000 decisions.
           </p>
         </div>
 
@@ -1709,8 +1709,8 @@
           </div>
           <div class="config-specs">
             <div><span class="lbl">Latency (p50):</span> <span class="val">11.25 µs</span></div>
-            <div><span class="lbl">Throughput:</span> <span class="val">88,899 dec/s</span></div>
-            <div><span class="lbl">JevBench Accuracy:</span> <span class="val">71.20% (164/231)</span></div>
+            <div><span class="lbl">Throughput:</span> <span class="val">88,888 dec/s</span></div>
+            <div><span class="lbl">JevBench Accuracy:</span> <span class="val" style="color: var(--electric-cyan); font-weight: 700;">72.73% (168/231)</span></div>
             <div><span class="lbl">Hardware Target:</span> <span class="val">CPU &rarr; ANE &rarr; GPU</span></div>
             <div><span class="lbl">Best For:</span> <span class="val">Battery & Edge Node Devices</span></div>
           </div>
@@ -1756,13 +1756,13 @@
           </div>
           <div style="padding: 16px; border: 1px solid rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.03);">
             <div style="font-size: 18px; margin-bottom: 6px;">🎯 <strong>Legal / Medical / Compliance</strong></div>
-            <div style="color: var(--signal-emerald); font-family: var(--font-mono); font-size: 13px; margin-bottom: 8px;">Zev-Dual-Ensemble</div>
-            <div style="font-size: 13px; color: #ccc;">71.90% accuracy. Two AI brains verify each other with 50/50 probability fusion.</div>
+            <div style="color: var(--signal-emerald); font-family: var(--font-mono); font-size: 13px; margin-bottom: 8px;">Zev-Dual-Ensemble (PoE)</div>
+            <div style="font-size: 13px; color: #ccc;">74.89% accuracy (#1 overall). Fuses Apfel and Gemma 4 with Bayesian Product of Experts.</div>
           </div>
           <div style="padding: 16px; border: 1px solid rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.03);">
             <div style="font-size: 18px; margin-bottom: 6px;">🛡️ <strong>Edge & Battery Powered</strong></div>
             <div style="color: var(--amber-gold); font-family: var(--font-mono); font-size: 13px; margin-bottom: 8px;">Zev-Dual-Cascade</div>
-            <div style="font-size: 13px; color: #ccc;">71.20% accuracy with &lt; 16 MB RAM. Only spins up heavy models if SIMD is unsure.</div>
+            <div style="font-size: 13px; color: #ccc;">72.73% accuracy with &lt; 16 MB RAM. Only spins up neural fallbacks if SIMD is unsure.</div>
           </div>
           <div style="padding: 16px; border: 1px solid var(--concrete); background: rgba(255, 255, 255, 0.02);">
             <div style="font-size: 18px; margin-bottom: 6px;">☁️ <strong>Generic Cloud Server / Docker</strong></div>
@@ -1778,15 +1778,15 @@
     <section id="laya-comparison" class="container" style="border-top: 1px solid var(--concrete); padding-top: 48px;">
       <div class="banner-highlight">
         <div class="kicker" style="color: var(--signal-emerald);">HEAD-TO-HEAD SHOWDOWN</div>
-        <h3>How Zev Beats Laya: 70.1% vs 58.4% Accuracy at 1,369× Speed</h3>
+        <h3>How Zev Beats Laya: 70.6% vs 58.4% Accuracy at 1,369× Speed</h3>
         <p>
           Laya is Convai Innovations' open-weights ModernBERT-large 421M model running in PyTorch. In the official JevBench evaluation across 231 decisions, <strong>Zev won 51 head-to-head tasks while Laya won only 26</strong>. Furthermore, Zev requires zero external weights, runs on ordinary CPUs, and completes decisions in <strong>0.37 milliseconds</strong> rather than Laya's <strong>508 milliseconds</strong>.
         </p>
 
         <div class="h2h-stats">
           <div class="h2h-stat-box">
-            <div class="h2h-stat-val">+11.7%</div>
-            <div class="h2h-stat-lbl">Accuracy Advantage (70.1% vs 58.4%)</div>
+            <div class="h2h-stat-val">+12.2%</div>
+            <div class="h2h-stat-lbl">Accuracy Advantage (70.6% vs 58.4%)</div>
           </div>
           <div class="h2h-stat-box">
             <div class="h2h-stat-val">1,369×</div>
@@ -1813,25 +1813,53 @@
           </div>
           <div class="bar-group">
             <div class="bar-row">
-              <span class="bar-label">Zev-Dual-Ensemble 🏆</span>
+              <span class="bar-label">Zev-Dual-Ensemble (PoE) 🏆</span>
               <div class="bar-track">
-                <div class="bar-fill bar-fill-zev" style="width: 71.90%; background: var(--signal-emerald); font-weight: 700;">71.90%</div>
+                <div class="bar-fill bar-fill-zev" style="width: 74.89%; background: var(--signal-emerald); font-weight: 700;">74.89%</div>
               </div>
-              <span class="bar-val"><strong>166</strong> / 231</span>
+              <span class="bar-val"><strong>173</strong> / 231</span>
             </div>
             <div class="bar-row">
-              <span class="bar-label">Zev-Dual-Cascade</span>
+              <span class="bar-label">Winnow-12B Q8</span>
               <div class="bar-track">
-                <div class="bar-fill bar-fill-zev" style="width: 71.20%;">71.20%</div>
+                <div class="bar-fill bar-fill-competitor" style="width: 74.43%;">74.43%</div>
               </div>
-              <span class="bar-val"><strong>164</strong> / 231</span>
+              <span class="bar-val">172 / 231</span>
             </div>
             <div class="bar-row">
-              <span class="bar-label">Zev-Load-Balanced</span>
+              <span class="bar-label">Zev-Dual-Cascade ⚡</span>
               <div class="bar-track">
-                <div class="bar-fill bar-fill-zev" style="width: 71.10%; background: var(--electric-cyan);">71.10%</div>
+                <div class="bar-fill bar-fill-zev" style="width: 72.73%; background: var(--electric-cyan);">72.73%</div>
               </div>
-              <span class="bar-val"><strong>164</strong> / 231</span>
+              <span class="bar-val"><strong>168</strong> / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Zev-Load-Balanced ⚡</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-zev" style="width: 72.73%; background: var(--electric-cyan);">72.73%</div>
+              </div>
+              <span class="bar-val"><strong>168</strong> / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">djev (Maisa 26B)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 72.33%;">72.33%</div>
+              </div>
+              <span class="bar-val">167 / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Jev 1.13.0 (Closed API)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 72.00%;">72.00%</div>
+              </div>
+              <span class="bar-val">166 / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Kev 8B (Qwen3)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 71.43%;">71.43%</div>
+              </div>
+              <span class="bar-val">165 / 231</span>
             </div>
             <div class="bar-row">
               <span class="bar-label">Cygnet (Gemma 4-31B)</span>
@@ -1843,23 +1871,23 @@
             <div class="bar-row">
               <span class="bar-label">Zev-Gemma4</span>
               <div class="bar-track">
-                <div class="bar-fill bar-fill-zev-subtle" style="width: 70.80%;">70.80%</div>
+                <div class="bar-fill bar-fill-zev-subtle" style="width: 71.00%;">71.00%</div>
               </div>
-              <span class="bar-val"><strong>163</strong> / 231</span>
+              <span class="bar-val"><strong>164</strong> / 231</span>
             </div>
             <div class="bar-row">
               <span class="bar-label">Zev-Apfel (ANE)</span>
               <div class="bar-track">
-                <div class="bar-fill bar-fill-zev-subtle" style="width: 70.13%;">70.13%</div>
+                <div class="bar-fill bar-fill-zev-subtle" style="width: 70.56%;">70.56%</div>
               </div>
-              <span class="bar-val"><strong>162</strong> / 231</span>
+              <span class="bar-val"><strong>163</strong> / 231</span>
             </div>
             <div class="bar-row">
               <span class="bar-label">Zev-Default (SIMD)</span>
               <div class="bar-track">
-                <div class="bar-fill bar-fill-zev-subtle" style="width: 69.26%;">69.26%</div>
+                <div class="bar-fill bar-fill-zev-subtle" style="width: 69.70%;">69.70%</div>
               </div>
-              <span class="bar-val"><strong>160</strong> / 231</span>
+              <span class="bar-val"><strong>161</strong> / 231</span>
             </div>
             <div class="bar-row">
               <span class="bar-label">Laya (ModernBERT)</span>
@@ -2437,9 +2465,9 @@
     <!-- Quickstart section -->
     <section id="quickstart" class="container" style="border-top: 1px solid var(--concrete);">
       <div class="kicker">GETTING STARTED</div>
-      <h2 class="section-title">Quick Installation & Package Registries</h2>
+      <h2 class="section-title">Four Ways to Run Zev</h2>
       <p class="section-desc">
-        Install Zev via <strong>Homebrew</strong>, <strong>npm / npx</strong>, or <strong>Cargo / Crates.io</strong>, or embed directly into your Rust services.
+        Run Zev via <strong>npx instant CLI</strong>, <strong>Homebrew binary</strong>, <strong>HTTP REST daemon</strong>, or <strong>embedded Rust library</strong> across all four execution modes.
       </p>
 
       <div class="action-row" style="margin-bottom: 24px;">
@@ -2454,37 +2482,62 @@
         </a>
       </div>
 
-      <pre class="code-box"><code><span class="comment"># Option A: Install via Homebrew (macOS &amp; Linux)</span>
-brew tap bhubbard/tap
-brew install zev
-
-<span class="comment"># Option B: Instant zero-install CLI execution with npx / npm</span>
+      <div style="font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; color: var(--steel); margin-top: 24px; letter-spacing: 0.5px;">
+        CLI &amp; SERVICE DEPLOYMENT // 4 WAYS TO RUN
+      </div>
+      <pre class="code-box"><code><span class="comment"># Method 1: Instant Zero-Install Execution (npx / npm)</span>
 npx -y zev-rs route \
   --state <span class="str">"Critical: production database is down with 500 connection refused errors"</span> \
   --routes <span class="str">'{"billing": "Invoices", "infra": "Database outages", "sales": "Enterprise"}'</span>
 
-<span class="comment"># Or install globally via npm:</span>
-npm install -g zev-rs
+<span class="comment"># Method 2: Native CLI Installation (Homebrew on macOS &amp; Linux)</span>
+brew tap bhubbard/tap
+brew install zev
+zev route --state <span class="str">"Refund request #1084"</span> --routes <span class="str">'{"billing": "Billing", "support": "Tech"}'</span>
 
-<span class="comment"># Option C: Install via Cargo (crates.io)</span>
+<span class="comment"># Method 3: High-Performance REST API Server (Cargo / Standalone Daemon)</span>
 cargo install zev-rs
+zev serve --port 8080
+<span class="comment"># Drop-in HTTP API on http://127.0.0.1:8080/v1/decisions</span>
 
-<span class="comment"># Start the high-performance REST daemon</span>
-zev serve --port 8080</code></pre>
+<span class="comment"># Method 4: Streaming Batch Pipelines (High-Throughput JSONL)</span>
+cat tickets.jsonl | zev batch --file - --mode route \
+  --routes <span class="str">'{"billing": "Billing", "infra": "Infra", "sales": "Sales"}'</span> | jq</code></pre>
 
-      <pre class="code-box"><code><span class="comment">// Option D: Embed directly in your Rust Cargo.toml</span>
+      <div style="font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; color: var(--steel); margin-top: 28px; letter-spacing: 0.5px;">
+        RUST EMBEDDED LIBRARY // ALL 4 ENGINE EXECUTION MODES
+      </div>
+      <pre class="code-box"><code><span class="comment">// Add to Cargo.toml:</span>
 <span class="keyword">[dependencies]</span>
 zev-rs = { version = <span class="str">"0.3.5"</span>, features = [<span class="str">"neural"</span>] }
 
-<span class="comment">// 1. High-Throughput Production Mode (89,210 ops/s • 11.2 µs • Automatic Failover)</span>
-<span class="keyword">use</span> zev::{ZevEngine, ApfelNeuralBackend};
+<span class="keyword">use</span> zev::{ZevEngine, ApfelNeuralBackend, ExecutionMode};
 
 <span class="keyword">let</span> engine = ZevEngine::default();
 <span class="keyword">let</span> backend = ApfelNeuralBackend::new();
+
+<span class="comment">// MODE 1: Load-Balanced Production Reflex (89,210 ops/s • 11.2 µs • Automatic Failover)</span>
+<span class="comment">// Alternates sub-threshold traffic across ANE and Gemma 4 with automatic bidirectional failover</span>
 <span class="keyword">let</span> response = engine.evaluate_recommended(&amp;request, &amp;backend)?;
 
-<span class="comment">// 2. Maximum-Accuracy Consensus Ensemble (71.90% Accuracy • Beats Cygnet #1)</span>
-<span class="keyword">let</span> response = engine.evaluate_recommended_ensemble(&amp;request, &amp;backend)?;</code></pre>
+<span class="comment">// MODE 2: Maximum-Accuracy Consensus Ensemble (85,382 ops/s • 11.7 µs • 71.90% Accuracy)</span>
+<span class="comment">// Simultaneous dual neural execution (50% ANE + 50% Gemma 4 probability fusion; beats Cygnet #1)</span>
+<span class="keyword">let</span> response = engine.evaluate_recommended_ensemble(&amp;request, &amp;backend)?;
+
+<span class="comment">// MODE 3: Three-Tier Sequential Cascade (88,899 ops/s • 11.25 µs • &lt; 16 MB RSS Memory)</span>
+<span class="comment">// Sequential escalation: SIMD reflex (&gt;0.85) → Apple ANE (&gt;0.75) → Gemma 4</span>
+<span class="keyword">let</span> mode = ExecutionMode::Cascade { fast_threshold: 0.85, neural_threshold: 0.75 };
+<span class="keyword">let</span> response = engine.evaluate_with_mode(&amp;request, mode, &amp;backend)?;
+
+<span class="comment">// MODE 4: Pure Hardware SIMD Reflex (90,507 ops/s • 11.05 µs • Zero Model Weights)</span>
+<span class="comment">// Pure CPU Neon/AVX2; zero weights, zero PyTorch/GPU. Runs on any Docker container or VPS</span>
+<span class="keyword">let</span> response = engine.evaluate(&amp;request)?;
+
+<span class="comment">// Or instant 5.8 µs zero-allocation routing:</span>
+<span class="keyword">let</span> (route, confidence) = engine.route(<span class="str">"Refund request #1084"</span>, [
+    (<span class="str">"billing"</span>.into(), <span class="str">"Refunds and invoices"</span>.into()),
+    (<span class="str">"tech_support"</span>.into(), <span class="str">"API errors and bugs"</span>.into()),
+])?;</code></pre>
 
     </section>
   </main>
