@@ -1,4 +1,11 @@
-//! Full JevBench Benchmark Across All Available Zev Execution Methods.
+//! Zev Synthetic Scale Suite: High-Throughput Lexical Extraction Benchmark.
+//!
+//! Note on Benchmark Integrity:
+//! This suite evaluates the 1,200 synthetic scale tasks in `datasets/zev_benchmarks/`
+//! designed to stress-test zero-token SIMD throughput, keyword extraction, and latency under load.
+//!
+//! For the authentic frozen public semantic reasoning suite (231 tasks), see:
+//! `cargo run --release --example eval_jevbench_231`
 //!
 //! Evaluates:
 //! 1. Zev-Default (Pure Hardware SIMD Heuristics)
@@ -10,8 +17,8 @@
 //! 7. Zev-Clm (Contrastive Language Model Hybrid)
 //!
 //! Across:
-//! - Full JevBench Dataset (1,200 frozen tasks)
-//! - JevBench Test Split (324 held-out test tasks)
+//! - Zev Synthetic Scale Suite (1,200 scale tasks)
+//! - Synthetic Test Split (324 held-out tasks)
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -204,9 +211,11 @@ fn print_results_table(title: &str, results: &[MethodResult]) {
 
 fn main() {
     println!("═════════════════════════════════════════════════════════════════════════════════════════════════");
-    println!("                   ZEV-RS FULL JEVBENCH MULTI-METHOD COMPREHENSIVE BENCHMARK                     ");
+    println!("             ZEV-RS SYNTHETIC SCALE SUITE: HIGH-THROUGHPUT LEXICAL EXTRACTION BENCHMARK          ");
     println!("═════════════════════════════════════════════════════════════════════════════════════════════════");
     println!("Platform: Apple Silicon (macOS) | Pure Rust Release Binary");
+    println!("Notice: Stress-tests lexical extraction throughput & token filtering across 1,200 synthetic rows.");
+    println!("For the frozen public reasoning suite (231 tasks), run: cargo run --release --example eval_jevbench_231\n");
 
     let engine = ZevEngine::default();
 
@@ -214,10 +223,10 @@ fn main() {
     let neural_backend = zev::ApfelNeuralBackend::new();
 
     // -------------------------------------------------------------------------
-    // 1. FULL JEVBENCH (1,200 TASKS)
+    // 1. SYNTHETIC SCALE SUITE (1,200 TASKS)
     // -------------------------------------------------------------------------
     let full_dataset_path = "datasets/zev_benchmarks/zev_benchmarks.jsonl";
-    println!("\nLoading Full JevBench dataset from '{}'...", full_dataset_path);
+    println!("Loading Synthetic Scale Suite from '{}'...", full_dataset_path);
     let full_tasks = load_dataset(full_dataset_path);
     println!("Loaded {} evaluation tasks.\n", full_tasks.len());
 

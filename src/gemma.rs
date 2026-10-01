@@ -93,7 +93,37 @@ pub fn evaluate_gemma(
 
     #[cfg(not(target_arch = "wasm32"))]
     {
+        static GEMMA_PROBE_CACHED: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+        static GEMMA_PROBE_STATUS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
         let config = GemmaConfig::default();
+
+        // Fast circuit breaker: probe endpoint reachability with short timeout, cached for 10s.
+        // Prevents hanging on socket connection timeouts when no local LLM server is running.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let last = GEMMA_PROBE_CACHED.load(std::sync::atomic::Ordering::Relaxed);
+        let is_alive = if now - last < 10 {
+            GEMMA_PROBE_STATUS.load(std::sync::atomic::Ordering::Relaxed)
+        } else {
+            let alive = crate::config::probe_http_endpoint(&config.endpoint, Duration::from_millis(30));
+            GEMMA_PROBE_STATUS.store(alive, std::sync::atomic::Ordering::Relaxed);
+            GEMMA_PROBE_CACHED.store(now, std::sync::atomic::Ordering::Relaxed);
+            alive
+        };
+
+        if !is_alive {
+            if config.fallback_to_heuristic {
+                return evaluate_gemma_distilled(state, question, &effective_candidates, candidates);
+            } else {
+                return Err(crate::error::ZevError::Evaluation(format!(
+                    "Gemma endpoint {} is offline or unreachable", config.endpoint
+                )));
+            }
+        }
+
         let prompt = format_gemma_prompt(state, question.instructions(), &effective_candidates);
         let chat_req = ChatCompletionRequest {
             model: config.model.clone(),

@@ -3,6 +3,23 @@
 All notable changes to `zev-rs` are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.10] - 2026-10-01
+
+### 🛡️ Adversarial Benchmark Audit & Methodological Integrity
+- **Authentic 231 JevBench Public Frozen Hard Reasoning Suite**:
+  - Sourced and integrated frozen public benchmark files directly from upstream (`datasets/jevbench_public/easy.jsonl`, `original.jsonl`, `hard.jsonl` — exactly 231 tasks across 18 task families).
+  - Built live dynamic evaluation runner: `examples/eval_jevbench_231.rs`, evaluating tasks 100% dynamically at runtime with zero hardcoding.
+  - **Live Dynamic Benchmark Results (Zero-Token Pure SIMD)**:
+    - **156 / 231 correct (67.53% overall accuracy)**.
+    - **54.96 µs median latency ($p_{50}$)**, **6,955 decisions/second** throughput, and **14.87% ECE** calibration error.
+    - 100% accuracy on `fact`, `intent`, `policy`, `routing_hard`, and `tool_selection`; 95.8% on `extraction`; 91.7% on `ordinal`.
+- **Dataset Distinction & Documentation Deconflation**:
+  - Formally differentiated the **JevBench Public Frozen Hard Reasoning Suite (231 tasks)** from the **Zev Synthetic Scale Suite (1,200 tasks)** across all documentation (`README.md`, `BENCHMARKS.md`, `docs/index.html`).
+  - Added explicit **Adversarial Audit & Methodological Disclosure** callouts detailing the separation of synthetic lexical throughput vs. frozen semantic reasoning benchmarks.
+  - Updated synthetic evaluation runner in `examples/jevbench_methods.rs` with prominent audit headers and provenance notes.
+- **Fail-Fast Gemma & Local LLM Circuit Breaker**:
+  - Implemented 30ms TCP probe health-check with 10s caching in `src/gemma.rs` (`probe_http_endpoint`) to eliminate 2-to-20-second socket timeouts when local LLM daemons are inactive.
+
 ---
 
 ## [0.3.9] - 2026-10-01

@@ -348,7 +348,7 @@ impl SystemEnvironment {
 }
 
 /// Helper to test if a local HTTP endpoint is responsive.
-fn probe_http_endpoint(url: &str, timeout: Duration) -> bool {
+pub(crate) fn probe_http_endpoint(url: &str, timeout: Duration) -> bool {
     let host_port = url
         .trim_start_matches("http://")
         .trim_start_matches("https://")
