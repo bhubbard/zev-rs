@@ -389,25 +389,29 @@ struct JevBenchItem {
 
 fn load_jevbench_231() -> Vec<JevBenchItem> {
     let mut items = Vec::new();
-    let paths = [
-        "datasets/jevbench_public/easy.jsonl",
-        "datasets/jevbench_public/original.jsonl",
-        "datasets/jevbench_public/hard.jsonl",
-    ];
+    let file_names = ["easy.jsonl", "original.jsonl", "hard.jsonl"];
 
-    for path_str in paths {
-        let path = std::path::Path::new(path_str);
-        if let Ok(file) = File::open(path) {
-            let reader = BufReader::new(file);
-            for line_res in reader.lines() {
-                if let Ok(line) = line_res {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() {
-                        if let Ok(item) = serde_json::from_str::<JevBenchItem>(trimmed) {
-                            items.push(item);
+    for fname in file_names {
+        let candidates = [
+            format!("datasets/jevbench/{fname}"),
+            format!("datasets/jevbench_public/{fname}"),
+            format!("/tmp/jevbench/datasets/public/{fname}"),
+        ];
+        for path_str in &candidates {
+            let path = std::path::Path::new(path_str);
+            if let Ok(file) = File::open(path) {
+                let reader = BufReader::new(file);
+                for line_res in reader.lines() {
+                    if let Ok(line) = line_res {
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() {
+                            if let Ok(item) = serde_json::from_str::<JevBenchItem>(trimmed) {
+                                items.push(item);
+                            }
                         }
                     }
                 }
+                break;
             }
         }
     }

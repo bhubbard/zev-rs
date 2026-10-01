@@ -3,6 +3,28 @@
 All notable changes to `zev-rs` are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.11] - 2026-10-01
+
+### 🚀 vLLM Structured Diffusion, Exact Candidate Logprob Slicing & Edge Deployment
+- **vLLM Structured Diffusion Client (`diffusion_read_only`)**:
+  - Implemented single-read prefill-only execution (`diffusion_max_steps: 1`, `diffusion_read_only: true`, `diffusion_pinned`, `diffusion_seed_canvas`) inspired by vLLM PR #57250.
+  - Achieves ultra-fast single-pass classification without full autoregressive generation.
+- **Exact Candidate Logprob Slicing (`parse_gemma_logprobs_decision`)**:
+  - Reconstructs calibrated decision distributions directly from token logprobs without truncation on large candidate spaces.
+  - Maps bracketed candidate tokens to option IDs and decodes full probability distributions.
+- **Adaptive $H_1$ Shannon Entropy Speculative Gating**:
+  - Added option-count scaled Shannon entropy fallback boundary $\tau_{\text{entropy}} = \operatorname{clamp}(0.40 \cdot \ln(N), 0.12, 0.50)$.
+  - Triggers fast multi-model consensus fallback when decision entropy indicates high ambiguity.
+- **Vendored JevBench 231 Dataset**:
+  - Vendored the official 231 frozen tasks from `fstandhartinger/jevbench` into `datasets/jevbench/` (`easy.jsonl`, `original.jsonl`, `hard.jsonl`) for reproducible, offline benchmarking.
+- **Cloudflare Edge Worker Deployment (`wasm-worker/`)**:
+  - Deployed `zev-decision-worker` to Cloudflare Workers with microsecond in-isolate execution time (<100µs) and 1ms startup.
+  - Supports `/evaluate`, `/v1/system_one`, and `/bench` endpoints with full TypeSafe wire protocol compatibility.
+- **Multi-Method Empirical Evaluation**:
+  - Verified across 6 execution paradigms on JevBench (231 items, up to 68.4% accuracy), Decision Index (1,391 items, up to 50.75% PoE accuracy), and TypeSafe WorkflowEvals (80 items, up to 62.5% accuracy).
+
+---
+
 ## [0.3.10] - 2026-10-01
 
 ### 🛡️ Adversarial Benchmark Audit & Methodological Integrity

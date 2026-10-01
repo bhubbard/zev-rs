@@ -37,7 +37,7 @@ export default {
             name: "zev-decision-worker",
             description: "Zero-Token LLM Decision Engine running on Cloudflare Workers WASM",
             engine: "zev-wasm-edge",
-            version: "0.3.10",
+            version: "0.3.11",
             status: "ready",
             architecture: "Non-autoregressive order-invariant inverted index",
             latency_tier: "microsecond (<100µs in-isolate execution)",
