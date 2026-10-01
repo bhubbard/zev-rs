@@ -1,4 +1,6 @@
-use chrono::{Duration, Utc};
+use chrono::Duration;
+#[cfg(not(target_arch = "wasm32"))]
+use chrono::Utc;
 use std::borrow::Cow;
 
 /// Injects dynamic temporal reference facts to ground relative time expressions.
@@ -20,7 +22,10 @@ pub fn inject_temporal_facts<'a>(text: &'a str) -> Cow<'a, str> {
         return Cow::Borrowed(text);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     let now = Utc::now().date_naive();
+    #[cfg(target_arch = "wasm32")]
+    let now = chrono::NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
     let yesterday = now - Duration::days(1);
     let seven_days_ago = now - Duration::days(7);
 

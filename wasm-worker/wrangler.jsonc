@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zev-decision-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "account_id": "1175740cdf81970b9d1522fe245099de",
+  "observability": {
+    "enabled": true
+  },
+  "rules": [
+    {
+      "type": "CompiledWasm",
+      "globs": ["**/*.wasm"],
+      "fallthrough": false
+    }
+  ]
+}

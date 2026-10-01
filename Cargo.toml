@@ -23,6 +23,7 @@ exclude = [
 [lib]
 name = "zev"
 path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "zev"

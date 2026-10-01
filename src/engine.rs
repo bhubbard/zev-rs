@@ -9,6 +9,7 @@ use crate::types::{
     SystemOneResponse, WireUsage, ZevAnswer, ZevRequest, ZevResponse, DEFAULT_MODEL, MAX_SLOTS,
 };
 use std::collections::BTreeMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
 pub trait Evaluable {
@@ -567,6 +568,7 @@ impl ZevEngine {
         }
 
         crate::qos::elevate_thread_qos();
+        #[cfg(not(target_arch = "wasm32"))]
         let start = Instant::now();
 
         // 1. Text Preprocessing & Temporal Grounding
@@ -593,6 +595,7 @@ impl ZevEngine {
             }
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
         let eval_start = Instant::now();
 
         // Pre-tokenize premise context once for all questions
@@ -680,8 +683,12 @@ impl ZevEngine {
             map
         };
 
+        #[cfg(not(target_arch = "wasm32"))]
         let eval_micros = eval_start.elapsed().as_secs_f64() * 1_000_000.0;
+        #[cfg(not(target_arch = "wasm32"))]
         let total_micros = start.elapsed().as_secs_f64() * 1_000_000.0;
+        #[cfg(target_arch = "wasm32")]
+        let (eval_micros, total_micros) = (0.0, 0.0);
 
         Ok(ZevResponse {
             model: req.model.clone().unwrap_or_else(|| DEFAULT_MODEL.into()),

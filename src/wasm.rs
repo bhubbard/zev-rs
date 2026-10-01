@@ -8,11 +8,28 @@ use crate::types::ZevRequest;
 use crate::wire::{SystemOneRequest, SystemOneResponse};
 use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn error(s: &str);
+}
+
+static PANIC_HOOK_SET: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn init_panic_hook() {
+    if !PANIC_HOOK_SET.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        std::panic::set_hook(Box::new(|info| {
+            error(&format!("ZEV_WASM_PANIC: {}", info));
+        }));
+    }
+}
+
 /// Evaluates a Zev decision request formatted as JSON.
 ///
 /// Returns serialized `ZevResponse` JSON or a string error.
 #[wasm_bindgen]
 pub fn zev_evaluate_json(request_json: &str) -> Result<String, JsValue> {
+    init_panic_hook();
     let req: ZevRequest = serde_json::from_str(request_json)
         .map_err(|e| JsValue::from_str(&format!("Invalid ZevRequest JSON: {e}")))?;
 
@@ -59,6 +76,7 @@ pub fn zev_evaluate_state_and_questions(
 /// Evaluates a SystemOne/Jev wire request format (used by Clef and Decider) in WASM.
 #[wasm_bindgen]
 pub fn zev_evaluate_system_one_json(request_json: &str) -> Result<String, JsValue> {
+    init_panic_hook();
     let wire_req: SystemOneRequest = serde_json::from_str(request_json)
         .map_err(|e| JsValue::from_str(&format!("Invalid SystemOneRequest JSON: {e}")))?;
 
