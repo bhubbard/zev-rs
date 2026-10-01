@@ -52,6 +52,7 @@ fn test_feature_2_quantile_volatility_spread() {
             "Severity 2: Elevated latency and packet drops".into(),
             "Severity 3: Critical service outage".into(),
         ],
+        ordinal_smoothing: None,
         policy: Default::default(),
     });
 

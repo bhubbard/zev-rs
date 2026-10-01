@@ -54,6 +54,7 @@ fn test_per_type_temperature_calibration_resolution() {
                 "P2 - degraded checkout gateway".into(),
                 "P1 - total site outage".into(),
             ],
+            ordinal_smoothing: None,
             policy: Policy {
                 allow_abstain: false,
                 ..Default::default()

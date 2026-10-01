@@ -603,7 +603,8 @@ impl ZevEngine {
         }
         let fallback_mode = std::env::var("ZEV_FALLBACK").unwrap_or_default();
 
-        // 2. Parallel / Multi-Task Question Scoring via Rayon
+        // 2. Multi-Task Question Scoring (Rayon on native, sequential on wasm)
+        #[cfg(not(target_arch = "wasm32"))]
         let answers: BTreeMap<String, ZevAnswer> = if req.questions.len() > 1 {
             use rayon::prelude::*;
             let results: Result<Vec<(String, ZevAnswer)>> = req
@@ -624,6 +625,24 @@ impl ZevEngine {
                 .collect();
             results?.into_iter().collect()
         } else {
+            let mut map = BTreeMap::new();
+            for (key, q) in &req.questions {
+                let ans = self.evaluate_single_question(
+                    key,
+                    q,
+                    &final_state,
+                    &state_borrowed,
+                    &ctx,
+                    req.temperature,
+                    &fallback_mode,
+                )?;
+                map.insert(key.clone(), ans);
+            }
+            map
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        let answers: BTreeMap<String, ZevAnswer> = {
             let mut map = BTreeMap::new();
             for (key, q) in &req.questions {
                 let ans = self.evaluate_single_question(

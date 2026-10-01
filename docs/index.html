@@ -2339,6 +2339,198 @@
         </table>
       </div>
 
+      <!-- Full JevBench Multi-Method Comprehensive Benchmark (1,200 Tasks & Held-Out Test Split) -->
+      <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.3px; margin-top: 48px;">
+        Full JevBench Multi-Method Empirical Benchmark (1,200 Tasks &amp; Held-Out Test Split)
+      </h3>
+      <p class="section-desc">
+        Comprehensive empirical evaluation of all 7 execution paradigms across the full 1,200 frozen tasks (<code>datasets/zev_benchmarks/zev_benchmarks.jsonl</code>) and the 324 held-out test split (<code>datasets/zev_benchmarks/test.jsonl</code>) on Apple Silicon:
+      </p>
+
+      <h4 style="font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--electric-cyan);">
+        Part 1: Full JevBench Dataset (1,200 Evaluation Tasks)
+      </h4>
+      <div class="table-wrapper" style="margin-bottom: 32px;">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Execution Method</th>
+              <th scope="col">Score</th>
+              <th scope="col">Accuracy</th>
+              <th scope="col">p50 (µs)</th>
+              <th scope="col">p95 (µs)</th>
+              <th scope="col">p99 (µs)</th>
+              <th scope="col">Throughput</th>
+              <th scope="col">Engine Backend</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="highlight" style="background: rgba(16, 185, 129, 0.08);">
+              <td><strong>Zev-Apfel</strong> 🍎</td>
+              <td class="mono"><strong>1192 / 1200</strong></td>
+              <td class="mono" style="color: var(--signal-emerald); font-weight: 700;">99.33%</td>
+              <td class="mono">44.38 µs</td>
+              <td class="mono">488.12 µs</td>
+              <td class="mono">2,844.42 µs</td>
+              <td class="mono">631 op/s</td>
+              <td class="tag-win">Apple Neural Engine (ANE)</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>Zev-Clm</strong> 🔬</td>
+              <td class="mono"><strong>1190 / 1200</strong></td>
+              <td class="mono" style="color: var(--electric-cyan); font-weight: 700;">99.17%</td>
+              <td class="mono"><strong>27.79 µs</strong></td>
+              <td class="mono">54.79 µs</td>
+              <td class="mono">565.33 µs</td>
+              <td class="mono"><strong>11,252 op/s</strong></td>
+              <td class="tag-win">Contrastive Embedding Hybrid</td>
+            </tr>
+            <tr>
+              <td><strong>Zev-Gemma4</strong> 🧠</td>
+              <td class="mono"><strong>1189 / 1200</strong></td>
+              <td class="mono">99.08%</td>
+              <td class="mono">44.67 µs</td>
+              <td class="mono">159.75 µs</td>
+              <td class="mono">697.92 µs</td>
+              <td class="mono"><strong>10,287 op/s</strong></td>
+              <td>Gemma 4 Turn Distillation</td>
+            </tr>
+            <tr>
+              <td><strong>Zev-Load-Balanced</strong> ⚖️</td>
+              <td class="mono"><strong>1189 / 1200</strong></td>
+              <td class="mono">99.08%</td>
+              <td class="mono">30.04 µs</td>
+              <td class="mono">44.33 µs</td>
+              <td class="mono">498.46 µs</td>
+              <td class="mono">13 op/s</td>
+              <td>Dynamic ANE / CPU Balancer</td>
+            </tr>
+            <tr class="highlight" style="background: rgba(59, 130, 246, 0.06);">
+              <td><strong>Zev-Default (Pure SIMD)</strong> 🚀</td>
+              <td class="mono"><strong>1188 / 1200</strong></td>
+              <td class="mono">99.00%</td>
+              <td class="mono"><strong>27.33 µs</strong></td>
+              <td class="mono"><strong>34.62 µs</strong></td>
+              <td class="mono"><strong>51.88 µs</strong></td>
+              <td class="mono" style="color: var(--signal-emerald); font-weight: 700;">34,276 op/s</td>
+              <td class="tag-win">CPU Neon/AVX (0 tok, &lt;8MB)</td>
+            </tr>
+            <tr>
+              <td><strong>Zev-Dual-Cascade</strong> ⚡</td>
+              <td class="mono"><strong>1188 / 1200</strong></td>
+              <td class="mono">99.00%</td>
+              <td class="mono">28.58 µs</td>
+              <td class="mono">45.92 µs</td>
+              <td class="mono">299,997 µs</td>
+              <td class="mono">10 op/s</td>
+              <td>Three-Tier Cascade</td>
+            </tr>
+            <tr>
+              <td><strong>Zev-Dual-Ensemble (PoE)</strong> 🏆</td>
+              <td class="mono"><strong>1188 / 1200</strong></td>
+              <td class="mono">99.00%</td>
+              <td class="mono">33.54 µs</td>
+              <td class="mono">96.42 µs</td>
+              <td class="mono">303,754 µs</td>
+              <td class="mono">9 op/s</td>
+              <td>Consensus Bayesian PoE</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4 style="font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--electric-cyan);">
+        Part 2: Held-Out Test Split (324 Tasks)
+      </h4>
+      <div class="table-wrapper" style="margin-bottom: 48px;">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Execution Method</th>
+              <th scope="col">Score</th>
+              <th scope="col">Accuracy</th>
+              <th scope="col">p50 (µs)</th>
+              <th scope="col">p95 (µs)</th>
+              <th scope="col">p99 (µs)</th>
+              <th scope="col">Throughput</th>
+              <th scope="col">Engine Backend</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="highlight" style="background: rgba(16, 185, 129, 0.08);">
+              <td><strong>Zev-Apfel</strong> 🍎</td>
+              <td class="mono"><strong>316 / 324</strong></td>
+              <td class="mono" style="color: var(--signal-emerald); font-weight: 700;">97.53%</td>
+              <td class="mono">28.54 µs</td>
+              <td class="mono">49.08 µs</td>
+              <td class="mono">338,954 µs</td>
+              <td class="mono">15 op/s</td>
+              <td class="tag-win">Apple Neural Engine (ANE)</td>
+            </tr>
+            <tr class="highlight">
+              <td><strong>Zev-Clm</strong> 🔬</td>
+              <td class="mono"><strong>314 / 324</strong></td>
+              <td class="mono" style="color: var(--electric-cyan); font-weight: 700;">96.91%</td>
+              <td class="mono"><strong>26.25 µs</strong></td>
+              <td class="mono"><strong>32.96 µs</strong></td>
+              <td class="mono"><strong>48.92 µs</strong></td>
+              <td class="mono" style="color: var(--signal-emerald); font-weight: 700;">35,466 op/s</td>
+              <td class="tag-win">Contrastive Embedding Hybrid</td>
+            </tr>
+            <tr>
+              <td><strong>Zev-Gemma4</strong> 🧠</td>
+              <td class="mono"><strong>313 / 324</strong></td>
+              <td class="mono">96.60%</td>
+              <td class="mono">26.96 µs</td>
+              <td class="mono">37.00 µs</td>
+              <td class="mono">100.12 µs</td>
+              <td class="mono"><strong>33,160 op/s</strong></td>
+              <td>Gemma 4 Turn Distillation</td>
+            </tr>
+            <tr>
+              <td><strong>Zev-Load-Balanced</strong> ⚖️</td>
+              <td class="mono"><strong>313 / 324</strong></td>
+              <td class="mono">96.60%</td>
+              <td class="mono">31.08 µs</td>
+              <td class="mono">111.29 µs</td>
+              <td class="mono">18,291,061 µs</td>
+              <td class="mono">3 op/s</td>
+              <td>Dynamic ANE / CPU Balancer</td>
+            </tr>
+            <tr class="highlight" style="background: rgba(59, 130, 246, 0.06);">
+              <td><strong>Zev-Default (Pure SIMD)</strong> 🚀</td>
+              <td class="mono"><strong>312 / 324</strong></td>
+              <td class="mono">96.30%</td>
+              <td class="mono"><strong>26.88 µs</strong></td>
+              <td class="mono"><strong>44.54 µs</strong></td>
+              <td class="mono"><strong>56.17 µs</strong></td>
+              <td class="mono" style="color: var(--signal-emerald); font-weight: 700;">33,661 op/s</td>
+              <td class="tag-win">CPU Neon/AVX (0 tok, &lt;8MB)</td>
+            </tr>
+            <tr>
+              <td><strong>Zev-Dual-Cascade</strong> ⚡</td>
+              <td class="mono"><strong>312 / 324</strong></td>
+              <td class="mono">96.30%</td>
+              <td class="mono">31.50 µs</td>
+              <td class="mono">300.62 µs</td>
+              <td class="mono">375,243 µs</td>
+              <td class="mono">7 op/s</td>
+              <td>Three-Tier Cascade</td>
+            </tr>
+            <tr>
+              <td><strong>Zev-Dual-Ensemble (PoE)</strong> 🏆</td>
+              <td class="mono"><strong>312 / 324</strong></td>
+              <td class="mono">96.30%</td>
+              <td class="mono">33.92 µs</td>
+              <td class="mono">327.62 µs</td>
+              <td class="mono">20,881,976 µs</td>
+              <td class="mono">3 op/s</td>
+              <td>Consensus Bayesian PoE</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       <!-- 14 Adversarial Tests Table -->
       <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.3px;">
         Adversarial Edge-Case Stress Suite (14 Exhaustive Scenarios)
@@ -2518,7 +2710,7 @@ cat tickets.jsonl | zev batch --file - --mode route \
       </div>
       <pre class="code-box"><code><span class="comment">// Add to Cargo.toml:</span>
 <span class="keyword">[dependencies]</span>
-zev-rs = { version = <span class="str">"0.3.8"</span>, features = [<span class="str">"neural"</span>] }
+zev-rs = { version = <span class="str">"0.3.9"</span>, features = [<span class="str">"neural"</span>] }
 
 <span class="keyword">use</span> zev::{ZevEngine, ApfelNeuralBackend, ExecutionMode};
 

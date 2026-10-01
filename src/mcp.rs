@@ -607,6 +607,7 @@ fn call_zev_score(arguments: Value, engine: &ZevEngine) -> CallToolResult {
     let question = Question::Score(ScoreQuestion {
         instructions: args.instructions,
         levels: args.levels.clone(),
+        ordinal_smoothing: None,
         policy: Policy {
             allow_abstain: false,
             ..Default::default()

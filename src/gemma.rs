@@ -4,8 +4,11 @@
 //! Gemma-2-9B, Gemma-2-2B, or open-jev diffusiongemma) via local inference, vLLM,
 //! Ollama, or OpenAI-compatible server.
 
-use crate::error::{Result, ZevError};
+use crate::error::Result;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::error::ZevError;
 use crate::types::{Candidate, Question, UncertaintyMetrics, ZevAnswer};
+#[cfg(not(target_arch = "wasm32"))]
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -40,12 +43,14 @@ impl Default for GemmaConfig {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Serialize)]
 struct ChatMessage {
     role: String,
     content: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Serialize)]
 struct ChatCompletionRequest {
     model: String,
@@ -60,9 +65,6 @@ pub fn evaluate_gemma(
     question: &Question,
     candidates: &[Candidate],
 ) -> Result<ZevAnswer> {
-    let config = GemmaConfig::default();
-    let mode = std::env::var("GEMMA_MODE").unwrap_or_default();
-
     // Mitigate Lost-in-the-Middle by shortlisting candidates > 6 for prompt context
     let effective_candidates: Vec<Candidate> = if candidates.len() > 6 {
         let opt_defs: Vec<crate::types::OptionDef> = candidates
@@ -84,76 +86,79 @@ pub fn evaluate_gemma(
         candidates.to_vec()
     };
 
-    if mode == "distill" || mode == "simulated" {
+    #[cfg(target_arch = "wasm32")]
+    {
         return evaluate_gemma_distilled(state, question, &effective_candidates, candidates);
     }
 
-    // Build Gemma chat formatted prompt
-    let prompt = format_gemma_prompt(state, question.instructions(), &effective_candidates);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let config = GemmaConfig::default();
+        let prompt = format_gemma_prompt(state, question.instructions(), &effective_candidates);
+        let chat_req = ChatCompletionRequest {
+            model: config.model.clone(),
+            messages: vec![
+                ChatMessage {
+                    role: "system".into(),
+                    content: "You are an accurate, deterministic decision model. Respond ONLY with the chosen option ID inside brackets like [id].".into(),
+                },
+                ChatMessage {
+                    role: "user".into(),
+                    content: prompt,
+                },
+            ],
+            temperature: 0.0,
+            max_tokens: 16,
+        };
 
-    let chat_req = ChatCompletionRequest {
-        model: config.model.clone(),
-        messages: vec![
-            ChatMessage {
-                role: "system".into(),
-                content: "You are an accurate, deterministic decision model. Respond ONLY with the chosen option ID inside brackets like [id].".into(),
-            },
-            ChatMessage {
-                role: "user".into(),
-                content: prompt,
-            },
-        ],
-        temperature: 0.0,
-        max_tokens: 16,
-    };
+        let url = format!("{}/chat/completions", config.endpoint.trim_end_matches('/'));
+        let mut req = ureq::post(&url);
 
-    let url = format!("{}/chat/completions", config.endpoint.trim_end_matches('/'));
-    let mut req = ureq::post(&url);
+        if let Some(ref key) = config.api_key {
+            req = req.header("Authorization", &format!("Bearer {}", key));
+        }
 
-    if let Some(ref key) = config.api_key {
-        req = req.header("Authorization", &format!("Bearer {}", key));
-    }
+        let resp_res = req.send_json(&chat_req);
 
-    let resp_res = req.send_json(&chat_req);
-
-    match resp_res {
-        Ok(mut resp) => {
-            use std::io::Read;
-            let mut body_str = String::new();
-            if resp
-                .body_mut()
-                .as_reader()
-                .read_to_string(&mut body_str)
-                .is_ok()
-            {
-                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&body_str) {
-                    if let Some(content_str) = json_val["choices"][0]["message"]["content"].as_str()
-                    {
-                        if let Some(answer) = parse_gemma_decision(
-                            content_str,
-                            &effective_candidates,
-                            candidates,
-                            question,
-                        ) {
-                            return Ok(answer);
+        match resp_res {
+            Ok(mut resp) => {
+                use std::io::Read;
+                let mut body_str = String::new();
+                if resp
+                    .body_mut()
+                    .as_reader()
+                    .read_to_string(&mut body_str)
+                    .is_ok()
+                {
+                    if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&body_str) {
+                        if let Some(content_str) = json_val["choices"][0]["message"]["content"].as_str()
+                        {
+                            if let Some(answer) = parse_gemma_decision(
+                                content_str,
+                                &effective_candidates,
+                                candidates,
+                                question,
+                            ) {
+                                return Ok(answer);
+                            }
                         }
                     }
                 }
+                if config.fallback_to_heuristic {
+                    evaluate_gemma_distilled(state, question, &effective_candidates, candidates)
+                } else {
+                    Err(ZevError::Evaluation("Failed to parse Gemma output".into()))
+                }
             }
-            if config.fallback_to_heuristic {
-                evaluate_gemma_distilled(state, question, &effective_candidates, candidates)
-            } else {
-                Err(ZevError::Evaluation("Failed to parse Gemma output".into()))
-            }
-        }
-        Err(e) => {
-            // When HTTP endpoint is unavailable or times out, fallback smoothly
-            if config.fallback_to_heuristic {
-                evaluate_gemma_distilled(state, question, &effective_candidates, candidates)
-            } else {
-                Err(ZevError::Evaluation(format!(
-                    "Gemma HTTP request failed: {e}"
-                )))
+            Err(e) => {
+                // When HTTP endpoint is unavailable or times out, fallback smoothly
+                if config.fallback_to_heuristic {
+                    evaluate_gemma_distilled(state, question, &effective_candidates, candidates)
+                } else {
+                    Err(ZevError::Evaluation(format!(
+                        "Gemma HTTP request failed: {e}"
+                    )))
+                }
             }
         }
     }

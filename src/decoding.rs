@@ -122,6 +122,44 @@ pub fn summarize_moments(values: &[f64], probs: &[f64]) -> DecisionStatistics {
     }
 }
 
+/// Applies RLCD-inspired ordinal smoothing to a probability distribution over an ordered scale.
+///
+/// For ordinal levels $0, \dots, K-1$, sharp categorical predictions often assign zero mass to
+/// adjacent levels, creating cliff-like risk profiles. Ordinal smoothing applies a tridiagonal kernel:
+///
+/// `\tilde{p}_i = (1 - 2\alpha) p_i + \alpha p_{i-1} + \alpha p_{i+1}` for interior levels,
+/// `\tilde{p}_0 = (1 - \alpha) p_0 + \alpha p_1`,
+/// `\tilde{p}_{K-1} = (1 - \alpha) p_{K-1} + \alpha p_{K-2}`.
+///
+/// This kernel is strictly mass-conserving: `\sum \tilde{p}_i = \sum p_i = 1.0`.
+pub fn smooth_ordinal_probabilities(probs: &[f64], alpha: f64) -> Vec<f64> {
+    let k = probs.len();
+    if k <= 1 || alpha <= 0.0 {
+        return probs.to_vec();
+    }
+    let alpha = alpha.clamp(0.0, 0.49);
+    let mut smoothed = vec![0.0; k];
+
+    if k == 2 {
+        smoothed[0] = (1.0 - alpha) * probs[0] + alpha * probs[1];
+        smoothed[1] = alpha * probs[0] + (1.0 - alpha) * probs[1];
+        return smoothed;
+    }
+
+    // Boundary at i = 0
+    smoothed[0] = (1.0 - alpha) * probs[0] + alpha * probs[1];
+
+    // Interior points
+    for i in 1..k - 1 {
+        smoothed[i] = (1.0 - 2.0 * alpha) * probs[i] + alpha * probs[i - 1] + alpha * probs[i + 1];
+    }
+
+    // Boundary at i = k - 1
+    smoothed[k - 1] = (1.0 - alpha) * probs[k - 1] + alpha * probs[k - 2];
+
+    smoothed
+}
+
 pub fn decode_decision(
     question: &Question,
     candidates: &[Candidate],
@@ -321,7 +359,16 @@ pub fn decode_decision(
         let values: Vec<f64> = valid_cands.iter().filter_map(|(c, _)| c.value).collect();
         if let Some(ref cp) = cond_probs {
             if !values.is_empty() {
-                let stats = summarize_moments(&values, cp);
+                let effective_cp = if let Question::Score(s) = question {
+                    if let Some(alpha) = s.ordinal_smoothing {
+                        smooth_ordinal_probabilities(cp, alpha)
+                    } else {
+                        cp.clone()
+                    }
+                } else {
+                    cp.clone()
+                };
+                let stats = summarize_moments(&values, &effective_cp);
                 let spread = (stats.quantiles["p90"] - stats.quantiles["p10"]).max(0.0);
                 answer.uncertainty.quantile_spread = Some(spread);
                 if status == "ok" {
@@ -543,5 +590,126 @@ mod tests {
         assert_eq!(ans.status, "out_of_range");
         assert!(ans.decision.is_none());
         assert!(ans.expected_value.is_none());
+    }
+
+    #[test]
+    fn test_smooth_ordinal_probabilities() {
+        // Mass conservation on 4 ordinal levels
+        let original = vec![0.0, 1.0, 0.0, 0.0]; // Spike at index 1
+        let smoothed = smooth_ordinal_probabilities(&original, 0.15);
+        let sum: f64 = smoothed.iter().sum();
+        assert!((sum - 1.0).abs() < 1e-9);
+
+        // Mass dispersed to neighbors: index 0 gets 0.15, index 2 gets 0.15, index 1 retains 0.70
+        assert!((smoothed[0] - 0.15).abs() < 1e-6);
+        assert!((smoothed[1] - 0.70).abs() < 1e-6);
+        assert!((smoothed[2] - 0.15).abs() < 1e-6);
+        assert_eq!(smoothed[3], 0.0);
+
+        // Boundary test (spike at 0)
+        let orig_b0 = vec![1.0, 0.0, 0.0];
+        let smooth_b0 = smooth_ordinal_probabilities(&orig_b0, 0.10);
+        assert!((smooth_b0.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+        assert!((smooth_b0[0] - 0.90).abs() < 1e-6);
+        assert!((smooth_b0[1] - 0.10).abs() < 1e-6);
+        assert_eq!(smooth_b0[2], 0.0);
+
+        // 2 elements
+        let orig_2 = vec![0.8, 0.2];
+        let smooth_2 = smooth_ordinal_probabilities(&orig_2, 0.10);
+        assert!((smooth_2.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+
+        // Zero / negative alpha or single element
+        assert_eq!(smooth_ordinal_probabilities(&[1.0], 0.2), vec![1.0]);
+        assert_eq!(smooth_ordinal_probabilities(&[0.5, 0.5], 0.0), vec![0.5, 0.5]);
+    }
+
+    #[test]
+    fn test_score_decoding_with_ordinal_smoothing() {
+        use crate::types::ScoreQuestion;
+
+        let q_sharp = Question::Score(ScoreQuestion {
+            instructions: "Rate severity".into(),
+            levels: vec!["Low".into(), "Medium".into(), "High".into()],
+            ordinal_smoothing: None,
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
+        });
+
+        let q_smooth = Question::Score(ScoreQuestion {
+            instructions: "Rate severity".into(),
+            levels: vec!["Low".into(), "Medium".into(), "High".into()],
+            ordinal_smoothing: Some(0.20),
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
+        });
+
+        let candidates = generate_candidates(&q_sharp);
+        // Sharp prediction favoring index 2 ("High")
+        let logits = vec![-5.0, -5.0, 10.0];
+
+        let ans_sharp = decode_decision(&q_sharp, &candidates, &logits, 1.0).unwrap();
+        let ans_smooth = decode_decision(&q_smooth, &candidates, &logits, 1.0).unwrap();
+
+        // Smoothed expected value pulls slightly inward from the boundary
+        let ev_sharp = ans_sharp.expected_value.unwrap();
+        let ev_smooth = ans_smooth.expected_value.unwrap();
+        assert!(ev_smooth < ev_sharp);
+        assert!(ev_smooth > 1.5);
+    }
+
+    #[test]
+    fn test_ordinal_smoothing_symmetry_and_expectation_conservation() {
+        // Symmetric 5-point distribution: [0.05, 0.20, 0.50, 0.20, 0.05]
+        let original = vec![0.05, 0.20, 0.50, 0.20, 0.05];
+        let values = vec![0.0, 1.0, 2.0, 3.0, 4.0];
+
+        let smoothed = smooth_ordinal_probabilities(&original, 0.15);
+
+        // 1. Mass conservation
+        let sum: f64 = smoothed.iter().sum();
+        assert!((sum - 1.0).abs() < 1e-9);
+
+        // 2. Exact symmetry preservation: p[0] == p[4] and p[1] == p[3]
+        assert!((smoothed[0] - smoothed[4]).abs() < 1e-9);
+        assert!((smoothed[1] - smoothed[3]).abs() < 1e-9);
+
+        // 3. Expected value conservation on symmetric distribution:
+        // E[X] = 2.0 before and after smoothing
+        let stats_orig = summarize_moments(&values, &original);
+        let stats_smooth = summarize_moments(&values, &smoothed);
+        assert!((stats_orig.mean - 2.0).abs() < 1e-9);
+        assert!((stats_smooth.mean - 2.0).abs() < 1e-9);
+
+        // Variance should increase slightly due to diffusion
+        assert!(stats_smooth.stddev > stats_orig.stddev);
+    }
+
+    #[test]
+    fn test_ordinal_smoothing_monotonicity_preservation() {
+        // Monotonic ramp: [0.10, 0.20, 0.30, 0.40]
+        let ramp = vec![0.10, 0.20, 0.30, 0.40];
+        let smoothed = smooth_ordinal_probabilities(&ramp, 0.10);
+
+        assert!((smoothed.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+        // Monotonic order must remain strictly increasing
+        for w in smoothed.windows(2) {
+            assert!(w[0] < w[1], "Ordinal smoothing must preserve monotonic rank order");
+        }
+    }
+
+    #[test]
+    fn test_score_question_builder_pattern() {
+        use crate::types::ScoreQuestion;
+        let q = ScoreQuestion::new("Rate severity", vec!["Low".into(), "High".into()])
+            .with_ordinal_smoothing(0.12);
+
+        assert_eq!(q.instructions, "Rate severity");
+        assert_eq!(q.levels.len(), 2);
+        assert_eq!(q.ordinal_smoothing, Some(0.12));
     }
 }

@@ -303,6 +303,7 @@ impl RemoteEmbeddingProvider {
     }
 
     /// Embed a batch of texts into normalized dense vectors.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn embed_batch(&self, texts: &[&str]) -> crate::error::Result<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(Vec::new());
@@ -332,6 +333,14 @@ impl RemoteEmbeddingProvider {
             })?;
 
         Self::parse_response_body(&body_str)
+    }
+
+    /// Embed a batch of texts into normalized dense vectors.
+    #[cfg(target_arch = "wasm32")]
+    pub fn embed_batch(&self, _texts: &[&str]) -> crate::error::Result<Vec<Vec<f32>>> {
+        Err(crate::error::ZevError::Internal(
+            "Remote embeddings via ureq are not supported on wasm32".into(),
+        ))
     }
 
     /// Populate a `SemanticSieve` with candidates by embedding their text descriptions.

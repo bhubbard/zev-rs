@@ -499,6 +499,7 @@ fn test_original_ordinal_01_0_severity_cosmetic() {
                 "Many users blocked from a core function, no data loss".into(),
                 "Confirmed irreversible data loss or physical harm".into(),
             ],
+            ordinal_smoothing: None,
             policy: Policy { allow_abstain: false, ..Default::default() },
         }),
     );
@@ -542,6 +543,7 @@ fn test_original_ordinal_03_0_severity_blocked_core_function() {
                 "Many users blocked from a core function, no data loss".into(),
                 "Confirmed irreversible data loss or physical harm".into(),
             ],
+            ordinal_smoothing: None,
             policy: Policy { allow_abstain: false, ..Default::default() },
         }),
     );
@@ -585,6 +587,7 @@ fn test_original_ordinal_04_0_severity_irreversible_loss() {
                 "Many users blocked from a core function, no data loss".into(),
                 "Confirmed irreversible data loss or physical harm".into(),
             ],
+            ordinal_smoothing: None,
             policy: Policy { allow_abstain: false, ..Default::default() },
         }),
     );

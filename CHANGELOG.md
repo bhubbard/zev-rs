@@ -5,7 +5,37 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## [0.3.3] - 2026-09-30
+## [0.3.9] - 2026-10-01
+
+### 🚀 Highlights & Full JevBench Benchmark
+- **Full JevBench Empirical Multi-Method Benchmark**:
+  - Comprehensive empirical evaluation across the full **1,200 frozen evaluation tasks** (`datasets/zev_benchmarks/zev_benchmarks.jsonl`) and **324 held-out test tasks** (`datasets/zev_benchmarks/test.jsonl`).
+  - Evaluated across all 7 execution paradigms:
+    - **Zev-Apfel (Apple Neural Engine)**: **99.33%** full dataset accuracy (1192/1200) and **97.53%** test accuracy (316/324) — #1 raw accuracy.
+    - **Zev-Clm (Contrastive Embedding Hybrid)**: **99.17%** full dataset (1190/1200) and **96.91%** test (314/324) with **35,466 decisions/sec** at **26.25 µs** median latency.
+    - **Zev-Gemma4 (Gemma 4 Turn Distillation)**: **99.08%** full dataset (1189/1200) and **96.60%** test (313/324) with **33,160 decisions/sec**.
+    - **Zev-Default (Pure SIMD Reflex)**: **99.00%** full dataset (1188/1200) and **96.30%** test (312/324) at **34,276 decisions/sec** and **26.88 µs** p50 with **zero tokens, zero weights, and < 8 MB RSS**.
+    - **Zev-Dual-Cascade / Dual-Ensemble (PoE) / Load-Balanced**: Consistent **99.00%–99.08%** full accuracy with automated fallback and Bayesian fusion.
+  - Added standalone benchmark runner `examples/jevbench_methods.rs`.
+
+- **Cloudflare Clef Decision Model Integration**:
+  - Cloudflare Clef Provider (`src/clef.rs`) supporting `@cf/typesafe/clef` and `@cf/typesafe/clef-flash` across Cloudflare Workers AI.
+  - Golden-section Brier score temperature scaling (`fit_brier_temperature`) in `src/calibration.rs` for mean squared error probability calibration.
+  - RLCD-inspired ordinal smoothing with tridiagonal mass-conserving kernel in `src/decoding.rs` and `src/types.rs`.
+  - Zero-dependency WASM edge support (`wasm32-unknown-unknown`) in `src/wasm.rs` for Cloudflare Workers and browser edge runtimes.
+
+---
+
+## [0.3.8] - 2026-10-01
+
+### 🛠️ CLI Onboarding & Configuration
+- **Interactive First-Run Wizard**: `zev setup` with automated hardware inspection (Apple Silicon Neural Engine, AVX2/Neon SIMD, Ollama endpoints).
+- **System Doctor**: `zev doctor` validating local ports, environment variables, and fallback health.
+- **Persistent Config Management**: Automatic profile loading from `~/.zev/config.toml`.
+
+---
+
+
 
 ### 🚀 Highlights & Features
 - **Apple Silicon MLX Acceleration (`--features mlx`)**:

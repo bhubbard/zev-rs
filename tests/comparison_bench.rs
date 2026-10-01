@@ -177,6 +177,7 @@ fn benchmark_speed_and_accuracy_improvements() {
                 "High".into(),
                 "Critical".into(),
             ],
+            ordinal_smoothing: None,
             policy: Default::default(),
         }),
     );
@@ -208,6 +209,7 @@ fn benchmark_speed_and_accuracy_improvements() {
                 "High".into(),
                 "Critical".into(),
             ],
+            ordinal_smoothing: None,
             policy: Default::default(),
         }),
     );

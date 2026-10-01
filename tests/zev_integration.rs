@@ -687,6 +687,7 @@ fn test_score_monotonicity_and_moment_statistics() {
             "Good".into(),
             "Excellent".into(),
         ],
+        ordinal_smoothing: None,
         policy: Policy {
             allow_abstain: false,
             ..Default::default()
@@ -1203,4 +1204,163 @@ async fn test_remote_embedding_provider_http_mock() {
     assert_eq!(candidates_count, 2);
     assert_eq!(res.candidate_id, "refund");
     assert!(res.top_score > 0.40);
+}
+
+#[tokio::test]
+async fn test_cloudflare_clef_mock_server_evaluation() {
+    use axum::routing::post;
+    use axum::{Json, Router};
+
+    async fn mock_clef_handler(
+        Json(req): Json<zev::SystemOneRequest>,
+    ) -> Json<serde_json::Value> {
+        let mut answers = std::collections::BTreeMap::new();
+        for (id, _wq) in req.questions {
+            answers.insert(
+                id,
+                serde_json::json!({
+                    "type": "choice",
+                    "choice": "hardware",
+                    "probabilities": {"hardware": 0.89, "software": 0.11},
+                    "confidence": 0.89
+                }),
+            );
+        }
+
+        Json(serde_json::json!({
+            "result": {
+                "model": "@cf/typesafe/clef",
+                "answers": answers,
+                "usage": {"input_tokens": 14, "output_tokens": 1}
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+        }))
+    }
+
+    let router = Router::new().route("/clef", post(mock_clef_handler));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+
+    let ans = tokio::task::spawn_blocking(move || {
+        let provider = zev::CloudflareClefProvider::new("test_account", "test_token")
+            .with_endpoint_override(format!("http://{addr}/clef"));
+
+        let q = zev::Question::Choice(zev::ChoiceQuestion {
+            instructions: "Classify problem".into(),
+            options: vec![
+                zev::OptionDef { id: "hardware".into(), description: "Hardware issue".into() },
+                zev::OptionDef { id: "software".into(), description: "Software issue".into() },
+            ],
+            policy: Default::default(),
+        });
+
+        provider.evaluate("Device screen won't turn on after battery drop", &q, "problem_type")
+    })
+    .await
+    .unwrap()
+    .expect("Clef evaluation must succeed");
+
+    assert_eq!(ans.status, "ok");
+    assert_eq!(ans.confidence, 0.89);
+    assert_eq!(ans.decision, Some(serde_json::Value::String("hardware".into())));
+    assert_eq!(ans.source.unwrap(), "cloudflare:@cf/typesafe/clef");
+}
+
+#[test]
+fn test_ordinal_smoothing_end_to_end_in_engine() {
+    let engine = zev::ZevEngine::default();
+    let state = "The website is running slightly slower than usual during lunch hour.";
+
+    let mut s_sharp = zev::ScoreQuestion::new(
+        "Rate severity",
+        vec![
+            "Normal".into(),
+            "Minor".into(),
+            "Major".into(),
+            "Critical".into(),
+        ],
+    );
+    s_sharp.policy.allow_abstain = false;
+
+    let mut s_smoothed = zev::ScoreQuestion::new(
+        "Rate severity",
+        vec![
+            "Normal".into(),
+            "Minor".into(),
+            "Major".into(),
+            "Critical".into(),
+        ],
+    )
+    .with_ordinal_smoothing(0.20);
+    s_smoothed.policy.allow_abstain = false;
+
+    let q_sharp = zev::Question::Score(s_sharp);
+    let q_smoothed = zev::Question::Score(s_smoothed);
+
+    let mut q_map = std::collections::BTreeMap::new();
+    q_map.insert("sharp".into(), q_sharp);
+    q_map.insert("smoothed".into(), q_smoothed);
+
+    let req = zev::ZevRequest {
+        state: serde_json::Value::String(state.into()),
+        questions: q_map,
+        model: None,
+        temperature: Some(1.0),
+        enable_temporal_facts: false,
+        images: None,
+    };
+
+    let resp = engine.evaluate(&req).expect("Evaluation should succeed");
+    let ans_sharp = &resp.answers["sharp"];
+    let ans_smooth = &resp.answers["smoothed"];
+
+    assert_eq!(ans_sharp.status, "ok");
+    assert_eq!(ans_smooth.status, "ok");
+
+    // Both should yield finite expected values
+    assert!(ans_sharp.expected_value.unwrap().is_finite());
+    assert!(ans_smooth.expected_value.unwrap().is_finite());
+}
+
+#[test]
+fn test_brier_temperature_optimization_end_to_end() {
+    // Generate overconfident calibration pairs
+    let pairs = vec![
+        (vec![8.0, 0.0], 0),
+        (vec![0.0, 8.0], 1),
+        (vec![6.0, 1.0], 0),
+        (vec![1.0, 7.0], 1),
+    ];
+
+    // Temperature at T=1.0 has lower entropy and higher Brier penalty when probability is overconfident
+    let initial_brier: f64 = pairs
+        .iter()
+        .map(|(logits, target)| {
+            let probs = zev::scaled_softmax(logits, 1.0).unwrap();
+            zev::compute_brier_score(&probs, *target)
+        })
+        .sum::<f64>()
+        / pairs.len() as f64;
+
+    // Fit optimal temperature minimizing Brier score
+    let optimal_t = zev::fit_temperature_brier(&pairs, 0.5, 5.0, 25);
+    assert!(optimal_t > 0.5 && optimal_t <= 5.0);
+
+    let calibrated_brier: f64 = pairs
+        .iter()
+        .map(|(logits, target)| {
+            let probs = zev::scaled_softmax(logits, optimal_t).unwrap();
+            zev::compute_brier_score(&probs, *target)
+        })
+        .sum::<f64>()
+        / pairs.len() as f64;
+
+    assert!(calibrated_brier.is_finite());
+    assert!(initial_brier.is_finite());
 }

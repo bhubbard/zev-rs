@@ -1,6 +1,7 @@
 pub mod abstain;
 pub mod calibration;
 pub mod cascade;
+pub mod clef;
 pub mod clm;
 pub mod compaction;
 pub mod concept_knowledge;
@@ -9,11 +10,13 @@ pub mod decoding;
 pub mod engine;
 pub mod error;
 pub mod gemma;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod grep;
 pub mod intent_sieve;
 pub mod kv_rewind;
 pub mod logic;
 pub mod matrix;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod mcp;
 pub mod multimodal;
 pub mod order_invariant;
@@ -28,18 +31,28 @@ pub mod tev1;
 pub mod types;
 pub mod wire;
 
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+#[cfg(target_arch = "wasm32")]
+pub use wasm::*;
+
 #[cfg(feature = "server")]
 pub mod server;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub use mcp::run_stdio_server;
 
 pub use abstain::{is_abstain_candidate, is_abstain_text, ABSTAIN_EXACT, ABSTAIN_PREFIXES};
 pub use calibration::{
-    compute_ece, fit_temperature, fit_temperatures_by_type, resolve_temperature, scaled_softmax,
-    TypeTemperatureConfig,
+    compute_binary_brier_score, compute_brier_score, compute_dataset_brier_score, compute_ece,
+    fit_temperature, fit_temperature_brier, fit_temperatures_by_type, resolve_temperature,
+    scaled_softmax, TypeTemperatureConfig,
 };
 pub use cascade::{
     CascadeReport, CascadeStage, PredicateCascade, SequentialCascadeRunner, StageKind,
+};
+pub use clef::{
+    CloudflareClefConfig, CloudflareClefProvider, CLEF_FLASH_MODEL, DEFAULT_CLEF_MODEL,
 };
 pub use clm::{ContrastiveHead, HeadConfig, HybridVerifier, VectorArena};
 pub use compaction::{ToolCallRecord, ToolCompactionAction, ToolCompactionDecision, ToolCompactor};
@@ -47,12 +60,13 @@ pub use config::{
     config_path, load_or_init, run_setup_wizard, SystemEnvironment, ZevConfig, ZevMethod,
     DEFAULT_APFEL_WEIGHT, DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_MARGIN_THRESHOLD,
 };
-pub use decoding::{decode_decision, generate_candidates, summarize_moments};
+pub use decoding::{decode_decision, generate_candidates, smooth_ordinal_probabilities, summarize_moments};
 pub use engine::{
     DecisionEngine, Evaluable, ExecutionMode, ZevEngine, RECOMMENDED_CASCADE_NEURAL_THRESHOLD,
     RECOMMENDED_CONFIDENCE_THRESHOLD, RECOMMENDED_ENSEMBLE_WEIGHT_APFEL,
 };
 pub use error::{Result, ZevError};
+#[cfg(not(target_arch = "wasm32"))]
 pub use grep::*;
 pub use kv_rewind::{BlockTable, PagedContextArena, DEFAULT_PAGE_SIZE};
 pub use logic::{

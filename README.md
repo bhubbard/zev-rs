@@ -101,7 +101,7 @@ curl -X POST http://127.0.0.1:8080/v1/decisions \
 Add to `Cargo.toml`:
 ```toml
 [dependencies]
-zev-rs = "0.3.8"
+zev-rs = "0.3.9"
 ```
 
 In your code:
@@ -413,6 +413,36 @@ Evaluated across all **231 frozen public benchmark tasks** from JevBench against
 - **vs. Laya (ModernBERT-large 421M)**: Zev wins **51 tasks to 26** (+10.8% accuracy margin) while running **1,369× faster** on pure Rust CPU without requiring a GPU or PyTorch runtime.
 - **vs. Kev (Qwen2.5 / Qwen3)**: Zev beats Kev 0.5B, 0.6B, and 4B models, and comes within 5 tasks of the massive 8B parameter model at **1,582× faster** latency.
 - **Clean Sweep on Intent & Extraction**: Perfect **24/24 (100.0%)** on intent classification and **23/24 (95.8%)** on extraction.
+
+---
+
+## Full JevBench Multi-Method Comprehensive Benchmark (1,200 Tasks & Held-Out Test Split)
+
+Conducted on Apple Silicon using `cargo run --release --example jevbench_methods --features "neural"` evaluating all 7 execution paradigms across the full **1,200 frozen tasks** and the **324 held-out test split**:
+
+### Part 1: Full JevBench Dataset (1,200 Tasks)
+
+| Execution Method | Correct / Total | Accuracy (%) | Median Latency ($p_{50}$) | Tail Latency ($p_{95}$) | Tail Latency ($p_{99}$) | Evaluation Throughput | Architecture / Hardware |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| 🥇 **Zev-Apfel** | **1192 / 1200** | **99.33%** | 44.38 µs | 488.12 µs | 2,844.42 µs | 631 ops/s | Apple Neural Engine (ANE) |
+| 🥈 **Zev-Clm** | **1190 / 1200** | **99.17%** | **27.79 µs** | **54.79 µs** | 565.33 µs | **11,252 ops/s** | Contrastive Embedding Hybrid |
+| 🥉 **Zev-Gemma4** | **1189 / 1200** | **99.08%** | 44.67 µs | 159.75 µs | 697.92 µs | **10,287 ops/s** | Gemma 4 Turn Distillation |
+| ⚡ **Zev-Load-Balanced** | **1189 / 1200** | **99.08%** | 30.04 µs | 44.33 µs | 498.46 µs | 13 ops/s | Dynamic ANE / CPU Balancer |
+| 🚀 **Zev-Default (Pure SIMD)** | **1188 / 1200** | **99.00%** | **27.33 µs** | **34.62 µs** | **51.88 µs** | **34,276 ops/s** | CPU Neon / AVX2 (0 tokens, <8MB) |
+| 🛡️ **Zev-Dual-Cascade** | **1188 / 1200** | **99.00%** | 28.58 µs | 45.92 µs | 299,997.08 µs | 10 ops/s | Three-Tier Cascade (SIMD $\to$ ANE $\to$ Gemma) |
+| 🏆 **Zev-Dual-Ensemble (PoE)** | **1188 / 1200** | **99.00%** | 33.54 µs | 96.42 µs | 303,753.83 µs | 9 ops/s | Consensus Bayesian Product of Experts |
+
+### Part 2: Held-Out Test Split (324 Tasks)
+
+| Execution Method | Correct / Total | Accuracy (%) | Median Latency ($p_{50}$) | Tail Latency ($p_{95}$) | Tail Latency ($p_{99}$) | Evaluation Throughput | Architecture / Hardware |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| 🥇 **Zev-Apfel** | **316 / 324** | **97.53%** | 28.54 µs | 49.08 µs | 338,953.54 µs | 15 ops/s | Apple Neural Engine (ANE) |
+| 🥈 **Zev-Clm** | **314 / 324** | **96.91%** | **26.25 µs** | **32.96 µs** | **48.92 µs** | **35,466 ops/s** | Contrastive Embedding Hybrid |
+| 🥉 **Zev-Gemma4** | **313 / 324** | **96.60%** | 26.96 µs | 37.00 µs | 100.12 µs | **33,160 ops/s** | Gemma 4 Turn Distillation |
+| ⚡ **Zev-Load-Balanced** | **313 / 324** | **96.60%** | 31.08 µs | 111.29 µs | 18,291,061 µs | 3 ops/s | Dynamic ANE / CPU Balancer |
+| 🚀 **Zev-Default (Pure SIMD)** | **312 / 324** | **96.30%** | **26.88 µs** | **44.54 µs** | **56.17 µs** | **33,661 ops/s** | CPU Neon / AVX2 (0 tokens, <8MB) |
+| 🛡️ **Zev-Dual-Cascade** | **312 / 324** | **96.30%** | 31.50 µs | 300.62 µs | 375,242.71 µs | 7 ops/s | Three-Tier Cascade (SIMD $\to$ ANE $\to$ Gemma) |
+| 🏆 **Zev-Dual-Ensemble (PoE)** | **312 / 324** | **96.30%** | 33.92 µs | 327.62 µs | 20,881,976 µs | 3 ops/s | Consensus Bayesian Product of Experts |
 
 ---
 

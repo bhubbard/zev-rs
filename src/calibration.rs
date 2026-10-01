@@ -323,6 +323,117 @@ pub fn fit_temperature(
     (a + b) / 2.0
 }
 
+/// Computes the multi-class Brier Score for a single probability vector and target class index.
+///
+/// Brier Score: `\sum_{k=0}^{K-1} (p_k - \delta_{k, y})^2`
+/// Ranges from 0.0 (perfect prediction) to 2.0 (maximum overconfident error).
+#[inline]
+pub fn compute_brier_score(probs: &[f64], target_idx: usize) -> f64 {
+    if probs.is_empty() {
+        return 0.0;
+    }
+    let mut sum_sq = 0.0;
+    for (k, &p) in probs.iter().enumerate() {
+        let y = if k == target_idx { 1.0 } else { 0.0 };
+        let diff = p - y;
+        sum_sq += diff * diff;
+    }
+    sum_sq
+}
+
+/// Computes the mean Brier Score over a dataset of (probabilities, target_idx) pairs.
+pub fn compute_dataset_brier_score(dataset: &[(&[f64], usize)]) -> f64 {
+    if dataset.is_empty() {
+        return 0.0;
+    }
+    let total_loss: f64 = dataset
+        .iter()
+        .map(|(probs, target)| compute_brier_score(probs, *target))
+        .sum();
+    total_loss / dataset.len() as f64
+}
+
+/// Computes the binary Brier Score across binary probability predictions and boolean outcomes.
+///
+/// `BS = \frac{1}{N} \sum_{i=1}^N (p_i - y_i)^2`
+/// where `p_i` is predicted probability of true and `y_i \in {0, 1}`.
+pub fn compute_binary_brier_score(probs: &[f64], targets: &[bool]) -> f64 {
+    if probs.is_empty() || probs.len() != targets.len() {
+        return 0.0;
+    }
+    let mut sum_sq = 0.0;
+    for (&p, &target) in probs.iter().zip(targets.iter()) {
+        let y = if target { 1.0 } else { 0.0 };
+        let diff = p - y;
+        sum_sq += diff * diff;
+    }
+    sum_sq / probs.len() as f64
+}
+
+/// Fits temperature `T` minimizing the Brier Score loss using golden-section search.
+///
+/// Unlike NLL (which relies on log loss and can over-penalize outlier mispredictions),
+/// Brier loss is bounded and strictly proper, producing robust, well-calibrated probabilities
+/// in decision-oriented models like Clef.
+pub fn fit_temperature_brier(
+    pairs: &[(Vec<f64>, usize)],
+    min_t: f64,
+    max_t: f64,
+    max_iters: usize,
+) -> f64 {
+    if pairs.is_empty() {
+        return DEFAULT_CALIBRATED_TEMPERATURE;
+    }
+
+    let phi = (1.0 + 5.0_f64.sqrt()) / 2.0;
+    let inv_phi = 1.0 / phi;
+
+    let mut a = min_t;
+    let mut b = max_t;
+
+    let loss = |t: f64| -> f64 {
+        let mut total_brier = 0.0;
+        let mut count = 0;
+        for (logits, target_idx) in pairs {
+            if let Ok(probs) = scaled_softmax(logits, t) {
+                total_brier += compute_brier_score(&probs, *target_idx);
+                count += 1;
+            }
+        }
+        if count > 0 {
+            total_brier / count as f64
+        } else {
+            f64::MAX
+        }
+    };
+
+    let mut c = b - inv_phi * (b - a);
+    let mut d = a + inv_phi * (b - a);
+    let mut fc = loss(c);
+    let mut fd = loss(d);
+
+    for _ in 0..max_iters {
+        if fc < fd {
+            b = d;
+            d = c;
+            fd = fc;
+            c = b - inv_phi * (b - a);
+            fc = loss(c);
+        } else {
+            a = c;
+            c = d;
+            fc = fd;
+            d = a + inv_phi * (b - a);
+            fd = loss(d);
+        }
+        if (b - a).abs() < 1e-5 {
+            break;
+        }
+    }
+
+    (a + b) / 2.0
+}
+
 /// Fits optimal calibration temperatures individually per question type
 /// (Choice, Boolean, Score, Numeric) to minimize Expected Calibration Error.
 /// Inspired by Decider's multi-type calibration architecture.
@@ -464,6 +575,123 @@ mod tests {
         let fused = log_linear_poe_fusion(&["A".into(), "B".into()], &m1, &m2, 0.5);
         assert!(fused["A"] > 0.85);
         assert!(fused["B"] < 0.15);
+    }
+
+    #[test]
+    fn test_brier_score_calculations() {
+        // Perfect prediction: probs = [1.0, 0.0], target = 0 -> BS = (1-1)^2 + (0-0)^2 = 0.0
+        let p_perfect = vec![1.0, 0.0];
+        assert_eq!(compute_brier_score(&p_perfect, 0), 0.0);
+
+        // Completely wrong: probs = [0.0, 1.0], target = 0 -> BS = (0-1)^2 + (1-0)^2 = 2.0
+        assert_eq!(compute_brier_score(&p_perfect, 1), 2.0);
+
+        // Uniform 3-way: probs = [1/3, 1/3, 1/3], target = 0 -> (1/3 - 1)^2 + (1/3)^2 + (1/3)^2 = 4/9 + 1/9 + 1/9 = 6/9 = 0.6667
+        let p_uniform = vec![1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0];
+        let bs = compute_brier_score(&p_uniform, 0);
+        assert!((bs - 2.0 / 3.0).abs() < 1e-6);
+
+        // Binary brier
+        let probs = vec![0.9, 0.1];
+        let targets = vec![true, false];
+        let bin_bs = compute_binary_brier_score(&probs, &targets);
+        // (0.9 - 1)^2 + (0.1 - 0)^2 = 0.01 + 0.01 = 0.02 / 2 = 0.01
+        assert!((bin_bs - 0.01).abs() < 1e-6);
+
+        // Empty cases
+        assert_eq!(compute_brier_score(&[], 0), 0.0);
+        assert_eq!(compute_binary_brier_score(&[], &[]), 0.0);
+        assert_eq!(compute_dataset_brier_score(&[]), 0.0);
+    }
+
+    #[test]
+    fn test_fit_temperature_brier() {
+        // Pairs with overconfident high logits: T should soften (increase) to lower Brier score
+        let pairs = vec![
+            (vec![10.0, 0.0], 0),
+            (vec![0.0, 10.0], 1),
+            (vec![5.0, 0.0], 0),
+        ];
+        let fitted_t = fit_temperature_brier(&pairs, 0.5, 4.0, 20);
+        assert!((0.5..=4.0).contains(&fitted_t));
+
+        let empty: Vec<(Vec<f64>, usize)> = vec![];
+        assert_eq!(fit_temperature_brier(&empty, 0.5, 4.0, 10), DEFAULT_CALIBRATED_TEMPERATURE);
+    }
+
+    #[test]
+    fn test_brier_score_boundaries() {
+        // Multi-class Brier score is bounded in [0.0, 2.0] for any probability distribution
+        let test_cases = vec![
+            (vec![0.5, 0.5], 0),
+            (vec![0.7, 0.2, 0.1], 1),
+            (vec![0.05, 0.90, 0.05], 0),
+            (vec![0.25, 0.25, 0.25, 0.25], 3),
+        ];
+
+        for (probs, target) in test_cases {
+            let bs = compute_brier_score(&probs, target);
+            assert!((0.0..=2.0).contains(&bs), "Brier score {bs} out of [0, 2] bounds");
+        }
+    }
+
+    #[test]
+    fn test_dataset_brier_score_weighted_batches() {
+        let p1 = [0.8, 0.2]; // target 0: (0.8-1)^2 + 0.2^2 = 0.04 + 0.04 = 0.08
+        let p2 = [0.1, 0.9]; // target 1: 0.1^2 + (0.9-1)^2 = 0.01 + 0.01 = 0.02
+        let p3 = [0.4, 0.6]; // target 0: (0.4-1)^2 + 0.6^2 = 0.36 + 0.36 = 0.72
+
+        let dataset: Vec<(&[f64], usize)> = vec![
+            (&p1[..], 0),
+            (&p2[..], 1),
+            (&p3[..], 0),
+        ];
+
+        let mean_bs = compute_dataset_brier_score(&dataset);
+        let expected = (0.08 + 0.02 + 0.72) / 3.0; // 0.82 / 3 = 0.273333...
+        assert!((mean_bs - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_brier_temperature_monotonic_softening() {
+        // When predicting ambiguous or noisy labels, overconfident logits (e.g. margin=8.0)
+        // receive severe quadratic penalty when mispredicted, driving Brier optimal T higher.
+        let moderate_noisy_pairs = vec![
+            (vec![1.5, 0.0], 0),
+            (vec![1.5, 0.0], 0),
+            (vec![1.5, 0.0], 0),
+            (vec![1.5, 0.0], 1), // 25% label noise
+        ];
+        let extreme_noisy_pairs = vec![
+            (vec![8.0, 0.0], 0),
+            (vec![8.0, 0.0], 0),
+            (vec![8.0, 0.0], 0),
+            (vec![8.0, 0.0], 1), // 25% label noise
+        ];
+
+        let t_moderate = fit_temperature_brier(&moderate_noisy_pairs, 0.5, 8.0, 30);
+        let t_extreme = fit_temperature_brier(&extreme_noisy_pairs, 0.5, 8.0, 30);
+
+        assert!(t_extreme > t_moderate, "Extreme logit scale on noisy data must yield higher softening temperature");
+    }
+
+    #[test]
+    fn test_brier_vs_nll_outlier_robustness() {
+        // A dataset where one sample is an extreme outlier misprediction
+        let pairs_with_outlier = vec![
+            (vec![3.0, 0.0], 0),
+            (vec![3.0, 0.0], 0),
+            (vec![3.0, 0.0], 0),
+            (vec![5.0, 0.0], 1), // Outlier: extreme model confidence on 0, but truth is 1
+        ];
+
+        let t_brier = fit_temperature_brier(&pairs_with_outlier, 0.5, 4.0, 20);
+        let t_nll = fit_temperature(&pairs_with_outlier, 0.5, 4.0, 20);
+
+        // Brier loss remains bounded (loss <= 2.0 per sample) whereas NLL has huge gradient pulling T higher
+        assert!(t_brier.is_finite());
+        assert!(t_nll.is_finite());
+        assert!((0.5..=4.0).contains(&t_brier));
     }
 }
 

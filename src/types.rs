@@ -90,7 +90,25 @@ pub struct ScoreQuestion {
     pub instructions: String,
     pub levels: Vec<String>,
     #[serde(default)]
+    pub ordinal_smoothing: Option<f64>,
+    #[serde(default)]
     pub policy: Policy,
+}
+
+impl ScoreQuestion {
+    pub fn new(instructions: impl Into<String>, levels: Vec<String>) -> Self {
+        Self {
+            instructions: instructions.into(),
+            levels,
+            ordinal_smoothing: None,
+            policy: Policy::default(),
+        }
+    }
+
+    pub fn with_ordinal_smoothing(mut self, alpha: f64) -> Self {
+        self.ordinal_smoothing = Some(alpha);
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -512,11 +530,7 @@ mod tests {
         });
         assert_eq!(q_choice.instructions(), "pick one");
 
-        let q_score = Question::Score(ScoreQuestion {
-            instructions: "rate quality".into(),
-            levels: vec!["bad".into(), "good".into()],
-            policy: Default::default(),
-        });
+        let q_score = Question::Score(ScoreQuestion::new("rate quality", vec!["bad".into(), "good".into()]));
         assert_eq!(q_score.instructions(), "rate quality");
 
         let q_num = Question::Numeric(NumericQuestion {
@@ -539,16 +553,13 @@ mod tests {
 
     #[test]
     fn test_score_validation_edge_cases() {
-        let q_few = Question::Score(ScoreQuestion {
-            instructions: "rate".into(),
-            levels: vec!["only_one".into()],
-            policy: Default::default(),
-        });
+        let q_few = Question::Score(ScoreQuestion::new("rate", vec!["only_one".into()]));
         assert!(q_few.validate("test").is_err());
 
         let q_many = Question::Score(ScoreQuestion {
             instructions: "rate".into(),
             levels: (0..30).map(|i| format!("lvl_{i}")).collect(),
+            ordinal_smoothing: None,
             policy: Policy {
                 allow_abstain: true,
                 ..Default::default()

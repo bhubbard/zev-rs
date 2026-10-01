@@ -187,6 +187,7 @@ pub fn wire_to_question(wire: &WireQuestion) -> Result<Question> {
             Ok(Question::Score(ScoreQuestion {
                 instructions: instr,
                 levels,
+                ordinal_smoothing: None,
                 policy: Policy {
                     allow_abstain: false,
                     max_slots: Some(num_levels.max(crate::types::MAX_SLOTS)),
@@ -194,6 +195,39 @@ pub fn wire_to_question(wire: &WireQuestion) -> Result<Question> {
                 },
             }))
         }
+    }
+}
+
+/// Converts a domain Question into wire WireQuestion format
+pub fn question_to_wire(q: &Question) -> Result<WireQuestion> {
+    match q {
+        Question::Boolean(b) => Ok(WireQuestion::Noul(WireNoulQuestion {
+            instructions: serde_json::Value::String(b.instructions.clone()),
+            criteria: Some(WireNoulCriteria {
+                true_criterion: Some(serde_json::Value::String(b.true_description.clone())),
+                false_criterion: Some(serde_json::Value::String(b.false_description.clone())),
+            }),
+        })),
+        Question::Choice(c) => {
+            let mut criteria = BTreeMap::new();
+            for o in &c.options {
+                criteria.insert(o.id.clone(), Some(serde_json::Value::String(o.description.clone())));
+            }
+            Ok(WireQuestion::Choice(WireChoiceQuestion {
+                instructions: serde_json::Value::String(c.instructions.clone()),
+                criteria,
+            }))
+        }
+        Question::Score(s) => {
+            let criteria = s.levels.iter().map(|l| serde_json::Value::String(l.clone())).collect();
+            Ok(WireQuestion::Score(WireScoreQuestion {
+                instructions: serde_json::Value::String(s.instructions.clone()),
+                criteria,
+            }))
+        }
+        Question::Numeric(_) => Err(ZevError::InvalidRequest(
+            "Numeric questions cannot be directly represented in Jev wire format without anchor discretisation".into(),
+        )),
     }
 }
 
@@ -297,5 +331,32 @@ mod tests {
                 source: None
             }
         );
+    }
+
+    #[test]
+    fn test_question_to_wire_roundtrip() {
+        let b = Question::Boolean(BooleanQuestion {
+            instructions: "Is it sunny?".into(),
+            true_description: "Sunny".into(),
+            false_description: "Not sunny".into(),
+            policy: Default::default(),
+        });
+        let wire_b = question_to_wire(&b).unwrap();
+        assert!(matches!(wire_b, WireQuestion::Noul(_)));
+
+        let c = Question::Choice(ChoiceQuestion {
+            instructions: "Color?".into(),
+            options: vec![
+                OptionDef { id: "red".into(), description: "Red".into() },
+                OptionDef { id: "blue".into(), description: "Blue".into() },
+            ],
+            policy: Default::default(),
+        });
+        let wire_c = question_to_wire(&c).unwrap();
+        assert!(matches!(wire_c, WireQuestion::Choice(_)));
+
+        let s = Question::Score(ScoreQuestion::new("Rate", vec!["Low".into(), "High".into()]));
+        let wire_s = question_to_wire(&s).unwrap();
+        assert!(matches!(wire_s, WireQuestion::Score(_)));
     }
 }
