@@ -713,13 +713,24 @@
     .code-box {
       background: var(--void);
       border: 1px solid var(--concrete);
+      border-radius: 6px;
       padding: 20px;
       font-family: var(--font-mono);
       font-size: 13px;
       color: #e5e5e5;
       overflow-x: auto;
-      line-height: 1.5;
+      line-height: 1.6;
       margin-top: 16px;
+      white-space: pre;
+      tab-size: 2;
+      -webkit-overflow-scrolling: touch;
+      display: block;
+    }
+    .code-box code {
+      font-family: inherit;
+      font-size: inherit;
+      color: inherit;
+      white-space: inherit;
     }
     .code-box .comment {
       color: var(--steel);
@@ -2443,8 +2454,7 @@
         </a>
       </div>
 
-      <div class="code-box">
-<span class="comment"># Option A: Install via Homebrew (macOS & Linux)</span>
+      <pre class="code-box"><code><span class="comment"># Option A: Install via Homebrew (macOS &amp; Linux)</span>
 brew tap bhubbard/tap
 brew install zev
 
@@ -2460,11 +2470,9 @@ npm install -g zev-rs
 cargo install zev-rs
 
 <span class="comment"># Start the high-performance REST daemon</span>
-zev serve --port 8080
-      </div>
+zev serve --port 8080</code></pre>
 
-      <div class="code-box">
-<span class="comment">// Option D: Embed directly in your Rust Cargo.toml</span>
+      <pre class="code-box"><code><span class="comment">// Option D: Embed directly in your Rust Cargo.toml</span>
 <span class="keyword">[dependencies]</span>
 zev-rs = { version = <span class="str">"0.3.5"</span>, features = [<span class="str">"neural"</span>] }
 
@@ -2476,8 +2484,7 @@ zev-rs = { version = <span class="str">"0.3.5"</span>, features = [<span class="
 <span class="keyword">let</span> response = engine.evaluate_recommended(&amp;request, &amp;backend)?;
 
 <span class="comment">// 2. Maximum-Accuracy Consensus Ensemble (71.90% Accuracy • Beats Cygnet #1)</span>
-<span class="keyword">let</span> response = engine.evaluate_recommended_ensemble(&amp;request, &amp;backend)?;
-      </div>
+<span class="keyword">let</span> response = engine.evaluate_recommended_ensemble(&amp;request, &amp;backend)?;</code></pre>
 
     </section>
   </main>

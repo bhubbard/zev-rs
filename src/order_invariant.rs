@@ -444,6 +444,16 @@ impl PremiseContext {
 
     #[inline(always)]
     pub fn score_candidate_raw(&self, id: &str, desc_str: &str) -> f64 {
+        self.score_candidate_raw_contrastive(id, desc_str, None)
+    }
+
+    #[inline(always)]
+    pub fn score_candidate_raw_contrastive(
+        &self,
+        id: &str,
+        desc_str: &str,
+        carrier_tokens: Option<&std::collections::HashSet<String>>,
+    ) -> f64 {
         let mut logit: f64 = 0.5;
 
         // Exact ID match & constituent token matching
@@ -597,6 +607,10 @@ impl PremiseContext {
             };
             let char_count = word_str.chars().count();
 
+            // Contrastive background carrier token discounting (0.20x if word is shared across >=75% of candidates)
+            let is_carrier = carrier_tokens.is_some_and(|set| set.contains(word_str));
+            let carrier_scale = if is_carrier { 0.20 } else { 1.0 };
+
             // Morphological negation normalization on description words
             let has_morph_neg = match word_str {
                 "paid" => self.contains_bounded("unpaid"),
@@ -607,7 +621,7 @@ impl PremiseContext {
                 _ => false,
             };
             if has_morph_neg {
-                let w = self.recency_weight(word_str);
+                let w = self.recency_weight(word_str) * carrier_scale;
                 logit -= 1.8 * w;
                 continue;
             }
@@ -619,7 +633,7 @@ impl PremiseContext {
                     "be", "do", "we", "he", "so",
                 ];
                 if !COMMON_STOPWORDS.contains(&word_str) && self.contains_bounded(word_str) {
-                    let w = self.recency_weight(word_str);
+                    let w = self.recency_weight(word_str) * carrier_scale;
                     if self.is_negated(word_str) {
                         logit -= 1.8 * w;
                     } else {
@@ -635,7 +649,7 @@ impl PremiseContext {
                 };
 
                 if matched {
-                    let w = self.recency_weight(word_str);
+                    let w = self.recency_weight(word_str) * carrier_scale;
                     if self.is_negated(word_str) {
                         logit -= 1.8 * w;
                     } else {
@@ -645,7 +659,10 @@ impl PremiseContext {
                     // Stem prefix check
                     let stem = word_str.get(..word_str.len() - 1).unwrap_or("");
                     if self.contains_bounded(stem) {
-                        let w = self.recency_weight(stem);
+                        let stem_is_carrier =
+                            carrier_tokens.is_some_and(|set| set.contains(stem));
+                        let stem_carrier_scale = if stem_is_carrier { 0.20 } else { carrier_scale };
+                        let w = self.recency_weight(stem) * stem_carrier_scale;
                         if self.is_negated(stem) {
                             logit -= 1.4 * w;
                         } else {
@@ -665,16 +682,60 @@ impl PremiseContext {
     }
 }
 
-/// Evaluates all candidates with guaranteed order-invariance using pre-tokenized premise
+/// Identifies repetitive background carrier words shared across multiple candidate descriptions.
+///
+/// Carrier words (words appearing across >= 75% of candidates when K >= 3, or both when K = 2)
+/// add uniform dot-product bias that degrades discriminative separation.
+pub fn extract_carrier_tokens(candidates: &[Candidate]) -> std::collections::HashSet<String> {
+    if candidates.len() < 2 {
+        return std::collections::HashSet::new();
+    }
+
+    let k = candidates.len();
+    let threshold_count = if k == 2 {
+        2
+    } else {
+        (k * 3).div_ceil(4)
+    };
+
+    let mut token_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+
+    for c in candidates {
+        let mut seen = std::collections::HashSet::new();
+        for word in c.description.split(|ch: char| !ch.is_alphanumeric() && ch != '_') {
+            let w = word.trim().to_lowercase();
+            if w.len() >= 3 && seen.insert(w.clone()) {
+                *token_counts.entry(w).or_insert(0) += 1;
+            }
+        }
+    }
+
+    token_counts
+        .into_iter()
+        .filter(|&(_, count)| count >= threshold_count)
+        .map(|(word, _)| word)
+        .collect()
+}
+
+/// Evaluates all candidates with guaranteed order-invariance and contrastive background subtraction using pre-tokenized premise
 pub fn compute_order_invariant_logits(premise: &str, candidates: &[Candidate]) -> Vec<f64> {
     let ctx = PremiseContext::new(premise);
-    candidates.iter().map(|c| ctx.score_candidate(c)).collect()
+    compute_order_invariant_logits_with_context(&ctx, candidates)
 }
 
 pub fn compute_order_invariant_logits_with_context(
     ctx: &PremiseContext,
     candidates: &[Candidate],
 ) -> Vec<f64> {
+    if candidates.len() >= 2 {
+        let carriers = extract_carrier_tokens(candidates);
+        if !carriers.is_empty() {
+            return candidates
+                .iter()
+                .map(|c| ctx.score_candidate_raw_contrastive(&c.id, &c.description, Some(&carriers)))
+                .collect();
+        }
+    }
     candidates.iter().map(|c| ctx.score_candidate(c)).collect()
 }
 
@@ -993,4 +1054,40 @@ mod tests {
         let score = ctx.score_candidate(&cand_ready);
         assert!(score < 0.5); // negated
     }
+
+    #[test]
+    fn test_contrastive_carrier_token_discounting() {
+        let cands_a = vec![
+            Candidate {
+                id: "tier1".into(),
+                description: "Tier 1: Basic invoice support inquiry".into(),
+                value: None,
+            },
+            Candidate {
+                id: "tier2".into(),
+                description: "Tier 2: Enterprise invoice support inquiry".into(),
+                value: None,
+            },
+        ];
+
+        // "invoice", "support", "inquiry" are carrier tokens across both candidates
+        let carriers = extract_carrier_tokens(&cands_a);
+        assert!(carriers.contains("invoice"));
+        assert!(carriers.contains("support"));
+        assert!(carriers.contains("inquiry"));
+
+        let premise = "I need Tier 2 Enterprise assistance with my system";
+        let logits = compute_order_invariant_logits(premise, &cands_a);
+        assert!(
+            logits[1] > logits[0],
+            "Tier 2 should win decisively over Tier 1 without carrier interference"
+        );
+
+        // Permutation check: reversing candidates must yield exact permutation of logits
+        let cands_rev = vec![cands_a[1].clone(), cands_a[0].clone()];
+        let logits_rev = compute_order_invariant_logits(premise, &cands_rev);
+        assert_eq!(logits[0], logits_rev[1]);
+        assert_eq!(logits[1], logits_rev[0]);
+    }
 }
+

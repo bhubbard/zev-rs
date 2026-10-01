@@ -151,6 +151,86 @@ pub fn dampen_temperature_by_margin(logits: &[f64], base_temp: f64, margin_thres
     base_temp
 }
 
+/// Adaptive margin temperature scaling.
+/// Softens temperature on razor-thin margins (< margin_threshold) to prevent overconfidence,
+/// and sharpens temperature on decisive margins (> 2.5 * margin_threshold) to crystallize top candidate confidence.
+#[inline]
+pub fn adaptive_margin_temperature(logits: &[f64], base_temp: f64, margin_threshold: f64) -> f64 {
+    if logits.len() < 2 || margin_threshold <= 0.0 {
+        return base_temp;
+    }
+    let mut top1 = f64::NEG_INFINITY;
+    let mut top2 = f64::NEG_INFINITY;
+    for &x in logits {
+        if x > top1 {
+            top2 = top1;
+            top1 = x;
+        } else if x > top2 {
+            top2 = x;
+        }
+    }
+    if top2.is_finite() {
+        let margin = (top1 - top2).max(0.0);
+        if margin < margin_threshold {
+            let factor = 1.0 + 0.35 * (1.0 - margin / margin_threshold);
+            return base_temp * factor;
+        } else if margin > 2.5 * margin_threshold {
+            // Decisive margin: sharpen slightly (cool down by up to 12%) to crystallize confidence
+            let excess = ((margin - 2.5 * margin_threshold) / (2.5 * margin_threshold)).min(1.0);
+            let factor = 1.0 - 0.12 * excess;
+            return (base_temp * factor).max(0.5);
+        }
+    }
+    base_temp
+}
+
+/// Combines probability distributions using Bayesian Log-Linear Product of Experts (PoE).
+///
+/// Operates in log-probability space:
+///   `log P(c) = w_a * ln(P_a(c) + eps) + w_b * ln(P_b(c) + eps)`
+/// followed by stable softmax normalization.
+///
+/// Unlike linear averaging, Log-Linear PoE geometrically compounds consensus and
+/// penalizes dissonant or high-entropy distributions without flattening decisive predictions.
+pub fn log_linear_poe_fusion(
+    keys: &[String],
+    probs_a: &std::collections::BTreeMap<String, f64>,
+    probs_b: &std::collections::BTreeMap<String, f64>,
+    weight_a: f64,
+) -> std::collections::BTreeMap<String, f64> {
+    let w_a = weight_a.clamp(0.0, 1.0);
+    let w_b = 1.0 - w_a;
+    let eps = 1e-7;
+
+    let mut log_scores = Vec::with_capacity(keys.len());
+    let mut max_log = f64::NEG_INFINITY;
+
+    for k in keys {
+        let p_a = probs_a.get(k).copied().unwrap_or(0.0).max(eps);
+        let p_b = probs_b.get(k).copied().unwrap_or(0.0).max(eps);
+        let log_p = w_a * p_a.ln() + w_b * p_b.ln();
+        if log_p > max_log {
+            max_log = log_p;
+        }
+        log_scores.push(log_p);
+    }
+
+    let mut sum_exp = 0.0;
+    let mut exp_scores = Vec::with_capacity(keys.len());
+    for &ls in &log_scores {
+        let e = (ls - max_log).exp();
+        exp_scores.push(e);
+        sum_exp += e;
+    }
+
+    let mut result = std::collections::BTreeMap::new();
+    let inv_sum = if sum_exp > 0.0 { 1.0 / sum_exp } else { 1.0 };
+    for (k, e) in keys.iter().zip(exp_scores) {
+        result.insert(k.clone(), (e * inv_sum * 10000.0).round() / 10000.0);
+    }
+    result
+}
+
 /// Computes Expected Calibration Error (ECE) across M equal-width bins
 pub fn compute_ece(confidences: &[f64], accuracies: &[bool], num_bins: usize) -> f64 {
     if confidences.is_empty() || confidences.len() != accuracies.len() || num_bins == 0 {
@@ -356,4 +436,34 @@ mod tests {
         let dampened = dampen_temperature_by_margin(&[5.05, 5.0], base, 0.4);
         assert!(dampened > base);
     }
+
+    #[test]
+    fn test_adaptive_margin_temperature_and_poe_fusion() {
+        let base = 2.0;
+        // Near tie -> softened (higher temp)
+        let soft = adaptive_margin_temperature(&[5.05, 5.0], base, 0.4);
+        assert!(soft > base);
+
+        // Exact 1.0 (2.5 * 0.4) -> base
+        assert_eq!(adaptive_margin_temperature(&[5.0, 4.0], base, 0.4), base);
+
+        // Decisive margin (3.0 >> 1.0) -> sharpened (lower temp)
+        let sharp = adaptive_margin_temperature(&[6.0, 3.0], base, 0.4);
+        assert!(sharp < base);
+
+        // PoE Fusion
+        use std::collections::BTreeMap;
+        let mut m1 = BTreeMap::new();
+        m1.insert("A".into(), 0.90);
+        m1.insert("B".into(), 0.10);
+
+        let mut m2 = BTreeMap::new();
+        m2.insert("A".into(), 0.85);
+        m2.insert("B".into(), 0.15);
+
+        let fused = log_linear_poe_fusion(&["A".into(), "B".into()], &m1, &m2, 0.5);
+        assert!(fused["A"] > 0.85);
+        assert!(fused["B"] < 0.15);
+    }
 }
+

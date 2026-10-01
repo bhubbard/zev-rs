@@ -840,7 +840,7 @@ impl ZevEngine {
         };
         let family_temp = crate::calibration::family_calibrated_temperature(family, base_temp);
         let effective_temp =
-            crate::calibration::dampen_temperature_by_margin(&logits, family_temp, 0.40);
+            crate::calibration::adaptive_margin_temperature(&logits, family_temp, 0.40);
 
         let mut answer = decode_decision(final_question, &candidates, &logits, effective_temp)?;
 
@@ -1100,6 +1100,35 @@ impl ZevEngine {
         Ok(resp)
     }
 
+    /// Computes the question-type adaptive speculative gating threshold.
+    ///
+    /// Tailors gating to question properties:
+    /// - Boolean / binary questions: threshold lowered to min(base, 0.76) (decisive bimodal separation).
+    /// - Score / ordinal rating ladders: threshold raised to max(base, 0.88) (tight adjacent step distinction).
+    /// - Small choices (<= 2 options): min(base, 0.78).
+    /// - Wide choice sets (> 5 options): max(base, 0.87).
+    /// - Forced testing thresholds (>= 0.95 or <= 0.05) are preserved directly.
+    #[inline]
+    pub fn adaptive_speculative_threshold(base_threshold: f64, q: &Question) -> f64 {
+        if base_threshold >= 0.95 || base_threshold <= 0.05 {
+            return base_threshold;
+        }
+        match q {
+            Question::Boolean(_) => (base_threshold * 0.90).clamp(0.65, 0.78),
+            Question::Score(_) => (base_threshold * 1.05).clamp(0.80, 0.92),
+            Question::Choice(c) => {
+                if c.options.len() <= 2 {
+                    (base_threshold * 0.92).clamp(0.70, 0.82)
+                } else if c.options.len() > 5 {
+                    (base_threshold * 1.03).clamp(0.80, 0.90)
+                } else {
+                    base_threshold
+                }
+            }
+            Question::Numeric(_) => (base_threshold * 1.02).clamp(0.80, 0.90),
+        }
+    }
+
     /// Evaluates with a 3-tier speculative cascade:
     /// 1. Level 0: Zero-token SIMD parsing (<15 µs).
     /// 2. Level 1: Apfel Apple Intelligence neural verification on Apple Neural Engine (<20 µs).
@@ -1120,14 +1149,16 @@ impl ZevEngine {
 
         for (key, q) in &req.questions {
             if let Some(ans) = resp.answers.get_mut(key) {
-                if ans.confidence < apfel_threshold || ans.status != "ok" {
+                let q_apfel_thresh = Self::adaptive_speculative_threshold(apfel_threshold, q);
+                let q_gemma_thresh = Self::adaptive_speculative_threshold(gemma_threshold, q);
+                if ans.confidence < q_apfel_thresh || ans.status != "ok" {
                     let candidates = crate::decoding::generate_candidates(q);
                     let mut handled_by_apfel = false;
 
                     if let Ok(apfel_ans) =
                         neural_backend.evaluate_candidates(&state_str, q, &candidates)
                     {
-                        if apfel_ans.confidence >= gemma_threshold
+                        if apfel_ans.confidence >= q_gemma_thresh
                             && apfel_ans.decision
                                 != Some(serde_json::Value::String("__insufficient__".into()))
                         {
@@ -1156,8 +1187,8 @@ impl ZevEngine {
     ///
     /// When SIMD confidence is below threshold:
     /// - Dispatches to both Apfel (ANE) and Gemma 4 (CPU/GPU)
-    /// - Blends their calibrated probability distributions:
-    ///   `P_ensemble(c) = weight * P_apfel(c) + (1 - weight) * P_gemma(c)`
+    /// - Fuses their calibrated probability distributions using Bayesian Log-Linear Product of Experts (PoE):
+    ///   `log P_ensemble(c) = w_apfel * ln(P_apfel(c)) + w_gemma * ln(P_gemma(c))`
     /// - Rewards cross-model agreement with a consensus confidence boost
     /// - Triggers abstention guardrail if models disagree on high-entropy inputs
     #[cfg(feature = "neural")]
@@ -1175,11 +1206,11 @@ impl ZevEngine {
         };
 
         let apfel_w = apfel_weight.clamp(0.0, 1.0);
-        let gemma_w = 1.0 - apfel_w;
 
         for (key, q) in &req.questions {
             if let Some(ans) = resp.answers.get_mut(key) {
-                if ans.confidence < confidence_threshold || ans.status != "ok" {
+                let q_thresh = Self::adaptive_speculative_threshold(confidence_threshold, q);
+                if ans.confidence < q_thresh || ans.status != "ok" {
                     let candidates = crate::decoding::generate_candidates(q);
 
                     // Execute Apfel and Gemma
@@ -1193,16 +1224,15 @@ impl ZevEngine {
                             let apfel_choice = apfel_ans.decision.as_ref().and_then(|v| v.as_str());
                             let gemma_choice = gemma_ans.decision.as_ref().and_then(|v| v.as_str());
 
-                            // Blend probability distributions
-                            let mut combined_probs = BTreeMap::new();
-                            for c in &candidates {
-                                let p_apfel =
-                                    apfel_ans.probabilities.get(&c.id).copied().unwrap_or(0.0);
-                                let p_gemma =
-                                    gemma_ans.probabilities.get(&c.id).copied().unwrap_or(0.0);
-                                let blended = apfel_w * p_apfel + gemma_w * p_gemma;
-                                combined_probs.insert(c.id.clone(), blended);
-                            }
+                            // Bayesian Log-Linear Product of Experts (PoE) Fusion
+                            let cand_keys: Vec<String> =
+                                candidates.iter().map(|c| c.id.clone()).collect();
+                            let combined_probs = crate::calibration::log_linear_poe_fusion(
+                                &cand_keys,
+                                &apfel_ans.probabilities,
+                                &gemma_ans.probabilities,
+                                apfel_w,
+                            );
 
                             // Determine winning candidate
                             let best_cand = combined_probs
@@ -1214,12 +1244,15 @@ impl ZevEngine {
 
                             let is_consensus =
                                 apfel_choice == gemma_choice && apfel_choice.is_some();
-                            let base_conf =
-                                (apfel_ans.confidence * apfel_w) + (gemma_ans.confidence * gemma_w);
+                            let poe_max_prob =
+                                combined_probs.values().copied().fold(0.0, f64::max);
+                            let base_conf = (apfel_ans.confidence * apfel_w)
+                                + (gemma_ans.confidence * (1.0 - apfel_w));
+                            let fused_conf = base_conf.max(poe_max_prob);
                             let final_conf = if is_consensus {
-                                (base_conf + 0.08).min(0.99)
+                                (fused_conf + 0.08).min(0.99)
                             } else {
-                                (base_conf * 0.85).max(0.20)
+                                (fused_conf * 0.85).max(0.20)
                             };
 
                             ans.decision = best_cand.map(serde_json::Value::String);
@@ -1271,7 +1304,8 @@ impl ZevEngine {
 
         for (key, q) in &req.questions {
             if let Some(ans) = resp.answers.get_mut(key) {
-                if ans.confidence < confidence_threshold || ans.status != "ok" {
+                let q_thresh = Self::adaptive_speculative_threshold(confidence_threshold, q);
+                if ans.confidence < q_thresh || ans.status != "ok" {
                     let candidates = crate::decoding::generate_candidates(q);
                     let turn = self
                         .fallback_counter
