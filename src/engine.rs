@@ -458,6 +458,7 @@ pub struct ZevEngine {
     pub default_temperature: f64,
     pub type_temperatures: TypeTemperatureConfig,
     pub use_type_temperatures: bool,
+    pub fallback_counter: std::sync::atomic::AtomicU64,
 }
 
 impl Default for ZevEngine {
@@ -479,6 +480,7 @@ impl ZevEngine {
             default_temperature: temp,
             type_temperatures: TypeTemperatureConfig::default(),
             use_type_temperatures: use_type,
+            fallback_counter: std::sync::atomic::AtomicU64::new(0),
         }
     }
 
@@ -1196,6 +1198,100 @@ impl ZevEngine {
         Ok(resp)
     }
 
+    /// Evaluates using an alternating load-balanced speculative fallback:
+    /// - Level 0: Zero-token SIMD hot path (<15 µs).
+    /// - When SIMD confidence is below `confidence_threshold` (or abstains):
+    ///   Alternates between Apfel (Apple Neural Engine) and Gemma 4:
+    ///   - Fallback #1 -> Apfel (ANE)
+    ///   - Fallback #2 -> Gemma 4 (CPU/GPU)
+    ///   - Fallback #3 -> Apfel (ANE)
+    ///   - ...
+    /// - If the assigned backend fails or has insufficient confidence,
+    ///   automatically falls back to the complementary backend for high availability!
+    #[cfg(feature = "neural")]
+    pub fn evaluate_speculative_load_balanced(
+        &self,
+        req: &ZevRequest,
+        confidence_threshold: f64,
+        neural_backend: &crate::neural::ApfelNeuralBackend,
+    ) -> Result<ZevResponse> {
+        let mut resp = self.evaluate(req)?;
+        let state_str = match &req.state {
+            serde_json::Value::String(s) => s.clone(),
+            other => other.to_string(),
+        };
+
+        for (key, q) in &req.questions {
+            if let Some(ans) = resp.answers.get_mut(key) {
+                if ans.confidence < confidence_threshold || ans.status != "ok" {
+                    let candidates = crate::decoding::generate_candidates(q);
+                    let turn = self
+                        .fallback_counter
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+                    // Alternate between Apfel (turn % 2 == 0) and Gemma 4 (turn % 2 == 1)
+                    if turn % 2 == 0 {
+                        // Primary: Apfel, Backup: Gemma
+                        let apfel_ok = if let Ok(mut apfel_ans) =
+                            neural_backend.evaluate_candidates(&state_str, q, &candidates)
+                        {
+                            if apfel_ans.confidence >= 0.65
+                                && apfel_ans.decision
+                                    != Some(serde_json::Value::String("__insufficient__".into()))
+                            {
+                                apfel_ans.source = Some("apfel-load-balanced".to_string());
+                                *ans = apfel_ans;
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+
+                        if !apfel_ok {
+                            if let Ok(mut gemma_ans) =
+                                crate::gemma::evaluate_gemma(&state_str, q, &candidates)
+                            {
+                                gemma_ans.source = Some("gemma-failover".to_string());
+                                *ans = gemma_ans;
+                            }
+                        }
+                    } else {
+                        // Primary: Gemma, Backup: Apfel
+                        let gemma_ok = if let Ok(mut gemma_ans) =
+                            crate::gemma::evaluate_gemma(&state_str, q, &candidates)
+                        {
+                            if gemma_ans.confidence >= 0.65
+                                && gemma_ans.decision
+                                    != Some(serde_json::Value::String("__insufficient__".into()))
+                            {
+                                gemma_ans.source = Some("gemma-load-balanced".to_string());
+                                *ans = gemma_ans;
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+
+                        if !gemma_ok {
+                            if let Ok(mut apfel_ans) =
+                                neural_backend.evaluate_candidates(&state_str, q, &candidates)
+                            {
+                                apfel_ans.source = Some("apfel-failover".to_string());
+                                *ans = apfel_ans;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(resp)
+    }
+
     /// Evaluates a Tev1-formatted request with sub-10-microsecond latency and 100% order-invariance
     pub fn evaluate_tev1(
         &self,
@@ -1558,5 +1654,47 @@ mod tests {
         );
         assert!(ens_ans.source.as_ref().unwrap().starts_with("ensemble-"));
         assert!(ens_ans.probabilities.contains_key("billing"));
+
+        // 3. Speculative Load Balancing (Alternating Apfel -> Gemma -> Apfel)
+        // Request 1: Should be handled by Apfel (turn 0)
+        let lb_res_1 = engine
+            .evaluate_speculative_load_balanced(&req, 0.99, &backend)
+            .expect("Load balanced request 1 must succeed");
+        let lb_ans_1 = lb_res_1.answers.get("dept").unwrap();
+        assert_eq!(
+            lb_ans_1.source.as_deref(),
+            Some("apfel-load-balanced"),
+            "First low-confidence fallback must route to Apfel"
+        );
+        assert_eq!(
+            lb_ans_1.decision,
+            Some(serde_json::Value::String("billing".into()))
+        );
+
+        // Request 2: Should alternate to Gemma (turn 1)
+        let lb_res_2 = engine
+            .evaluate_speculative_load_balanced(&req, 0.99, &backend)
+            .expect("Load balanced request 2 must succeed");
+        let lb_ans_2 = lb_res_2.answers.get("dept").unwrap();
+        assert_eq!(
+            lb_ans_2.source.as_deref(),
+            Some("gemma-load-balanced"),
+            "Second low-confidence fallback must route to Gemma"
+        );
+        assert_eq!(
+            lb_ans_2.decision,
+            Some(serde_json::Value::String("billing".into()))
+        );
+
+        // Request 3: Should alternate back to Apfel (turn 2)
+        let lb_res_3 = engine
+            .evaluate_speculative_load_balanced(&req, 0.99, &backend)
+            .expect("Load balanced request 3 must succeed");
+        let lb_ans_3 = lb_res_3.answers.get("dept").unwrap();
+        assert_eq!(
+            lb_ans_3.source.as_deref(),
+            Some("apfel-load-balanced"),
+            "Third low-confidence fallback must alternate back to Apfel"
+        );
     }
 }

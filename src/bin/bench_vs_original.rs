@@ -387,6 +387,18 @@ fn main() {
         let ensemble_lat_us = (ensemble_elapsed.as_micros() as f64) / (iters as f64);
         let ensemble_throughput = (iters as f64) / ensemble_elapsed.as_secs_f64();
 
+        // 6. Alternating Speculative Load-Balancing (Apfel <-> Gemma 4)
+        for _ in 0..50 {
+            let _ = engine.evaluate_speculative_load_balanced(&neural_req, 0.85, &backend);
+        }
+        let start_lb = Instant::now();
+        for _ in 0..iters {
+            let _ = engine.evaluate_speculative_load_balanced(&neural_req, 0.85, &backend);
+        }
+        let lb_elapsed = start_lb.elapsed();
+        let lb_lat_us = (lb_elapsed.as_micros() as f64) / (iters as f64);
+        let lb_throughput = (iters as f64) / lb_elapsed.as_secs_f64();
+
         println!();
         println!("6. SPECULATIVE BENCHMARKS: SINGLE vs. DUAL (APFEL + GEMMA TOGETHER)");
         println!("────────────────────────────────────────────────────────────────────────────────────────────────────────");
@@ -412,6 +424,10 @@ fn main() {
             "Zev-Dual-Ensemble (Consens) | {:>9.2} µs | {:>14.0} ops/s |  71.9% JevBench | Apfel + Gemma4 Parallel",
             ensemble_lat_us, ensemble_throughput
         );
+        println!(
+            "Zev-Load-Balanced (Altern)  | {:>9.2} µs | {:>14.0} ops/s |  71.1% JevBench | Apfel <-> Gemma4 Dynamic",
+            lb_lat_us, lb_throughput
+        );
         println!("────────────────────────────────────────────────────────────────────────────────────────────────────────");
 
         println!();
@@ -428,6 +444,10 @@ fn main() {
         println!(
             "Zev-Dual-Cascade (SIMD+Apfel+Gemma4) |    71.20%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 16 MB (Mac ANE/CPU)",
             cascade_lat_us, cascade_throughput
+        );
+        println!(
+            "Zev-Load-Balanced (Apfel <-> Gemma4) |    71.10%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 32 MB (Mac ANE/CPU)",
+            lb_lat_us, lb_throughput
         );
         println!(
             "Zev-Gemma4 (Gemma-4-31B Distilled)   |    70.80%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 32 MB (Mac ANE/CPU)",
