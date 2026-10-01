@@ -1431,7 +1431,7 @@
   <!-- Top metadata bar -->
   <aside class="top-bar" aria-label="Build Status">
     <div>// REPOSITORY: <span class="meta-tag">GITHUB.COM/BHUBBARD/ZEV-RS</span></div>
-    <div>VERSION <span class="meta-tag">0.2.0</span> &bull; CRATES.IO &bull; MIT LICENSE</div>
+    <div>VERSION <span class="meta-tag">0.3.6</span> &bull; CRATES.IO &bull; MIT LICENSE</div>
   </aside>
 
   <!-- Main header -->
@@ -1549,7 +1549,7 @@
   <main>
     <section id="overview" class="hero">
       <div class="hero-inner">
-        <div class="kicker">ZERO-TOKEN SYSTEM 1 DECISION ENGINE // v0.3.5</div>
+        <div class="kicker">ZERO-TOKEN SYSTEM 1 DECISION ENGINE // v0.3.6</div>
         <h1>Stop paying cloud GPUs for simple decisions.<br><span style="color: var(--electric-cyan);">11.2 µs latency. 71.9% accuracy. $0.00 bills.</span></h1>
         <p class="lead">
           Traditional LLMs waste 500+ milliseconds generating tokens one by one just to categorize a ticket or route an API call. <strong>Zev resolves decisions in 11.2 microseconds on your CPU or Apple Silicon</strong> with calibrated probabilities, mathematical order-invariance, and automatic neural speculative failover.
@@ -2518,7 +2518,7 @@ cat tickets.jsonl | zev batch --file - --mode route \
       </div>
       <pre class="code-box"><code><span class="comment">// Add to Cargo.toml:</span>
 <span class="keyword">[dependencies]</span>
-zev-rs = { version = <span class="str">"0.3.5"</span>, features = [<span class="str">"neural"</span>] }
+zev-rs = { version = <span class="str">"0.3.6"</span>, features = [<span class="str">"neural"</span>] }
 
 <span class="keyword">use</span> zev::{ZevEngine, ApfelNeuralBackend, ExecutionMode};
 
