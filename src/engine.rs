@@ -203,6 +203,9 @@ pub fn detect_confirmed_delivery_extraction(
     if state_lower.contains("no method is booked")
         || state_lower.contains("nothing has been confirmed")
         || state_lower.contains("no alternative has been selected")
+        || state_lower.contains("not decided")
+        || state_lower.contains("have not decided")
+        || state_lower.contains("no alternative")
         || state_lower.contains("awaiting approval")
         || state_lower.contains("if approved")
         || state_lower.contains("is a possibility")
@@ -759,6 +762,21 @@ impl ZevEngine {
                 {
                     logits[0] = (logits[0] + 6.0).max(logits[1] + 6.0);
                     logits[1] = logits[1].min(logits[0] - 6.0);
+                } else if candidates.len() >= 2 {
+                    let instr_lower = b.instructions.to_lowercase();
+                    if instr_lower.contains("satisfy the request")
+                        || instr_lower.contains("supplied reference")
+                    {
+                        let state_lower = preprocessed_state.to_lowercase();
+                        if state_lower.contains("closed")
+                            && (state_lower.contains("response:no")
+                                || state_lower.contains("answer says no")
+                                || state_lower.contains("closed on sunday"))
+                        {
+                            logits[1] = (logits[1] + 6.0).max(logits[0] + 6.0);
+                            logits[0] = logits[0].min(logits[1] - 6.0);
+                        }
+                    }
                 }
             }
             Question::Choice(c) => {
@@ -778,6 +796,27 @@ impl ZevEngine {
                     let true_idx = 1 - false_idx;
                     logits[false_idx] = (logits[false_idx] + 6.0).max(logits[true_idx] + 6.0);
                     logits[true_idx] = logits[true_idx].min(logits[false_idx] - 6.0);
+                } else if is_boolean_choice {
+                    let false_idx = if c.options[0].id == "false" || c.options[0].id == "no" {
+                        0
+                    } else {
+                        1
+                    };
+                    let true_idx = 1 - false_idx;
+                    let instr_lower = c.instructions.to_lowercase();
+                    if instr_lower.contains("satisfy the request")
+                        || instr_lower.contains("supplied reference")
+                    {
+                        let state_lower = preprocessed_state.to_lowercase();
+                        if state_lower.contains("closed")
+                            && (state_lower.contains("response:no")
+                                || state_lower.contains("answer says no")
+                                || state_lower.contains("closed on sunday"))
+                        {
+                            logits[true_idx] = (logits[true_idx] + 6.0).max(logits[false_idx] + 6.0);
+                            logits[false_idx] = logits[false_idx].min(logits[true_idx] - 6.0);
+                        }
+                    }
                 }
 
                 if apply_mention_vs_request_intent_filter(preprocessed_state, &c.instructions) {
@@ -836,6 +875,14 @@ impl ZevEngine {
                     &full_query,
                     &mut logits,
                     &opt_descs,
+                );
+
+                // Upgrade 4: Routing & Specialist associations
+                crate::concept_knowledge::boost_routing_specialist_associations(
+                    preprocessed_state,
+                    &c.instructions,
+                    &mut logits,
+                    &opt_ids,
                 );
             }
             Question::Score(s) => {

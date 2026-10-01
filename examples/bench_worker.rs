@@ -215,8 +215,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let t_req = Instant::now();
-            let res = ureq::post(&sysone_url)
-                .send_json(&req);
+            let mut res = ureq::post(&sysone_url).send_json(&req);
+            for _ in 0..2 {
+                if res.is_err() {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    res = ureq::post(&sysone_url).send_json(&req);
+                }
+            }
 
             let elapsed_us = t_req.elapsed().as_micros() as f64;
 
@@ -235,9 +240,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         };
                         if matches_expected(&pred, &exp_str) {
                             worker_correct.fetch_add(1, Ordering::Relaxed);
+                        } else {
+                            // Check if local also failed or succeeded
+                            if let Ok(local_resp) = local_engine.evaluate_system_one(&req) {
+                                if let Some(local_ans) = local_resp.answers.get("q") {
+                                    let local_pred = extract_prediction_token(local_ans);
+                                    if matches_expected(&local_pred, &exp_str) {
+                                        eprintln!("PARITY MISMATCH on {}: local predicted {}, worker predicted {}, expected {}", item.id, local_pred, pred, exp_str);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+            } else {
+                eprintln!("NETWORK FAILURE on {}", item.id);
             }
         });
     });

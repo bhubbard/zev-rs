@@ -26,7 +26,15 @@ const SCOPED_NEGATORS: &[&str] = &[
     "no longer",
     "not looking for",
     "no need for",
+    "no need",
+    "no files need",
+    "no changes needed",
     "do not need",
+    "not needed",
+    "not required",
+    "without any",
+    "without needing",
+    "without editing",
     "rather than",
     "stop renewing",
     "refused",
@@ -641,6 +649,14 @@ impl PremiseContext {
                     }
                 }
             } else {
+                const COMMON_LONG_STOPWORDS: [&str; 16] = [
+                    "the", "and", "for", "are", "was", "with", "that", "from", "this", "these",
+                    "than", "then", "have", "been", "were", "some",
+                ];
+                if COMMON_LONG_STOPWORDS.contains(&word_str) {
+                    continue;
+                }
+
                 let is_ascii = word_str.is_ascii();
                 let matched = if is_ascii {
                     self.contains_bounded(word_str)
