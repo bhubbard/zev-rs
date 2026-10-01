@@ -20,6 +20,7 @@ pub struct GemmaConfig {
     pub api_key: Option<String>,
     pub timeout: Duration,
     pub fallback_to_heuristic: bool,
+    pub diffusion_read_only: bool,
 }
 
 impl Default for GemmaConfig {
@@ -32,6 +33,9 @@ impl Default for GemmaConfig {
             .ok()
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(2000);
+        let diffusion_read_only = std::env::var("ZEV_DIFFUSION_READ_ONLY")
+            .map(|v| v == "1" || v == "true")
+            .unwrap_or_else(|_| model.to_lowercase().contains("diffusion"));
 
         Self {
             endpoint,
@@ -39,6 +43,7 @@ impl Default for GemmaConfig {
             api_key,
             timeout: Duration::from_millis(timeout_ms),
             fallback_to_heuristic: true,
+            diffusion_read_only,
         }
     }
 }
@@ -51,12 +56,35 @@ struct ChatMessage {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct VllmDiffusionXArgs {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diffusion_seed_canvas: Option<Vec<i64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diffusion_pinned: Option<Vec<usize>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diffusion_max_steps: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diffusion_read_only: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diffusion_canvas_length: Option<usize>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Serialize)]
 struct ChatCompletionRequest {
     model: String,
     messages: Vec<ChatMessage>,
     temperature: f64,
     max_tokens: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    logprobs: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_logprobs: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    logprob_token_ids: Option<Vec<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    vllm_xargs: Option<VllmDiffusionXArgs>,
 }
 
 /// Evaluates candidates using Gemma chat completion or intelligent distillation
@@ -133,6 +161,19 @@ pub fn evaluate_gemma(
         }
 
         let prompt = format_gemma_prompt(state, question.instructions(), &effective_candidates);
+        let top_lp = (effective_candidates.len() as u32).max(10).min(64);
+        let vllm_xargs = if config.diffusion_read_only {
+            Some(VllmDiffusionXArgs {
+                diffusion_seed_canvas: None,
+                diffusion_pinned: None,
+                diffusion_max_steps: Some(1),
+                diffusion_read_only: Some(true),
+                diffusion_canvas_length: None,
+            })
+        } else {
+            None
+        };
+
         let chat_req = ChatCompletionRequest {
             model: config.model.clone(),
             messages: vec![
@@ -147,6 +188,10 @@ pub fn evaluate_gemma(
             ],
             temperature: 0.0,
             max_tokens: 16,
+            logprobs: Some(true),
+            top_logprobs: Some(top_lp),
+            logprob_token_ids: None,
+            vllm_xargs,
         };
 
         let url = format!("{}/chat/completions", config.endpoint.trim_end_matches('/'));
@@ -169,6 +214,19 @@ pub fn evaluate_gemma(
                     .is_ok()
                 {
                     if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&body_str) {
+                        // 1. Try parsing exact candidate logprob distribution (vLLM PR #57250)
+                        if let Some(logprobs_val) = json_val["choices"][0].get("logprobs") {
+                            if let Some(answer) = parse_gemma_logprobs_decision(
+                                logprobs_val,
+                                &effective_candidates,
+                                candidates,
+                                question,
+                            ) {
+                                return Ok(answer);
+                            }
+                        }
+
+                        // 2. Fallback to bracketed ID parsing
                         if let Some(content_str) = json_val["choices"][0]["message"]["content"].as_str()
                         {
                             if let Some(answer) = parse_gemma_decision(
@@ -200,6 +258,53 @@ pub fn evaluate_gemma(
             }
         }
     }
+}
+
+/// Reconstructs calibrated decision distribution from exact logprobs (vLLM PR #57250)
+pub fn parse_gemma_logprobs_decision(
+    logprobs_val: &serde_json::Value,
+    effective_candidates: &[Candidate],
+    all_candidates: &[Candidate],
+    question: &Question,
+) -> Option<ZevAnswer> {
+    let mut logit_map = BTreeMap::new();
+    let content_arr = logprobs_val.get("content")?.as_array()?;
+    for token_obj in content_arr {
+        if let Some(top_arr) = token_obj.get("top_logprobs").and_then(|v| v.as_array()) {
+            for entry in top_arr {
+                if let (Some(token), Some(lp)) = (
+                    entry.get("token").and_then(|v| v.as_str()),
+                    entry.get("logprob").and_then(|v| v.as_f64()),
+                ) {
+                    let cleaned = token.trim().trim_matches(|c| c == '[' || c == ']' || c == '<' || c == '>');
+                    for c in effective_candidates {
+                        if c.id.eq_ignore_ascii_case(cleaned) || cleaned.contains(&c.id) {
+                            let curr = logit_map.entry(c.id.clone()).or_insert(f64::NEG_INFINITY);
+                            if lp > *curr {
+                                *curr = lp;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if logit_map.is_empty() {
+        return None;
+    }
+
+    // Convert candidate logits to scaled probabilities
+    let mut c_logits = Vec::with_capacity(all_candidates.len());
+    for c in all_candidates {
+        let l = logit_map.get(&c.id).copied().unwrap_or(-20.0);
+        c_logits.push(l);
+    }
+
+    crate::decoding::decode_decision(question, all_candidates, &c_logits, 1.0).ok().map(|mut ans| {
+        ans.source = Some("diffusion_gemma".to_string());
+        ans
+    })
 }
 
 /// Formats the prompt using Gemma turn tokens
@@ -672,5 +777,71 @@ mod tests {
         assert!(!cfg.model.is_empty());
         assert!(cfg.timeout.as_millis() > 0);
         assert!(cfg.fallback_to_heuristic);
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn test_vllm_diffusion_xargs_serialization() {
+        let xargs = VllmDiffusionXArgs {
+            diffusion_seed_canvas: None,
+            diffusion_pinned: None,
+            diffusion_max_steps: Some(1),
+            diffusion_read_only: Some(true),
+            diffusion_canvas_length: None,
+        };
+        let serialized = serde_json::to_string(&xargs).unwrap();
+        assert!(serialized.contains(r#""diffusion_max_steps":1"#));
+        assert!(serialized.contains(r#""diffusion_read_only":true"#));
+        assert!(!serialized.contains("diffusion_seed_canvas"));
+    }
+
+    #[test]
+    fn test_parse_gemma_logprobs_decision() {
+        let candidates = vec![
+            Candidate { id: "retry".into(), description: "Retry the request".into(), value: None },
+            Candidate { id: "abort".into(), description: "Abort and report error".into(), value: None },
+            Candidate { id: "ignore".into(), description: "Ignore and continue".into(), value: None },
+        ];
+        let q = Question::Choice(crate::types::ChoiceQuestion {
+            instructions: "Select action".into(),
+            options: vec![],
+            policy: crate::types::Policy::default(),
+        });
+
+        // Mock OpenAI/vLLM format logprobs structure (vLLM PR #57250)
+        let mock_json = serde_json::json!({
+            "content": [
+                {
+                    "token": "[retry]",
+                    "logprob": -0.15,
+                    "top_logprobs": [
+                        { "token": "[retry]", "logprob": -0.15 },
+                        { "token": "[abort]", "logprob": -2.30 },
+                        { "token": "[ignore]", "logprob": -5.10 }
+                    ]
+                }
+            ]
+        });
+
+        let ans = parse_gemma_logprobs_decision(&mock_json, &candidates, &candidates, &q).unwrap();
+        assert_eq!(ans.decision, Some(serde_json::Value::String("retry".into())));
+        assert_eq!(ans.source.as_deref(), Some("diffusion_gemma"));
+        assert!(ans.confidence > 0.80);
+        assert!(ans.probabilities.contains_key("retry"));
+        assert!(ans.probabilities.contains_key("abort"));
+        assert!(ans.probabilities.contains_key("ignore"));
+    }
+
+    #[test]
+    fn test_gemma_diffusion_read_only_config() {
+        std::env::set_var("ZEV_DIFFUSION_READ_ONLY", "1");
+        let cfg = GemmaConfig::default();
+        assert!(cfg.diffusion_read_only);
+        std::env::remove_var("ZEV_DIFFUSION_READ_ONLY");
+
+        std::env::set_var("GEMMA_MODEL", "google/diffusiongemma-2b");
+        let cfg2 = GemmaConfig::default();
+        assert!(cfg2.diffusion_read_only);
+        std::env::remove_var("GEMMA_MODEL");
     }
 }

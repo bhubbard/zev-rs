@@ -877,10 +877,11 @@ impl ZevEngine {
 
         let mut answer = decode_decision(final_question, &candidates, &logits, effective_temp)?;
 
-        // Upgrade 5: Two-System Speculative Gating with Option-Count Adaptive Fallback
+        // Upgrade 5: Two-System Speculative Gating with Option-Count Adaptive Fallback & H1 Shannon Entropy Gating (vLLM PR #57250)
         let num_cands = candidates.len().max(2) as f64;
         let default_conf_thresh = (1.0 / num_cands) + 0.20;
         let default_margin_thresh = 0.15 / num_cands.sqrt();
+        let default_entropy_thresh = (num_cands.ln() * 0.40).min(0.50).max(0.12);
 
         let conf_thresh = std::env::var("ZEV_FALLBACK_CONFIDENCE")
             .ok()
@@ -890,8 +891,15 @@ impl ZevEngine {
             .ok()
             .and_then(|s| s.parse::<f64>().ok())
             .unwrap_or(default_margin_thresh);
+        let entropy_thresh = std::env::var("ZEV_FALLBACK_ENTROPY")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(default_entropy_thresh);
+
+        let is_high_entropy = answer.uncertainty.entropy_nats > entropy_thresh;
         let should_fallback = answer.confidence < conf_thresh
-            || answer.uncertainty.margin.is_some_and(|m| m < margin_thresh);
+            || answer.uncertainty.margin.is_some_and(|m| m < margin_thresh)
+            || is_high_entropy;
 
         let is_clm = fallback_mode == "clm";
         let is_poe = fallback_mode == "poe";
@@ -2041,6 +2049,47 @@ mod tests {
         let resp_poe = engine.evaluate_system_one(&req_poe).expect("system_one poe eval");
         assert_eq!(resp_poe.model, "zev-poe");
         assert!(resp_poe.answers.contains_key("action"));
+    }
+
+    #[test]
+    fn test_h1_entropy_speculative_gating() {
+        let engine = ZevEngine::default();
+        let q = Question::Choice(ChoiceQuestion {
+            instructions: "Classify the sentiment".into(),
+            options: vec![
+                crate::types::OptionDef { id: "pos".into(), description: "Positive sentiment".into() },
+                crate::types::OptionDef { id: "neg".into(), description: "Negative sentiment".into() },
+                crate::types::OptionDef { id: "neu".into(), description: "Neutral sentiment".into() },
+            ],
+            policy: crate::types::Policy::default(),
+        });
+
+        // Set environment variables for fallback gating
+        std::env::set_var("ZEV_FALLBACK", "gemma");
+        std::env::set_var("ZEV_FALLBACK_CONFIDENCE", "0.0"); // Disable confidence fallback
+        std::env::set_var("ZEV_FALLBACK_MARGIN", "0.0");     // Disable margin fallback
+        std::env::set_var("ZEV_FALLBACK_ENTROPY", "0.01");   // Extremely strict entropy trigger
+
+        let mut questions = BTreeMap::new();
+        questions.insert("sentiment".into(), q);
+        let req = ZevRequest {
+            state: serde_json::json!("This statement could be positive or neutral."),
+            questions,
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+            images: None,
+        };
+
+        let resp = engine.evaluate(&req).unwrap();
+        let ans = &resp.answers["sentiment"];
+        assert!(ans.source.is_some(), "Speculative fallback must trigger via high Shannon entropy H1");
+
+        // Clean up environment variables
+        std::env::remove_var("ZEV_FALLBACK");
+        std::env::remove_var("ZEV_FALLBACK_CONFIDENCE");
+        std::env::remove_var("ZEV_FALLBACK_MARGIN");
+        std::env::remove_var("ZEV_FALLBACK_ENTROPY");
     }
 }
 
