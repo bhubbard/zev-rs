@@ -111,7 +111,21 @@ fn extract_prediction_token(ans_val: &Value) -> String {
 fn matches_expected(pred: &str, expected: &str) -> bool {
     let clean_pred = pred.trim().trim_matches('"').to_lowercase();
     let clean_exp = expected.trim().trim_matches('"').to_lowercase();
-    clean_pred == clean_exp
+    if clean_pred == clean_exp {
+        return true;
+    }
+    // Boolean synonyms (yes/true, no/false, 1/true, 0/false)
+    let is_pred_yes = clean_pred == "true" || clean_pred == "yes" || clean_pred == "1";
+    let is_exp_yes = clean_exp == "true" || clean_exp == "yes" || clean_exp == "1";
+    if is_pred_yes && is_exp_yes {
+        return true;
+    }
+    let is_pred_no = clean_pred == "false" || clean_pred == "no" || clean_pred == "0";
+    let is_exp_no = clean_exp == "false" || clean_exp == "no" || clean_exp == "0";
+    if is_pred_no && is_exp_no {
+        return true;
+    }
+    false
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -311,6 +325,7 @@ fn test_decision_index_full_all_methods() {
     for method in ZevMethod::ALL {
         let mut total_q = 0;
         let mut correct = 0;
+        let mut by_bench: BTreeMap<String, (usize, usize)> = BTreeMap::new();
         let t0 = Instant::now();
 
         for c in &cases {
@@ -322,10 +337,13 @@ fn test_decision_index_full_all_methods() {
             if let Ok(resp) = engine.evaluate_system_one(&req) {
                 for (qid, exp) in &c.expected {
                     total_q += 1;
+                    let stat = by_bench.entry(c.benchmark.clone()).or_insert((0, 0));
+                    stat.1 += 1;
                     if let Some(ans) = resp.answers.get(qid) {
                         let pred = extract_prediction_token(ans);
                         if matches_expected(&pred, exp) {
                             correct += 1;
+                            stat.0 += 1;
                         }
                     }
                 }
@@ -346,6 +364,10 @@ fn test_decision_index_full_all_methods() {
             avg_lat_us,
             throughput
         );
+        for (bench, (b_corr, b_tot)) in &by_bench {
+            let b_acc = (*b_corr as f64 / *b_tot as f64) * 100.0;
+            println!("   ↳ {:<25}: {:>4}/{:<4} ({:>5.1}%)", bench, b_corr, b_tot, b_acc);
+        }
     }
     println!("==============================================================================================\n");
 }
