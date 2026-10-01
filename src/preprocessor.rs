@@ -69,21 +69,71 @@ pub fn clean_text<'a>(input: &'a str) -> Cow<'a, str> {
     Cow::Owned(cleaned_lines.join("\n").trim().to_string())
 }
 
-pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a, str> {
-    let cleaned = clean_text(state_str);
-    if enable_temporal {
-        match cleaned {
-            Cow::Borrowed(s) => inject_temporal_facts(s),
-            Cow::Owned(ref s) => {
-                let with_temp = inject_temporal_facts(s);
-                match with_temp {
-                    Cow::Borrowed(_) => cleaned,
-                    Cow::Owned(o) => Cow::Owned(o),
-                }
+/// Formats structured JSON state (e.g. conversations, invoices, tickets) into clean natural text.
+pub fn format_structured_state<'a>(input: &'a str) -> Cow<'a, str> {
+    let trimmed = input.trim();
+    if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
+        return Cow::Borrowed(input);
+    }
+    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        let mut parts = Vec::new();
+        if let Some(serde_json::Value::Array(conv)) = map.get("conversation") {
+            for turn in conv {
+                let speaker = turn.get("speaker").and_then(|v| v.as_str()).unwrap_or("user");
+                let text = turn.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                parts.push(format!("{}: {}", speaker, text));
             }
         }
-    } else {
-        cleaned
+        for (k, v) in &map {
+            if k == "conversation" {
+                continue;
+            }
+            if let serde_json::Value::Object(sub) = v {
+                let sub_strs: Vec<String> = sub
+                    .iter()
+                    .map(|(sk, sv)| format!("{}: {}", sk, sv))
+                    .collect();
+                parts.push(format!("{}: {}", k, sub_strs.join(", ")));
+            } else if !v.is_null() {
+                parts.push(format!("{}: {}", k, v));
+            }
+        }
+        if !parts.is_empty() {
+            return Cow::Owned(parts.join("\n\n"));
+        }
+    }
+    Cow::Borrowed(input)
+}
+
+pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a, str> {
+    let structured = format_structured_state(state_str);
+    match structured {
+        Cow::Borrowed(s) => {
+            let cleaned = clean_text(s);
+            if enable_temporal {
+                match cleaned {
+                    Cow::Borrowed(c) => inject_temporal_facts(c),
+                    Cow::Owned(ref c) => match inject_temporal_facts(c) {
+                        Cow::Borrowed(_) => cleaned,
+                        Cow::Owned(o) => Cow::Owned(o),
+                    },
+                }
+            } else {
+                cleaned
+            }
+        }
+        Cow::Owned(s) => {
+            let cleaned = clean_text(&s);
+            let result_str = if enable_temporal {
+                match cleaned {
+                    Cow::Borrowed(c) => inject_temporal_facts(c).into_owned(),
+                    Cow::Owned(ref c) => inject_temporal_facts(c).into_owned(),
+                }
+            } else {
+                cleaned.into_owned()
+            };
+            Cow::Owned(result_str)
+        }
     }
 }
 

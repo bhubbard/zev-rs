@@ -609,6 +609,10 @@ impl ZevEngine {
                 "apfel".to_string()
             } else if m_lower.contains("clm") {
                 "clm".to_string()
+            } else if m_lower.contains("cascade") {
+                "cascade".to_string()
+            } else if m_lower.contains("poe") || m_lower.contains("ensemble") {
+                "poe".to_string()
             } else if m_lower.contains("mlx") {
                 "mlx".to_string()
             } else if m_lower == "zev-default" || m_lower == "default" || m_lower == "zev" {
@@ -729,23 +733,9 @@ impl ZevEngine {
         final_question.validate(key)?;
         let candidates = generate_candidates(final_question);
 
-        // Upgrade 1: Premise Windowing for long contexts (e.g. ContractNLI)
+        // Full premise context with inverted token index
         let per_q_ctx;
-        let q_ctx = if preprocessed_state.len() > 800 {
-            if let Some(window) = crate::premise_window::extract_premise_window(
-                preprocessed_state,
-                final_question.instructions(),
-                8,
-            ) {
-                per_q_ctx = PremiseContext::new(&window);
-                &per_q_ctx
-            } else if preprocessed_state.trim().is_empty() {
-                per_q_ctx = PremiseContext::new(final_question.instructions());
-                &per_q_ctx
-            } else {
-                ctx
-            }
-        } else if preprocessed_state.trim().is_empty() {
+        let q_ctx = if preprocessed_state.trim().is_empty() {
             per_q_ctx = PremiseContext::new(final_question.instructions());
             &per_q_ctx
         } else {
@@ -895,47 +885,77 @@ impl ZevEngine {
             .unwrap_or(default_margin_thresh);
         let should_fallback = answer.confidence < conf_thresh
             || answer.uncertainty.margin.is_some_and(|m| m < margin_thresh);
-        if should_fallback && !fallback_mode.is_empty() {
+
+        let is_clm = fallback_mode == "clm";
+        let is_poe = fallback_mode == "poe";
+        let is_cascade = fallback_mode == "cascade";
+
+        if is_clm || is_poe || (is_cascade && should_fallback) {
+            let query_context = if preprocessed_state.trim().is_empty() {
+                final_question.instructions()
+            } else {
+                preprocessed_state
+            };
+            let mut verifier = crate::clm::HybridVerifier::default();
+            let state_emb = crate::clm::embed_text(query_context, 512);
+            let mut clm_logits = Vec::with_capacity(candidates.len());
+            for cand in &candidates {
+                let text = if cand.description.is_empty() {
+                    cand.id.clone()
+                } else {
+                    format!("{} {}", cand.id, cand.description)
+                };
+                let action_emb = crate::clm::embed_text(&text, 512);
+                verifier.register_action_embedding(&cand.id, &action_emb);
+                let score = verifier.head.score(&state_emb, &action_emb);
+                clm_logits.push(score);
+            }
+
+            if is_poe {
+                // Bayesian Product of Experts: 0.60 * L_simd + 0.40 * L_clm
+                let poe_logits: Vec<f64> = logits
+                    .iter()
+                    .zip(clm_logits.iter())
+                    .map(|(&l_s, &l_c)| 0.60 * l_s + 0.40 * l_c)
+                    .collect();
+                if let Ok(mut poe_ans) =
+                    decode_decision(final_question, &candidates, &poe_logits, effective_temp)
+                {
+                    poe_ans.source = Some("poe".to_string());
+                    answer = poe_ans;
+                }
+            } else if is_clm {
+                if let Ok(mut clm_ans) =
+                    decode_decision(final_question, &candidates, &clm_logits, effective_temp)
+                {
+                    clm_ans.source = Some("clm".to_string());
+                    answer = clm_ans;
+                }
+            } else if is_cascade {
+                let mut cascaded = false;
+                if let Ok(mut clm_ans) =
+                    decode_decision(final_question, &candidates, &clm_logits, effective_temp)
+                {
+                    if clm_ans.confidence >= conf_thresh {
+                        clm_ans.source = Some("clm".to_string());
+                        answer = clm_ans;
+                        cascaded = true;
+                    }
+                }
+                if !cascaded {
+                    if let Ok(gemma_ans) =
+                        crate::gemma::evaluate_gemma(preprocessed_state, final_question, &candidates)
+                    {
+                        answer = gemma_ans;
+                    }
+                }
+            }
+        } else if should_fallback && !fallback_mode.is_empty() {
             if fallback_mode == "gemma" {
                 if let Ok(gemma_ans) =
                     crate::gemma::evaluate_gemma(preprocessed_state, final_question, &candidates)
                 {
                     answer = gemma_ans;
-                }
-            } else if fallback_mode == "clm" {
-                if let Question::Choice(c) = final_question {
-                    let mut verifier = crate::clm::HybridVerifier::default();
-                    let state_emb = crate::clm::embed_text(preprocessed_state, 512);
-                    let mut clm_logits = Vec::with_capacity(c.options.len());
-                    for opt in &c.options {
-                        let action_emb =
-                            crate::clm::embed_text(&format!("{} {}", opt.id, opt.description), 512);
-                        verifier.register_action_embedding(&opt.id, &action_emb);
-                        let score = verifier.head.score(&state_emb, &action_emb);
-                        clm_logits.push(score);
-                    }
-                    if let Ok(clm_probs) = crate::calibration::scaled_softmax(&clm_logits, 1.0) {
-                        let mut best_idx = 0;
-                        let mut best_p = -1.0;
-                        let mut prob_map = BTreeMap::new();
-                        let mut logit_map = BTreeMap::new();
-                        for (idx, opt) in c.options.iter().enumerate() {
-                            let p = clm_probs[idx];
-                            prob_map.insert(opt.id.clone(), p);
-                            logit_map.insert(opt.id.clone(), clm_logits[idx]);
-                            if p > best_p {
-                                best_p = p;
-                                best_idx = idx;
-                            }
-                        }
-                        answer.decision =
-                            Some(serde_json::Value::String(c.options[best_idx].id.clone()));
-                        answer.confidence = best_p;
-                        answer.probabilities = prob_map;
-                        answer.logits = logit_map;
-                        answer.uncertainty.top_probability = best_p;
-                        answer.source = Some("clm".to_string());
-                    }
                 }
             }
             #[cfg(feature = "neural")]
