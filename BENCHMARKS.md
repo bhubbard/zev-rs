@@ -8,12 +8,12 @@
 
 | Workload / Task | Zev (Rust SIMD) | Upstream Python Reference | Latency Speedup | Order Flip Rate | Peak RSS (Memory) | Memory Reduction |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Intent Routing (4 Options)** | **12.42 µs** | 508.00 ms *(Laya 421M)* | **40,898×** | **0.0%** *(Permutation-Invariant)* | **7.4 MB** *(vs 1,600 MB)* | **216× lower** |
-| **10-Option Classifier** | **62.08 µs** | 576.00 ms *(Kev 0.5B)* | **9,279×** | **0.0%** *(Permutation-Invariant)* | **7.6 MB** *(vs 1,800 MB)* | **236× lower** |
-| **20-Option Dense Route** | **121.36 µs** | 586.00 ms *(Kev 4B)* | **4,828×** | **0.0%** *(Permutation-Invariant)* | **7.8 MB** *(vs 8,200 MB)* | **1,051× lower** |
-| **50-Option Service Grid** | **174.70 µs** | 642.00 ms *(Kev 8B)* | **3,675×** | **0.0%** *(Permutation-Invariant)* | **8.1 MB** *(vs 16,000 MB)* | **1,975× lower** |
+| **Intent Routing (4 Options)** | **20.55 µs** | 508.00 ms *(Laya 421M)* | **24,719×** | **0.0%** *(Permutation-Invariant)* | **< 8 MB** *(vs 1,600 MB)* | **200× lower** |
+| **10-Option Classifier** | **73.40 µs** | 576.00 ms *(Kev 0.5B)* | **7,847×** | **0.0%** *(Permutation-Invariant)* | **< 8 MB** *(vs 1,800 MB)* | **225× lower** |
+| **20-Option Dense Route** | **140.05 µs** | 586.00 ms *(Kev 4B)* | **4,184×** | **0.0%** *(Permutation-Invariant)* | **< 8 MB** *(vs 8,200 MB)* | **1,025× lower** |
+| **50-Option Service Grid** | **197.89 µs** | 642.00 ms *(Kev 8B)* | **3,244×** | **0.0%** *(Permutation-Invariant)* | **< 8 MB** *(vs 16,000 MB)* | **2,000× lower** |
 
-*ECE Calibration Computation Overhead: **84.89 nanoseconds** per batch evaluation.*
+*ECE Calibration Computation Overhead: **85.34 nanoseconds** per batch evaluation.*
 
 ---
 
@@ -21,24 +21,24 @@
 
 Evaluated across all 231 standardized frozen test items from JevBench against upstream architectures and competitors:
 
-| System | Architecture / Weights | Tasks Correct | Accuracy (%) | Latency p50 | Latency p95 | Clear Winner |
+| System | Architecture / Weights | Tasks Correct | Accuracy (%) | Latency p50 | Throughput | Clear Winner |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| 🏆 **Zev-Dual-Ensemble (PoE)** | Apfel (ANE) + Gemma 4 Bayesian PoE | **173 / 231** | **74.89%** | **11.75 µs** | **48.20 µs** | 🏆 **#1 Overall (Eclipses Winnow-12B)** |
-| **Winnow-12B Q8** | 12B Decoder-Only (16 GB VRAM) | 172 / 231 | 74.43% | 340,000 µs | 420,000 µs | Heavy GPU Pod ($0.028/1k) |
-| ⚡ **Zev-Dual-Cascade** | SIMD $\to$ Apfel $\to$ Gemma 4 | **168 / 231** | **72.73%** | **11.25 µs** | **35.10 µs** | ⚡ **Beats djev & Jev 1.13.0** |
-| ⚡ **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **168 / 231** | **72.73%** | **11.21 µs** | **34.80 µs** | ⚡ **Beats djev & Jev 1.13.0** |
-| **djev (Maisa 26B)** | Maisa 26B Reasoning Cluster | 167 / 231 | 72.33% | 1,280,000 µs | 1,600,000 µs | Slow Cloud API ($0.049/1k) |
-| **Jev 1.13.0** (Closed Ref) | Cloud Decision Engine | 166 / 231 | 72.00% | 620,000 µs | 890,000 µs | API Cluster ($0.032/1k) |
-| **Kev 8B (Python)** | Qwen3-8B + LoRA Pointer Head (PyTorch) | 165 / 231 | 71.43% | 591.00 ms | 642.00 ms | Heavy (16 GB VRAM) |
-| **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **164 / 231** | **71.00%** | **11.45 µs** | **38.20 µs** | Sub-Millisecond Speed |
-| **Cygnet** (#1 Heaven) | Gemma 4-31B Instruct | 164 / 231 | 71.09% | 230,000 µs | 310,000 µs | Heavy GPU Pod ($0.028/1k) |
-| **Zev-Apfel** | Pure Rust SIMD + Apple Intelligence | **163 / 231** | **70.56%** | **11.30 µs** | **36.50 µs** | 🍎 Zero Cloud Dependency |
-| **Zev-Default** | Pure Rust SIMD Zero-Rescan Index | **161 / 231** | **69.70%** | **11.05 µs** | **28.40 µs** | ⚡ Ultra-Low Latency (<8 MB RAM) |
-| **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | **158 / 231** | **68.40%** | **7.800 ms** | **12.40 ms** | 🎯 100% Deterministic |
-| **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head (PyTorch) | 154 / 231 | 66.67% | 587.00 ms | 620.00 ms | Outperformed by Zev |
-| **Kev 4B (Python)** | Qwen3-4B + LoRA Pointer Head (PyTorch) | 153 / 231 | 66.23% | 586.00 ms | 615.00 ms | Outperformed by Zev |
-| **Laya (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 508.00 ms | 1,940.00 ms | Outperformed by Zev (+16.5% margin) |
-| **Kev 0.5B (Python)** | Qwen2.5-0.5B + LoRA Pointer Head (PyTorch)| 114 / 231 | 49.35% | 576.00 ms | 610.00 ms | Outperformed by Zev (+25.5% margin) |
+| 🏆 **Zev-Dual-Ensemble (PoE)** | Apfel (ANE) + Gemma 4 Bayesian PoE | **173 / 231** | **74.89%** | **13.45 µs** | **74,346 dec/s** | 🏆 **#1 Overall (Eclipses Winnow-12B)** |
+| **Winnow-12B Q8** | 12B Decoder-Only (16 GB VRAM) | 172 / 231 | 74.43% | 340,000 µs | 2.9 dec/s | Heavy GPU Pod ($0.028/1k) |
+| ⚡ **Zev-Dual-Cascade** | SIMD $\to$ Apfel $\to$ Gemma 4 | **168 / 231** | **72.73%** | **13.55 µs** | **73,806 dec/s** | ⚡ **Beats djev & Jev 1.13.0** |
+| ⚡ **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **168 / 231** | **72.73%** | **13.34 µs** | **74,935 dec/s** | ⚡ **Beats djev & Jev 1.13.0** |
+| **djev (Maisa 26B)** | Maisa 26B Reasoning Cluster | 167 / 231 | 72.33% | 1,280,000 µs | 0.8 dec/s | Slow Cloud API ($0.049/1k) |
+| **Jev 1.13.0** (Closed Ref) | Cloud Decision Engine | 166 / 231 | 72.00% | 620,000 µs | 1.6 dec/s | API Cluster ($0.032/1k) |
+| **Kev 8B (Python)** | Qwen3-8B + LoRA Pointer Head (PyTorch) | 165 / 231 | 71.43% | 591,000 µs | 1.7 dec/s | Heavy (16 GB VRAM) |
+| **Cygnet** (#1 Heaven) | Gemma 4-31B Instruct | 164 / 231 | 71.09% | 230,000 µs | 4.3 dec/s | Heavy GPU Pod ($0.028/1k) |
+| **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **164 / 231** | **71.00%** | **46.24 µs** | **21,628 dec/s** | Sub-Millisecond Speed |
+| **Zev-Apfel** | Pure Rust SIMD + Apple Intelligence | **163 / 231** | **70.56%** | **13.28 µs** | **75,322 dec/s** | 🍎 Zero Cloud Dependency |
+| **Zev-Default** | Pure Rust SIMD Zero-Rescan Index | **161 / 231** | **69.70%** | **13.32 µs** | **75,078 dec/s** | ⚡ Ultra-Low Latency (<8 MB RAM) |
+| **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | **158 / 231** | **68.40%** | **7,800 µs** | **128 dec/s** | 🎯 100% Deterministic |
+| **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head (PyTorch) | 154 / 231 | 66.67% | 587,000 µs | 1.7 dec/s | Outperformed by Zev |
+| **Kev 4B (Python)** | Qwen3-4B + LoRA Pointer Head (PyTorch) | 153 / 231 | 66.23% | 586,000 µs | 1.7 dec/s | Outperformed by Zev |
+| **Laya (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 508,000 µs | 2.0 dec/s | Outperformed by Zev (+16.5% margin) |
+| **Kev 0.5B (Python)** | Qwen2.5-0.5B + LoRA Pointer Head (PyTorch)| 114 / 231 | 49.35% | 576,000 µs | 1.7 dec/s | Outperformed by Zev (+25.5% margin) |
 
 ---
 

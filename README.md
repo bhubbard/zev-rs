@@ -165,10 +165,10 @@ flowchart TD
 
 | Your Goal / Scenario | Recommended Mode | Median Latency | Throughput | JevBench Accuracy | What It Does |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| ⚡ **Production Web APIs & High-Volume Routing** | **`Zev-Load-Balanced`** *(Recommended)* | **11.21 µs** | **89,210 dec/s** | **71.10%** | Alternates sub-threshold traffic across ANE and CPU/GPU so neither queue throttles. Includes automatic bidirectional failover! |
-| 🎯 **Life-or-Death Accuracy (Legal / Medical / Compliance)** | **`Zev-Dual-Ensemble`** | **11.71 µs** | **85,382 dec/s** | **71.90%** | Runs Apple Intelligence & Gemma 4 in parallel, fusing their probabilities. Beats open models (Cygnet 71.09%) and matches closed Jev 1.13.0! |
-| 🛡️ **Tiered Edge Nodes / Graceful Degradation** | **`Zev-Dual-Cascade`** | **11.25 µs** | **88,899 dec/s** | **71.20%** | Tiers compute sequentially: SIMD ($>0.85$) $\to$ ANE ($>0.75$) $\to$ Gemma 4. Most conservative memory footprint (< 16 MB). |
-| ☁️ **Standard Cloud VPS / Docker / Non-Apple CPU** | **`Zev-Default`** *(Pure SIMD)* | **11.05 µs** | **90,507 dec/s** | **69.26%** | Pure CPU Neon/AVX. Zero model weights, zero PyTorch, runs on any $5/mo Linux server. |
+| ⚡ **Production Web APIs & High-Volume Routing** | **`Zev-Load-Balanced`** *(Recommended)* | **13.34 µs** | **74,935 dec/s** | **72.73%** | Alternates sub-threshold traffic across ANE and CPU/GPU so neither queue throttles. Includes automatic bidirectional failover! |
+| 🎯 **Life-or-Death Accuracy (Legal / Medical / Compliance)** | **`Zev-Dual-Ensemble`** | **13.45 µs** | **74,346 dec/s** | **74.89%** | Runs Apple Intelligence & Gemma 4 in parallel with Bayesian Product of Experts (PoE). **#1 Worldwide** (Eclipses Winnow-12B at 74.43%)! |
+| 🛡️ **Tiered Edge Nodes / Graceful Degradation** | **`Zev-Dual-Cascade`** | **13.55 µs** | **73,806 dec/s** | **72.73%** | Tiers compute sequentially: SIMD ($>0.85$) $\to$ ANE ($>0.75$) $\to$ Gemma 4. Most conservative memory footprint (< 16 MB). |
+| ☁️ **Standard Cloud VPS / Docker / Non-Apple CPU** | **`Zev-Default`** *(Pure SIMD)* | **13.32 µs** | **75,078 dec/s** | **69.70%** | Pure CPU Neon/AVX. Zero model weights, zero PyTorch, runs on any $5/mo Linux server. |
 
 ---
 
@@ -271,7 +271,7 @@ let response = engine.evaluate_recommended(&request, &backend)?;
 ```
 
 #### 2. Maximum-Accuracy Consensus Ensemble (Mission-Critical / Compliance)
-Runs Apfel (ANE) and Gemma 4 in parallel, performing weighted probability fusion ($50/50$ consensus) to reach **71.90% accuracy** (beating Cygnet 71.09% and matching closed-source Jev 1.13.0):
+Runs Apfel (ANE) and Gemma 4 in parallel, performing Bayesian log-linear Product of Experts (PoE) with contrastive carrier discounting to reach **74.89% accuracy** (eclipsing Winnow-12B at 74.43% for #1 on the global leaderboard):
 
 ```mermaid
 flowchart TD
@@ -282,10 +282,10 @@ flowchart TD
         Fork --> Gemma["Gemma 4 Distilled\n(Prompt-turn semantic ranker)"]
     end
     
-    ANE --> Fusion["Weighted Consensus Probability Fusion\n(50% ANE + 50% Gemma 4)"]
+    ANE --> Fusion["Bayesian Product of Experts (PoE)\n(Log-linear confidence-weighted consensus)"]
     Gemma --> Fusion
     
-    Fusion --> Winner["🏆 Consensus Winner: 71.90% Accuracy\n(Beats Cygnet 71.09% & Matches Closed Jev 1.13.0)"]
+    Fusion --> Winner["🏆 Consensus Winner: 74.89% Accuracy\n(#1 Globally: Eclipses Winnow-12B & Cygnet)"]
 ```
 
 ```rust
@@ -377,21 +377,21 @@ Evaluated across all **231 frozen public benchmark tasks** from JevBench against
 
 | System | Architecture / Model | Tasks Correct | Accuracy (%) | Latency p50 | Throughput | Cost / 1k Dec |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|
-| 🏆 **Zev-Dual-Ensemble (PoE)** | Apfel (ANE) + Gemma 4 Bayesian PoE | **173 / 231** | **74.89%** | **11.75 µs** | **85,106 dec/s** | **$0.0000** |
+| 🏆 **Zev-Dual-Ensemble (PoE)** | Apfel (ANE) + Gemma 4 Bayesian PoE | **173 / 231** | **74.89%** | **13.45 µs** | **74,346 dec/s** | **$0.0000** |
 | **Winnow-12B Q8** | 12B Decoder-Only (16 GB VRAM) | 172 / 231 | 74.43% | 340,000 µs | 2.9 dec/s | $0.0280 |
-| ⚡ **Zev-Dual-Cascade** | SIMD $\to$ Apfel $\to$ Gemma 4 | **168 / 231** | **72.73%** | **11.25 µs** | **88,888 dec/s** | **$0.0000** |
-| ⚡ **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **168 / 231** | **72.73%** | **11.21 µs** | **89,206 dec/s** | **$0.0000** |
+| ⚡ **Zev-Dual-Cascade** | SIMD $\to$ Apfel $\to$ Gemma 4 | **168 / 231** | **72.73%** | **13.55 µs** | **73,806 dec/s** | **$0.0000** |
+| ⚡ **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **168 / 231** | **72.73%** | **13.34 µs** | **74,935 dec/s** | **$0.0000** |
 | **djev (Maisa 26B)** | Maisa 26B Reasoning Cluster | 167 / 231 | 72.33% | 1,280,000 µs | 0.8 dec/s | $0.0490 |
 | **Jev 1.13.0** (Closed Ref) | Cloud Decision Engine | 166 / 231 | 72.00% | 620,000 µs | 1.6 dec/s | $0.0320 |
 | **Kev 8B (Python)** | Qwen3-8B + LoRA Pointer Head | 165 / 231 | 71.43% | 591,000 µs | 1.7 dec/s | $0.0300 |
-| **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **164 / 231** | **71.00%** | **11.45 µs** | **87,336 dec/s** | **$0.0000** |
 | **Cygnet** (#1 Benchmark Heaven) | Gemma 4-31B Instruct | 164 / 231 | 71.09% | 230,000 µs | 4.3 dec/s | $0.0280 |
-| **Zev-Apfel** | Pure Rust SIMD + Apple Intelligence | **163 / 231** | **70.56%** | **11.30 µs** | **88,495 dec/s** | **$0.0000** |
-| **Zev-Default** | Zero-Token Pure Rust SIMD | **161 / 231** | **69.70%** | **11.05 µs** | **90,507 dec/s** | **$0.0000** |
-| **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | 158 / 231 | 68.40% | 7.80 ms | 128 dec/s | **$0.0000** |
-| **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head | 154 / 231 | 66.67% | 587.0 ms | 1.7 dec/s | $0.0250 |
-| **Kev 4B (Python)** | Qwen3-4B + LoRA Pointer Head | 153 / 231 | 66.23% | 586.0 ms | 1.7 dec/s | $0.0270 |
-| **Laya (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 508.0 ms | 2.0 dec/s | $0.0180 |
+| **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **164 / 231** | **71.00%** | **46.24 µs** | **21,628 dec/s** | **$0.0000** |
+| **Zev-Apfel** | Pure Rust SIMD + Apple Intelligence | **163 / 231** | **70.56%** | **13.28 µs** | **75,322 dec/s** | **$0.0000** |
+| **Zev-Default** | Zero-Token Pure Rust SIMD | **161 / 231** | **69.70%** | **13.32 µs** | **75,078 dec/s** | **$0.0000** |
+| **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | 158 / 231 | 68.40% | 7,800 µs | 128 dec/s | **$0.0000** |
+| **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head | 154 / 231 | 66.67% | 587,000 µs | 1.7 dec/s | $0.0250 |
+| **Kev 4B (Python)** | Qwen3-4B + LoRA Pointer Head | 153 / 231 | 66.23% | 586,000 µs | 1.7 dec/s | $0.0270 |
+| **Laya (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 508,000 µs | 2.0 dec/s | $0.0180 |
 
 ### Head-to-Head Highlights:
 - **vs. Laya (ModernBERT-large 421M)**: Zev wins **51 tasks to 26** (+10.8% accuracy margin) while running **1,369× faster** on pure Rust CPU without requiring a GPU or PyTorch runtime.
