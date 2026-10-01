@@ -601,7 +601,24 @@ impl ZevEngine {
         if let Some(t) = req.temperature {
             resolve_temperature(Some(t))?;
         }
-        let fallback_mode = std::env::var("ZEV_FALLBACK").unwrap_or_default();
+        let fallback_mode = if let Some(m) = &req.model {
+            let m_lower = m.to_lowercase();
+            if m_lower.contains("gemma") {
+                "gemma".to_string()
+            } else if m_lower.contains("apfel") || m_lower.contains("neural") {
+                "apfel".to_string()
+            } else if m_lower.contains("clm") {
+                "clm".to_string()
+            } else if m_lower.contains("mlx") {
+                "mlx".to_string()
+            } else if m_lower == "zev-default" || m_lower == "default" || m_lower == "zev" {
+                "none".to_string()
+            } else {
+                std::env::var("ZEV_FALLBACK").unwrap_or_default()
+            }
+        } else {
+            std::env::var("ZEV_FALLBACK").unwrap_or_default()
+        };
 
         // 2. Multi-Task Question Scoring (Rayon on native, sequential on wasm)
         #[cfg(not(target_arch = "wasm32"))]
@@ -863,15 +880,19 @@ impl ZevEngine {
 
         let mut answer = decode_decision(final_question, &candidates, &logits, effective_temp)?;
 
-        // Upgrade 5: Two-System Speculative Gating with Cross-Platform Fallback
+        // Upgrade 5: Two-System Speculative Gating with Option-Count Adaptive Fallback
+        let num_cands = candidates.len().max(2) as f64;
+        let default_conf_thresh = (1.0 / num_cands) + 0.20;
+        let default_margin_thresh = 0.15 / num_cands.sqrt();
+
         let conf_thresh = std::env::var("ZEV_FALLBACK_CONFIDENCE")
             .ok()
             .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.35);
+            .unwrap_or(default_conf_thresh);
         let margin_thresh = std::env::var("ZEV_FALLBACK_MARGIN")
             .ok()
             .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.10);
+            .unwrap_or(default_margin_thresh);
         let should_fallback = answer.confidence < conf_thresh
             || answer.uncertainty.margin.is_some_and(|m| m < margin_thresh);
         if should_fallback && !fallback_mode.is_empty() {
@@ -990,6 +1011,23 @@ impl ZevEngine {
             images: None,
         };
 
+        #[cfg(feature = "neural")]
+        let zev_resp = {
+            let m_lower = req.model.to_lowercase();
+            if m_lower.contains("poe") || m_lower.contains("ensemble") {
+                let backend = crate::neural::shared_apfel();
+                self.evaluate_speculative_ensemble(&zev_req, 0.75, 0.50, backend)?
+            } else if m_lower.contains("cascade") {
+                let backend = crate::neural::shared_apfel();
+                self.evaluate_dual_speculative_cascade(&zev_req, 0.80, 0.70, backend)?
+            } else if m_lower.contains("load_balanced") || m_lower.contains("load-balanced") {
+                let backend = crate::neural::shared_apfel();
+                self.evaluate_speculative_load_balanced(&zev_req, 0.80, backend)?
+            } else {
+                self.evaluate(&zev_req)?
+            }
+        };
+        #[cfg(not(feature = "neural"))]
         let zev_resp = self.evaluate(&zev_req)?;
 
         let mut wire_answers = BTreeMap::new();
@@ -1944,6 +1982,38 @@ mod tests {
             res_mode_cas.answers["dept"].decision,
             Some(serde_json::Value::String("billing".into()))
         );
+    }
+
+    #[test]
+    fn test_system_one_model_dispatch_and_adaptive_gating() {
+        let engine = ZevEngine::default();
+        let mut criteria = BTreeMap::new();
+        criteria.insert("refund".to_string(), Some(serde_json::json!("Customer wants money back")));
+        criteria.insert("support".to_string(), Some(serde_json::json!("Technical app malfunction")));
+        let wire_q = crate::wire::WireQuestion::Choice(crate::wire::WireChoiceQuestion {
+            instructions: serde_json::json!("Classify ticket"),
+            criteria,
+        });
+
+        // Test with zev-default (Pure SIMD)
+        let req_default = crate::types::SystemOneRequest {
+            state: serde_json::json!("Refund my credit card for transaction TX-100"),
+            questions: [("action".to_string(), wire_q.clone())].into(),
+            model: "zev-default".into(),
+        };
+        let resp_default = engine.evaluate_system_one(&req_default).expect("system_one default eval");
+        assert_eq!(resp_default.model, "zev-default");
+        assert!(resp_default.answers.contains_key("action"));
+
+        // Test with zev-poe model name dispatch
+        let req_poe = crate::types::SystemOneRequest {
+            state: serde_json::json!("Refund my credit card for transaction TX-100"),
+            questions: [("action".to_string(), wire_q)].into(),
+            model: "zev-poe".into(),
+        };
+        let resp_poe = engine.evaluate_system_one(&req_poe).expect("system_one poe eval");
+        assert_eq!(resp_poe.model, "zev-poe");
+        assert!(resp_poe.answers.contains_key("action"));
     }
 }
 

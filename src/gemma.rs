@@ -93,25 +93,33 @@ pub fn evaluate_gemma(
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        static GEMMA_PROBE_CACHED: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
-        static GEMMA_PROBE_STATUS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        static GEMMA_PROBE_CACHE: std::sync::Mutex<Option<(String, i64, bool)>> =
+            std::sync::Mutex::new(None);
 
         let config = GemmaConfig::default();
 
-        // Fast circuit breaker: probe endpoint reachability with short timeout, cached for 10s.
+        // Fast circuit breaker: probe endpoint reachability with short timeout, cached per-endpoint for 10s.
         // Prevents hanging on socket connection timeouts when no local LLM server is running.
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
-        let last = GEMMA_PROBE_CACHED.load(std::sync::atomic::Ordering::Relaxed);
-        let is_alive = if now - last < 10 {
-            GEMMA_PROBE_STATUS.load(std::sync::atomic::Ordering::Relaxed)
-        } else {
-            let alive = crate::config::probe_http_endpoint(&config.endpoint, Duration::from_millis(30));
-            GEMMA_PROBE_STATUS.store(alive, std::sync::atomic::Ordering::Relaxed);
-            GEMMA_PROBE_CACHED.store(now, std::sync::atomic::Ordering::Relaxed);
-            alive
+
+        let is_alive = {
+            let mut cache = GEMMA_PROBE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some((ref cached_ep, cached_time, cached_alive)) = *cache {
+                if cached_ep == &config.endpoint && (now - cached_time) < 10 {
+                    cached_alive
+                } else {
+                    let alive = crate::config::probe_http_endpoint(&config.endpoint, Duration::from_millis(50));
+                    *cache = Some((config.endpoint.clone(), now, alive));
+                    alive
+                }
+            } else {
+                let alive = crate::config::probe_http_endpoint(&config.endpoint, Duration::from_millis(50));
+                *cache = Some((config.endpoint.clone(), now, alive));
+                alive
+            }
         };
 
         if !is_alive {

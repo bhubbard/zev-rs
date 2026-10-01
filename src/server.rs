@@ -84,6 +84,31 @@ async fn models_handler() -> Json<serde_json::Value> {
                 "name": "jev-latest",
                 "description": "TypeSafe compatibility endpoint answered by Zev",
                 "release_date": "2026-09-24"
+            },
+            {
+                "name": "zev-gemma",
+                "description": "Zev with local distilled Gemma 4 speculative fallback",
+                "release_date": "2026-10-01"
+            },
+            {
+                "name": "zev-apfel",
+                "description": "Zev with Apple Intelligence ANE speculative hybrid",
+                "release_date": "2026-10-01"
+            },
+            {
+                "name": "zev-clm",
+                "description": "Zev with Contrastive Language Model speculative fallback",
+                "release_date": "2026-10-01"
+            },
+            {
+                "name": "zev-cascade",
+                "description": "Zev three-tier speculative cascade (SIMD -> ANE -> Gemma)",
+                "release_date": "2026-10-01"
+            },
+            {
+                "name": "zev-poe",
+                "description": "Zev dual speculative ensemble with Bayesian Product of Experts",
+                "release_date": "2026-10-01"
             }
         ]
     }))

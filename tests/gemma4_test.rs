@@ -83,6 +83,9 @@ async fn test_gemma4_live_mock_http_roundtrip() {
         axum::serve(listener, app).await.unwrap();
     });
 
+    // Give mock server time to start accept loop
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
     // Point GemmaConfig to mock Gemma 4 server
     std::env::set_var("GEMMA_URL", format!("http://{}", addr));
     std::env::set_var("GEMMA_MODEL", "gemma-4-31b");

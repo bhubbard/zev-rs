@@ -312,4 +312,30 @@ fn main() {
     println!("  • Evaluation Throughput:    {:.0} decisions / second", simd_res.throughput);
     println!("  • Expected Calibration (ECE): {:.4} ({:.2}%)", simd_res.ece, simd_res.ece * 100.0);
     println!("==============================================================================================\n");
+
+    // 2. Zev-Clm (Contrastive Sieve Hybrid)
+    std::env::set_var("ZEV_FALLBACK", "clm");
+    std::env::set_var("ZEV_FALLBACK_CONFIDENCE", "0.40");
+    std::env::set_var("ZEV_FALLBACK_MARGIN", "0.10");
+    let (clm_res, _clm_family_stats) = evaluate_items("Zev-Clm (Contrastive Sieve)", &all_tasks, &engine, |eng, req| {
+        eng.evaluate(req)
+    });
+
+    println!("==============================================================================================");
+    println!("                   MULTI-METHOD COMPARISON ON REAL 231 JEVBENCH SUITE                         ");
+    println!("==============================================================================================");
+    println!(
+        "{:<28} | {:<16} | {:<12} | {:<12} | {:<16}",
+        "Method", "Correct / Total", "Accuracy (%)", "p50 Latency", "Throughput"
+    );
+    println!("─────────────────────────────+──────────────────+──────────────+──────────────+─────────────────");
+    println!(
+        "{:<28} | {:>6}/{:<6}    | {:>8.2}%   | {:>8.2} µs | {:>8.0} dec/s",
+        simd_res.method_name, simd_res.correct, simd_res.total, simd_res.accuracy, simd_res.p50_us, simd_res.throughput
+    );
+    println!(
+        "{:<28} | {:>6}/{:<6}    | {:>8.2}%   | {:>8.2} µs | {:>8.0} dec/s",
+        clm_res.method_name, clm_res.correct, clm_res.total, clm_res.accuracy, clm_res.p50_us, clm_res.throughput
+    );
+    println!("==============================================================================================\n");
 }
