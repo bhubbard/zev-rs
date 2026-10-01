@@ -43,24 +43,40 @@ cargo install zev-rs
 
 ## Quick Start Guide
 
-### 1. Instant Decision via CLI (in microseconds)
+### 1. Interactive First-Run Onboarding & Hardware Doctor
+When you first run `zev`, it dynamically probes your environment (OS, architecture, SIMD vector instruction sets, Apple Neural Engine, local Gemma/Ollama endpoints) and interactively prompts you to choose your preferred decision execution method:
+
 ```bash
-# Route a customer request across categories
-npx -y zev-rs route \
+# Launch interactive onboarding wizard anytime
+zev init
+
+# Inspect hardware acceleration, SIMD instructions, and neural engines
+zev doctor
+
+# View or update persistent configuration (~/.config/zev/config.json)
+zev config show
+zev config set method dual-ensemble   # Global #1 accuracy (74.89%, recommended)
+zev config set method simd            # Universal pure SIMD (< 8 MB RAM, runs anywhere)
+```
+
+### 2. Instant Decisions via CLI (in microseconds)
+```bash
+# Fast intent routing across categories
+zev route \
   --state "Critical: production database is down with 500 connection refused errors" \
   --routes '{"billing": "Invoice and billing inquiries", "infra": "Database and cluster outages", "sales": "Enterprise sales"}'
 
 # Or evaluate a Tev1 schema:
-npx -y zev-rs tev1 \
+zev tev1 \
   --state "Returns are allowed within 30 days. This purchase was 12 days ago." \
   --question "Is this return within the allowed window?" \
   --options "A: Yes, B: No, C: Not enough information"
 ```
 
-### 2. Launch the High-Performance REST Server
+### 3. Launch the High-Performance REST Server
 ```bash
 # Start API server on port 8080 (serves /v1/decisions, /v1/systemone, /v1/tev1)
-npx -y zev-rs serve --port 8080
+zev serve --port 8080
 ```
 Query it from any language:
 ```bash
@@ -81,11 +97,11 @@ curl -X POST http://127.0.0.1:8080/v1/decisions \
   }'
 ```
 
-### 3. Embed Directly in Your Rust Application
+### 4. Embed Directly in Your Rust Application
 Add to `Cargo.toml`:
 ```toml
 [dependencies]
-zev-rs = "0.1"
+zev-rs = "0.3.8"
 ```
 
 In your code:

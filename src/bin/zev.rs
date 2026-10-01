@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, IsTerminal, Read};
 #[cfg(feature = "server")]
 use std::sync::Arc;
 #[cfg(feature = "server")]
@@ -16,11 +16,40 @@ use zev::{
 #[command(about = "Zev: High-performance, 100% order-invariant zero-token LLM decision engine")]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Show current configuration and configuration file path
+    Show,
+    /// Set a configuration value (e.g. `zev config set method dual-ensemble`)
+    Set {
+        key: String,
+        value: String,
+    },
+    /// Reset configuration to default settings
+    Reset,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Interactive onboarding setup and environment detection wizard
+    Init {
+        /// Force re-running the configuration wizard even if already configured
+        #[arg(short, long)]
+        force: bool,
+    },
+
+    /// Comprehensive system diagnostics (CPU, SIMD, Apple Neural Engine, Gemma endpoints)
+    Doctor,
+
+    /// View or manage persistent configuration (~/.config/zev/config.json)
+    Config {
+        #[command(subcommand)]
+        action: Option<ConfigAction>,
+    },
+
     /// Evaluate a decision request from native ZevRequest JSON file or stdin
     Decide {
         /// Path to JSON request file (stdin if omitted)
@@ -220,8 +249,102 @@ enum Commands {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
+    // Auto-apply persistent configuration to process environment if set
+    if let Some(config) = zev::ZevConfig::load() {
+        config.apply_to_env();
+    }
+
     match cli.command {
-        Commands::Decide { file, temperature } => {
+        Some(Commands::Init { force }) => {
+            if !force && zev::config_path().exists() {
+                println!("Configuration file already exists at: {}", zev::config_path().display());
+                println!("Use `zev init --force` to reconfigure, or `zev config show` to inspect settings.");
+                return Ok(());
+            }
+            zev::run_setup_wizard(force)?;
+        }
+
+        Some(Commands::Doctor) => {
+            let env = zev::SystemEnvironment::probe();
+            let config = zev::ZevConfig::load().unwrap_or_default();
+            print!("{}", env.format_diagnostic_box());
+            println!("\nCurrent Configuration: {}", zev::config_path().display());
+            if zev::config_path().exists() {
+                println!("  Configured Method:   {} ({})", config.method.display_name(), config.method.as_str());
+                println!("  Accuracy / Latency:  {} | {}", config.method.accuracy(), config.method.latency());
+                println!("  Confidence Threshold:{}", config.confidence_threshold);
+                println!("  Margin Threshold:    {}", config.margin_threshold);
+                println!("  Apfel Weight:        {}", config.apfel_weight);
+                if let Some(ref ep) = config.gemma_url {
+                    println!("  Custom Endpoint:     {}", ep);
+                }
+            } else {
+                println!("  No config file found. Run `zev init` to create one.");
+            }
+            println!("\nRecommendations:");
+            if env.apfel_available && env.gemma_available {
+                println!("  ⭐ Optimal configuration: Zev-Dual-Ensemble (74.89% accuracy) is fully supported!");
+            } else if env.apfel_available {
+                println!("  ✓ Apple Neural Engine is ready. Zev-Dual-Ensemble or Zev-Apfel can be used.");
+                println!("    (Tip: Run Ollama or vLLM with Gemma 27B to unlock the full 74.89% PoE ensemble)");
+            } else if env.gemma_available {
+                println!("  ✓ Gemma endpoint is active. You can run Zev-Gemma or Zev-Dual-Ensemble with SIMD reflex.");
+            } else {
+                println!("  ✓ Zev-Default (Pure SIMD reflex) is fully operational on this system with zero dependencies.");
+            }
+        }
+
+        Some(Commands::Config { action }) => {
+            let mut config = zev::ZevConfig::load().unwrap_or_default();
+            match action.unwrap_or(ConfigAction::Show) {
+                ConfigAction::Show => {
+                    println!("Path: {}", zev::config_path().display());
+                    println!("{}", serde_json::to_string_pretty(&config)?);
+                }
+                ConfigAction::Set { key, value } => {
+                    match key.to_lowercase().replace('_', "-").as_str() {
+                        "method" => {
+                            let m = zev::ZevMethod::parse_str(&value)
+                                .ok_or_else(|| zev::ZevError::InvalidRequest(format!("Unknown method '{value}'. Valid: dual-ensemble, dual-cascade, load-balanced, simd, apfel, gemma, mlx, clm")))?;
+                            config.method = m;
+                        }
+                        "gemma-endpoint" | "endpoint" | "gemma-url" => {
+                            config.gemma_url = if value.is_empty() || value == "null" || value == "none" {
+                                None
+                            } else {
+                                Some(value)
+                            };
+                        }
+                        "confidence-threshold" | "threshold" => {
+                            let t: f64 = value.parse().map_err(|_| zev::ZevError::InvalidRequest("Invalid number for confidence threshold".into()))?;
+                            config.confidence_threshold = t;
+                        }
+                        "margin-threshold" => {
+                            let t: f64 = value.parse().map_err(|_| zev::ZevError::InvalidRequest("Invalid number for margin threshold".into()))?;
+                            config.margin_threshold = t;
+                        }
+                        "apfel-weight" | "ensemble-weight" => {
+                            let w: f64 = value.parse().map_err(|_| zev::ZevError::InvalidRequest("Invalid number for apfel weight".into()))?;
+                            config.apfel_weight = w;
+                        }
+                        other => {
+                            eprintln!("Unknown config key: '{}'. Valid keys: method, gemma-url, confidence-threshold, margin-threshold, apfel-weight", other);
+                            std::process::exit(1);
+                        }
+                    }
+                    config.save()?;
+                    println!("Saved configuration to {}", zev::config_path().display());
+                    println!("{}", serde_json::to_string_pretty(&config)?);
+                }
+                ConfigAction::Reset => {
+                    config = zev::ZevConfig::default();
+                    config.save()?;
+                    println!("Reset configuration to defaults at {}", zev::config_path().display());
+                }
+            }
+        }
+
+        Some(Commands::Decide { file, temperature }) => {
             let content = match file {
                 Some(f) => fs::read_to_string(f)?,
                 None => {
@@ -248,7 +371,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        Commands::Systemone { file } => {
+        Some(Commands::Systemone { file }) => {
             let content = match file {
                 Some(f) => fs::read_to_string(f)?,
                 None => {
@@ -264,12 +387,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", serde_json::to_string_pretty(&resp)?);
         }
 
-        Commands::Tev1 {
+        Some(Commands::Tev1 {
             file,
             state,
             question,
             options,
-        } => {
+        }) => {
             let engine = ZevEngine::default();
             let req = if let (Some(s), Some(q), Some(opts_str)) = (state, question, options) {
                 let opts: Vec<String> = if opts_str.starts_with('[') {
@@ -304,11 +427,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", serde_json::to_string_pretty(&resp)?);
         }
 
-        Commands::Gate {
+        Some(Commands::Gate {
             state,
             instructions,
             threshold,
-        } => {
+        }) => {
             let engine = ZevEngine::default();
             let q = zev::Question::Boolean(zev::BooleanQuestion {
                 instructions: instructions.clone(),
@@ -331,14 +454,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
-        Commands::Route {
+        Some(Commands::Route {
             state,
             file,
             routes,
             distribution,
             backend,
             min_confidence,
-        } => {
+        }) => {
             if let Some(b) = backend {
                 if (b == "apfel" || b == "neural") && !cfg!(feature = "neural") {
                     eprintln!(
@@ -438,7 +561,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         #[cfg(feature = "server")]
-        Commands::Serve {
+        Some(Commands::Serve {
             host,
             port,
             temperature,
@@ -458,7 +581,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             pass_tokens,
             #[cfg(feature = "candle")]
             devices,
-        } => {
+        }) => {
             #[cfg(feature = "candle")]
             let router = if !models.is_empty() || kev.is_some() {
                 use zev::kev::load;
@@ -515,7 +638,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::serve(listener, router).await?;
         }
 
-        Commands::Batch {
+        Some(Commands::Batch {
             file,
             mode,
             instructions,
@@ -523,7 +646,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             negative,
             threshold,
             routes,
-        } => {
+        }) => {
             let content = fs::read_to_string(&file)?;
             let mut rows = Vec::new();
             for (line_idx, line) in content.lines().enumerate() {
@@ -600,14 +723,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        Commands::Grep {
+        Some(Commands::Grep {
             query,
             path,
             json,
             limit,
             threshold,
             max_files,
-        } => {
+        }) => {
             let engine = ZevEngine::default();
             let opts = zev::GrepOptions {
                 query,
@@ -627,8 +750,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        Commands::Mcp => {
+        Some(Commands::Mcp) => {
             zev::mcp::run_stdio_server().await?;
+        }
+
+        None => {
+            // First-run interactive wizard check
+            if !zev::config_path().exists() && std::io::stdin().is_terminal() {
+                match zev::run_setup_wizard(false) {
+                    Ok(_) => {
+                        println!("\nConfiguration saved. You're ready to use Zev!");
+                        println!("Try running: zev doctor or zev route --routes '{{\"a\":\"...\"}}'");
+                    }
+                    Err(e) => {
+                        eprintln!("Setup cancelled or failed: {}", e);
+                    }
+                }
+            } else {
+                let config = zev::ZevConfig::load().unwrap_or_default();
+                let env = zev::SystemEnvironment::probe();
+                println!("⚡ Zev Decision Engine (v{})", env!("CARGO_PKG_VERSION"));
+                println!("High-performance, 100% order-invariant zero-token LLM decision engine\n");
+                println!("Configuration: {}", zev::config_path().display());
+                if zev::config_path().exists() {
+                    println!("  Active Method:       {} ({})", config.method.display_name(), config.method.as_str());
+                    println!("  Accuracy / Latency:  {} | {}", config.method.accuracy(), config.method.latency());
+                } else {
+                    println!("  Status:              Not configured (run `zev init` to configure)");
+                }
+                println!("\nSystem Environment:");
+                println!("  Platform:            {} ({})", env.os, env.arch);
+                println!("  SIMD Capabilities:   {} (Enabled)", env.simd_instruction_set);
+                println!("  Apple Neural Engine: {}", if env.apfel_available { "Available (apfel-rs)" } else { "Not available" });
+                println!("  Gemma Endpoint:      {}", if env.gemma_available { format!("Online ({})", env.gemma_endpoint) } else { "Offline / not detected".into() });
+                println!("\nCommon commands:");
+                println!("  zev init             Run interactive setup wizard");
+                println!("  zev doctor           Comprehensive environment diagnostics");
+                println!("  zev config show      View current configuration");
+                println!("  zev decide -f <req>  Evaluate a decision request");
+                println!("  zev route --help     Fast intent routing");
+                println!("  zev --help           Show all available subcommands and flags");
+            }
         }
     }
 

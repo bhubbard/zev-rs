@@ -2492,20 +2492,20 @@
       </div>
 
       <div style="font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; color: var(--steel); margin-top: 24px; letter-spacing: 0.5px;">
-        CLI &amp; SERVICE DEPLOYMENT // 4 WAYS TO RUN
+        CLI &amp; SERVICE DEPLOYMENT // ONBOARDING, WIZARD &amp; RUN MODES
       </div>
-      <pre class="code-box"><code><span class="comment"># Method 1: Instant Zero-Install Execution (npx / npm)</span>
-npx -y zev-rs route \
+      <pre class="code-box"><code><span class="comment"># Method 1: Interactive First-Run Onboarding &amp; Hardware Diagnostics</span>
+zev init          <span class="comment"># Dynamic hardware prober &amp; interactive method wizard</span>
+zev doctor        <span class="comment"># Inspect SIMD, Apple Neural Engine, and Gemma endpoints</span>
+zev config show   <span class="comment"># View persistent ~/.config/zev/config.json</span>
+
+<span class="comment"># Method 2: Instant CLI Routing (Microsecond Latency)</span>
+brew install zev  <span class="comment"># Or: cargo install zev-rs</span>
+zev route \
   --state <span class="str">"Critical: production database is down with 500 connection refused errors"</span> \
   --routes <span class="str">'{"billing": "Invoices", "infra": "Database outages", "sales": "Enterprise"}'</span>
 
-<span class="comment"># Method 2: Native CLI Installation (Homebrew on macOS &amp; Linux)</span>
-brew tap bhubbard/tap
-brew install zev
-zev route --state <span class="str">"Refund request #1084"</span> --routes <span class="str">'{"billing": "Billing", "support": "Tech"}'</span>
-
-<span class="comment"># Method 3: High-Performance REST API Server (Cargo / Standalone Daemon)</span>
-cargo install zev-rs
+<span class="comment"># Method 3: High-Performance REST API Server (Axum / Standalone Daemon)</span>
 zev serve --port 8080
 <span class="comment"># Drop-in HTTP API on http://127.0.0.1:8080/v1/decisions</span>
 
@@ -2514,11 +2514,11 @@ cat tickets.jsonl | zev batch --file - --mode route \
   --routes <span class="str">'{"billing": "Billing", "infra": "Infra", "sales": "Sales"}'</span> | jq</code></pre>
 
       <div style="font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; color: var(--steel); margin-top: 28px; letter-spacing: 0.5px;">
-        RUST EMBEDDED LIBRARY // ALL 4 ENGINE EXECUTION MODES
+        RUST EMBEDDED LIBRARY // ALL ENGINE EXECUTION MODES
       </div>
       <pre class="code-box"><code><span class="comment">// Add to Cargo.toml:</span>
 <span class="keyword">[dependencies]</span>
-zev-rs = { version = <span class="str">"0.3.7"</span>, features = [<span class="str">"neural"</span>] }
+zev-rs = { version = <span class="str">"0.3.8"</span>, features = [<span class="str">"neural"</span>] }
 
 <span class="keyword">use</span> zev::{ZevEngine, ApfelNeuralBackend, ExecutionMode};
 

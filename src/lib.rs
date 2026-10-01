@@ -4,6 +4,7 @@ pub mod cascade;
 pub mod clm;
 pub mod compaction;
 pub mod concept_knowledge;
+pub mod config;
 pub mod decoding;
 pub mod engine;
 pub mod error;
@@ -42,6 +43,10 @@ pub use cascade::{
 };
 pub use clm::{ContrastiveHead, HeadConfig, HybridVerifier, VectorArena};
 pub use compaction::{ToolCallRecord, ToolCompactionAction, ToolCompactionDecision, ToolCompactor};
+pub use config::{
+    config_path, load_or_init, run_setup_wizard, SystemEnvironment, ZevConfig, ZevMethod,
+    DEFAULT_APFEL_WEIGHT, DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_MARGIN_THRESHOLD,
+};
 pub use decoding::{decode_decision, generate_candidates, summarize_moments};
 pub use engine::{
     DecisionEngine, Evaluable, ExecutionMode, ZevEngine, RECOMMENDED_CASCADE_NEURAL_THRESHOLD,
