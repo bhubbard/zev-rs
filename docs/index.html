@@ -1984,31 +1984,67 @@
           </thead>
           <tbody>
             <tr class="highlight" style="background: rgba(16, 185, 129, 0.08);">
-              <td><strong>Zev-Dual-Ensemble 🏆</strong></td>
-              <td>Consensus Fusion (Apfel ANE + Gemma 4)</td>
-              <td class="mono" style="color: var(--signal-emerald); font-weight: 700;">71.90%</td>
-              <td class="mono"><strong>11.71 µs</strong></td>
-              <td class="mono"><strong>85,382 dec/s</strong></td>
+              <td><strong>Zev-Dual-Ensemble (PoE) 🏆</strong></td>
+              <td>Consensus PoE Fusion (Apfel ANE + Gemma 4)</td>
+              <td class="mono" style="color: var(--signal-emerald); font-weight: 700;">74.89%</td>
+              <td class="mono"><strong>11.75 µs</strong></td>
+              <td class="mono"><strong>85,106 dec/s</strong></td>
               <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
               <td>&lt; 32 MB (Mac ANE/CPU)</td>
+            </tr>
+            <tr style="background: rgba(244, 63, 94, 0.04);">
+              <td><strong>Winnow-12B Q8</strong></td>
+              <td>Quantized 12B Decoder-Only (Cloud GPU)</td>
+              <td class="mono">74.43%</td>
+              <td class="mono">340,000 µs (340 ms)</td>
+              <td class="mono">2.9 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.028000</td>
+              <td>16 GB VRAM (GPU Pod)</td>
+            </tr>
+            <tr class="highlight" style="background: rgba(59, 130, 246, 0.08);">
+              <td><strong>Zev-Dual-Cascade ⚡</strong></td>
+              <td>Three-Tier Cascade (SIMD → ANE → Gemma 4)</td>
+              <td class="mono" style="color: var(--electric-cyan); font-weight: 700;">72.73%</td>
+              <td class="mono"><strong>11.25 µs</strong></td>
+              <td class="mono"><strong>88,888 dec/s</strong></td>
+              <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
+              <td>&lt; 16 MB (Mac ANE/CPU)</td>
             </tr>
             <tr class="highlight" style="background: rgba(59, 130, 246, 0.08);">
               <td><strong>Zev-Load-Balanced ⚡</strong></td>
               <td>Alternating Balancer (ANE ↔ CPU/GPU + Failover)</td>
-              <td class="mono" style="color: var(--electric-cyan); font-weight: 700;">71.10%</td>
+              <td class="mono" style="color: var(--electric-cyan); font-weight: 700;">72.73%</td>
               <td class="mono"><strong>11.21 µs</strong></td>
-              <td class="mono"><strong>89,210 dec/s</strong></td>
+              <td class="mono"><strong>89,206 dec/s</strong></td>
               <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
               <td>&lt; 32 MB (Mac ANE/CPU)</td>
             </tr>
-            <tr class="highlight">
-              <td><strong>Zev-Dual-Cascade</strong></td>
-              <td>Three-Tier Cascade (SIMD → ANE → Gemma 4)</td>
-              <td class="mono">71.20%</td>
-              <td class="mono"><strong>11.25 µs</strong></td>
-              <td class="mono"><strong>88,899 dec/s</strong></td>
-              <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
-              <td>&lt; 16 MB (Mac ANE/CPU)</td>
+            <tr>
+              <td><strong>djev (Maisa 26B)</strong></td>
+              <td>Maisa 26B Reasoning Cluster</td>
+              <td class="mono">72.33%</td>
+              <td class="mono">1,280,000 µs (1.28 s)</td>
+              <td class="mono">0.8 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.049000</td>
+              <td>32 GB VRAM (GPU Pod)</td>
+            </tr>
+            <tr>
+              <td><strong>Jev 1.13.0</strong> (Closed Reference)</td>
+              <td>TypeSafe Closed Cloud API Cluster</td>
+              <td class="mono">72.00%</td>
+              <td class="mono">620,000 µs (620 ms)</td>
+              <td class="mono">1.6 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.032000</td>
+              <td>Cloud API Cluster</td>
+            </tr>
+            <tr>
+              <td><strong>Kev 8B</strong> (Python)</td>
+              <td>Qwen3-8B + LoRA Pointer Head (PyTorch)</td>
+              <td class="mono">71.43%</td>
+              <td class="mono">591,000 µs (591 ms)</td>
+              <td class="mono">1.7 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.030000</td>
+              <td>16 GB VRAM (PyTorch)</td>
             </tr>
             <tr style="background: rgba(244, 63, 94, 0.04);">
               <td><strong>Cygnet</strong> (#1 Benchmark Heaven)</td>
@@ -2022,7 +2058,7 @@
             <tr>
               <td><strong>Zev-Gemma4</strong></td>
               <td>SIMD + Distilled Gemma 4 Head</td>
-              <td class="mono">70.80%</td>
+              <td class="mono">71.00%</td>
               <td class="mono"><strong>11.45 µs</strong></td>
               <td class="mono"><strong>87,336 dec/s</strong></td>
               <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
@@ -2031,7 +2067,7 @@
             <tr>
               <td><strong>Zev-Apfel</strong></td>
               <td>Apple Intelligence FoundationModels (ANE)</td>
-              <td class="mono">70.13%</td>
+              <td class="mono">70.56%</td>
               <td class="mono"><strong>11.30 µs</strong></td>
               <td class="mono"><strong>88,495 dec/s</strong></td>
               <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
@@ -2040,38 +2076,11 @@
             <tr>
               <td><strong>Zev-Default</strong></td>
               <td>Zero-Token Pure Rust SIMD Reflex</td>
-              <td class="mono">69.26%</td>
+              <td class="mono">69.70%</td>
               <td class="mono"><strong>11.05 µs</strong></td>
               <td class="mono"><strong>90,507 dec/s</strong></td>
               <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
               <td>&lt; 8 MB (Pure CPU)</td>
-            </tr>
-            <tr>
-              <td><strong>Jev 1.13.0</strong> (Closed Reference)</td>
-              <td>TypeSafe Closed Cloud API Cluster</td>
-              <td class="mono">72.00%</td>
-              <td class="mono">620,000 µs (620 ms)</td>
-              <td class="mono">1.6 dec/s</td>
-              <td class="mono" style="color: var(--precision-crimson);">$0.032000</td>
-              <td>Cloud API Cluster</td>
-            </tr>
-            <tr>
-              <td><strong>Winnow-12B Q8</strong> (#2 Benchmark Heaven)</td>
-              <td>Quantized 12B Model</td>
-              <td class="mono">74.43%</td>
-              <td class="mono">340,000 µs (340 ms)</td>
-              <td class="mono">2.9 dec/s</td>
-              <td class="mono" style="color: var(--precision-crimson);">$0.028000</td>
-              <td>16 GB VRAM (GPU Pod)</td>
-            </tr>
-            <tr>
-              <td><strong>Kev 8B</strong> (Python)</td>
-              <td>Qwen3-8B + LoRA Pointer Head (PyTorch)</td>
-              <td class="mono">71.43%</td>
-              <td class="mono">591,000 µs (591 ms)</td>
-              <td class="mono">1.7 dec/s</td>
-              <td class="mono" style="color: var(--precision-crimson);">$0.030000</td>
-              <td>16 GB VRAM (PyTorch)</td>
             </tr>
             <tr>
               <td><strong>Laya</strong> (Python)</td>

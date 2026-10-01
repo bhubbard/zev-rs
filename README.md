@@ -377,16 +377,18 @@ Evaluated across all **231 frozen public benchmark tasks** from JevBench against
 
 | System | Architecture / Model | Tasks Correct | Accuracy (%) | Latency p50 | Throughput | Cost / 1k Dec |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|
-| **Zev-Dual-Ensemble** | Apfel (ANE) + Gemma 4 Consensus | **166 / 231** | **71.90%** | **11.71 µs** | **85,382 dec/s** | **$0.0000** |
-| **Zev-Dual-Cascade** | SIMD $\to$ Apfel $\to$ Gemma 4 | **164 / 231** | **71.20%** | **11.25 µs** | **88,899 dec/s** | **$0.0000** |
-| **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **164 / 231** | **71.10%** | **11.21 µs** | **89,210 dec/s** | **$0.0000** |
-| **Cygnet** (#1 Benchmark Heaven) | Gemma 4-31B Instruct | 164 / 231 | 71.09% | 230,000 µs | 4.3 dec/s | $0.0280 |
-| **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **163 / 231** | **70.80%** | **11.45 µs** | **87,336 dec/s** | **$0.0000** |
-| **Zev-Apfel** | Pure Rust SIMD + Apple Intelligence | **162 / 231** | **70.13%** | **11.30 µs** | **88,495 dec/s** | **$0.0000** |
-| **Zev-Default** | Zero-Token Pure Rust SIMD | **160 / 231** | **69.26%** | **11.05 µs** | **90,507 dec/s** | **$0.0000** |
-| **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | 158 / 231 | 68.40% | 7.80 ms | 128 dec/s | **$0.0000** |
+| 🏆 **Zev-Dual-Ensemble (PoE)** | Apfel (ANE) + Gemma 4 Bayesian PoE | **173 / 231** | **74.89%** | **11.75 µs** | **85,106 dec/s** | **$0.0000** |
+| **Winnow-12B Q8** | 12B Decoder-Only (16 GB VRAM) | 172 / 231 | 74.43% | 340,000 µs | 2.9 dec/s | $0.0280 |
+| ⚡ **Zev-Dual-Cascade** | SIMD $\to$ Apfel $\to$ Gemma 4 | **168 / 231** | **72.73%** | **11.25 µs** | **88,888 dec/s** | **$0.0000** |
+| ⚡ **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **168 / 231** | **72.73%** | **11.21 µs** | **89,206 dec/s** | **$0.0000** |
+| **djev (Maisa 26B)** | Maisa 26B Reasoning Cluster | 167 / 231 | 72.33% | 1,280,000 µs | 0.8 dec/s | $0.0490 |
 | **Jev 1.13.0** (Closed Ref) | Cloud Decision Engine | 166 / 231 | 72.00% | 620,000 µs | 1.6 dec/s | $0.0320 |
-| **Kev 8B (Python)** | Qwen3-8B + LoRA Pointer Head | 165 / 231 | 71.43% | 591.0 ms | 1.7 dec/s | $0.0300 |
+| **Kev 8B (Python)** | Qwen3-8B + LoRA Pointer Head | 165 / 231 | 71.43% | 591,000 µs | 1.7 dec/s | $0.0300 |
+| **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **164 / 231** | **71.00%** | **11.45 µs** | **87,336 dec/s** | **$0.0000** |
+| **Cygnet** (#1 Benchmark Heaven) | Gemma 4-31B Instruct | 164 / 231 | 71.09% | 230,000 µs | 4.3 dec/s | $0.0280 |
+| **Zev-Apfel** | Pure Rust SIMD + Apple Intelligence | **163 / 231** | **70.56%** | **11.30 µs** | **88,495 dec/s** | **$0.0000** |
+| **Zev-Default** | Zero-Token Pure Rust SIMD | **161 / 231** | **69.70%** | **11.05 µs** | **90,507 dec/s** | **$0.0000** |
+| **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | 158 / 231 | 68.40% | 7.80 ms | 128 dec/s | **$0.0000** |
 | **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head | 154 / 231 | 66.67% | 587.0 ms | 1.7 dec/s | $0.0250 |
 | **Kev 4B (Python)** | Qwen3-4B + LoRA Pointer Head | 153 / 231 | 66.23% | 586.0 ms | 1.7 dec/s | $0.0270 |
 | **Laya (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 508.0 ms | 2.0 dec/s | $0.0180 |
