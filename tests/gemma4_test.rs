@@ -9,6 +9,7 @@ use zev::types::{Candidate, ChoiceQuestion, OptionDef, Question};
 
 static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+#[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_gemma4_live_mock_http_roundtrip() {
     let _lock = ENV_MUTEX.lock().unwrap();

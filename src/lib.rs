@@ -43,7 +43,10 @@ pub use cascade::{
 pub use clm::{ContrastiveHead, HeadConfig, HybridVerifier, VectorArena};
 pub use compaction::{ToolCallRecord, ToolCompactionAction, ToolCompactionDecision, ToolCompactor};
 pub use decoding::{decode_decision, generate_candidates, summarize_moments};
-pub use engine::{DecisionEngine, Evaluable, ZevEngine};
+pub use engine::{
+    DecisionEngine, Evaluable, ExecutionMode, ZevEngine, RECOMMENDED_CASCADE_NEURAL_THRESHOLD,
+    RECOMMENDED_CONFIDENCE_THRESHOLD, RECOMMENDED_ENSEMBLE_WEIGHT_APFEL,
+};
 pub use error::{Result, ZevError};
 pub use grep::*;
 pub use kv_rewind::{BlockTable, PagedContextArena, DEFAULT_PAGE_SIZE};
