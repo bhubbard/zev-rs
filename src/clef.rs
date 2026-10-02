@@ -189,7 +189,10 @@ impl CloudflareClefProvider {
         let mut req = ureq::post(&url);
 
         if !self.config.api_token.is_empty() {
-            req = req.header("Authorization", &format!("Bearer {}", self.config.api_token));
+            req = req.header(
+                "Authorization",
+                &format!("Bearer {}", self.config.api_token),
+            );
         }
 
         let mut resp = req.send_json(request).map_err(|e| {
@@ -341,7 +344,8 @@ pub fn clef_wire_answer_to_zev(
                         .iter()
                         .map(|k| probabilities.get(&k.to_string()).copied().unwrap_or(0.0))
                         .collect();
-                    let smoothed_vec = crate::decoding::smooth_ordinal_probabilities(&vec_probs, alpha);
+                    let smoothed_vec =
+                        crate::decoding::smooth_ordinal_probabilities(&vec_probs, alpha);
                     let mut smoothed_map = BTreeMap::new();
                     for (k, p) in keys.iter().zip(smoothed_vec.iter()) {
                         smoothed_map.insert(k.to_string(), *p);
@@ -483,7 +487,10 @@ mod tests {
         let zev_ans = clef_wire_answer_to_zev(&q, &wire_ans, DEFAULT_CLEF_MODEL).unwrap();
         assert_eq!(zev_ans.status, "ok");
         assert_eq!(zev_ans.confidence, 0.85);
-        assert_eq!(zev_ans.decision, Some(serde_json::Value::String("opt_a".into())));
+        assert_eq!(
+            zev_ans.decision,
+            Some(serde_json::Value::String("opt_a".into()))
+        );
         assert_eq!(zev_ans.source.unwrap(), "cloudflare:@cf/typesafe/clef");
     }
 

@@ -1,3 +1,4 @@
+use crate::decision_cache::{hash_decision_request, DecisionCache};
 use crate::engine::ZevEngine;
 use crate::types::{
     DlqClusterReport, DlqTriageRequest, DlqTriageResponse, SystemOneRequest, SystemOneResponse,
@@ -17,10 +18,23 @@ const INDEX_HTML: &str = include_str!("../assets/index.html");
 #[derive(Clone, Debug)]
 pub struct ServerState {
     pub engine: Arc<ZevEngine>,
+    pub cache: Arc<DecisionCache<u64, serde_json::Value>>,
+}
+
+impl ServerState {
+    pub fn new(engine: Arc<ZevEngine>) -> Self {
+        Self {
+            engine,
+            cache: Arc::new(DecisionCache::new(
+                10_000,
+                Some(std::time::Duration::from_secs(300)),
+            )),
+        }
+    }
 }
 
 pub fn create_router(engine: Arc<ZevEngine>) -> Router {
-    let state = ServerState { engine };
+    let state = ServerState::new(engine);
 
     Router::new()
         .route("/health", get(health_handler))
@@ -127,13 +141,45 @@ async fn limits_handler() -> Json<serde_json::Value> {
 async fn decisions_handler(
     State(state): State<ServerState>,
     Json(req): Json<ZevRequest>,
-) -> Result<([(axum::http::HeaderName, String); 2], Json<ZevResponse>), (StatusCode, String)> {
+) -> Result<([(axum::http::HeaderName, String); 3], Json<ZevResponse>), (StatusCode, String)> {
     let start = std::time::Instant::now();
+    let cache_key = hash_decision_request(&req).ok();
+
+    if let Some(key) = cache_key {
+        if let Some(cached_val) = state.cache.get(&key) {
+            if let Ok(resp) = serde_json::from_value::<ZevResponse>(cached_val) {
+                let eval_ms = start.elapsed().as_secs_f64() * 1000.0;
+                let headers = [
+                    (
+                        axum::http::HeaderName::from_static("server-timing"),
+                        format!("eval;dur={eval_ms:.3}"),
+                    ),
+                    (
+                        axum::http::HeaderName::from_static("x-inference-time-ms"),
+                        format!("{eval_ms:.3}"),
+                    ),
+                    (
+                        axum::http::HeaderName::from_static("x-cache"),
+                        "HIT".to_string(),
+                    ),
+                ];
+                return Ok((headers, Json(resp)));
+            }
+        }
+    }
+
     let resp = state
         .engine
         .evaluate(&req)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     let eval_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+    if let Some(key) = cache_key {
+        if let Ok(val) = serde_json::to_value(&resp) {
+            state.cache.insert(key, val);
+        }
+    }
+
     let headers = [
         (
             axum::http::HeaderName::from_static("server-timing"),
@@ -142,6 +188,10 @@ async fn decisions_handler(
         (
             axum::http::HeaderName::from_static("x-inference-time-ms"),
             format!("{eval_ms:.3}"),
+        ),
+        (
+            axum::http::HeaderName::from_static("x-cache"),
+            "MISS".to_string(),
         ),
     ];
     Ok((headers, Json(resp)))
@@ -152,17 +202,49 @@ async fn systemone_handler(
     Json(req): Json<SystemOneRequest>,
 ) -> Result<
     (
-        [(axum::http::HeaderName, String); 2],
+        [(axum::http::HeaderName, String); 3],
         Json<SystemOneResponse>,
     ),
     (StatusCode, String),
 > {
     let start = std::time::Instant::now();
+    let cache_key = hash_decision_request(&req).ok();
+
+    if let Some(key) = cache_key {
+        if let Some(cached_val) = state.cache.get(&key) {
+            if let Ok(resp) = serde_json::from_value::<SystemOneResponse>(cached_val) {
+                let eval_ms = start.elapsed().as_secs_f64() * 1000.0;
+                let headers = [
+                    (
+                        axum::http::HeaderName::from_static("server-timing"),
+                        format!("eval;dur={eval_ms:.3}"),
+                    ),
+                    (
+                        axum::http::HeaderName::from_static("x-inference-time-ms"),
+                        format!("{eval_ms:.3}"),
+                    ),
+                    (
+                        axum::http::HeaderName::from_static("x-cache"),
+                        "HIT".to_string(),
+                    ),
+                ];
+                return Ok((headers, Json(resp)));
+            }
+        }
+    }
+
     let resp = state
         .engine
         .evaluate_system_one(&req)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     let eval_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+    if let Some(key) = cache_key {
+        if let Ok(val) = serde_json::to_value(&resp) {
+            state.cache.insert(key, val);
+        }
+    }
+
     let headers = [
         (
             axum::http::HeaderName::from_static("server-timing"),
@@ -171,6 +253,10 @@ async fn systemone_handler(
         (
             axum::http::HeaderName::from_static("x-inference-time-ms"),
             format!("{eval_ms:.3}"),
+        ),
+        (
+            axum::http::HeaderName::from_static("x-cache"),
+            "MISS".to_string(),
         ),
     ];
     Ok((headers, Json(resp)))

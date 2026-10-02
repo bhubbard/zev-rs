@@ -347,15 +347,24 @@ mod tests {
         let c = Question::Choice(ChoiceQuestion {
             instructions: "Color?".into(),
             options: vec![
-                OptionDef { id: "red".into(), description: "Red".into() },
-                OptionDef { id: "blue".into(), description: "Blue".into() },
+                OptionDef {
+                    id: "red".into(),
+                    description: "Red".into(),
+                },
+                OptionDef {
+                    id: "blue".into(),
+                    description: "Blue".into(),
+                },
             ],
             policy: Default::default(),
         });
         let wire_c = question_to_wire(&c).unwrap();
         assert!(matches!(wire_c, WireQuestion::Choice(_)));
 
-        let s = Question::Score(ScoreQuestion::new("Rate", vec!["Low".into(), "High".into()]));
+        let s = Question::Score(ScoreQuestion::new(
+            "Rate",
+            vec!["Low".into(), "High".into()],
+        ));
         let wire_s = question_to_wire(&s).unwrap();
         assert!(matches!(wire_s, WireQuestion::Score(_)));
     }

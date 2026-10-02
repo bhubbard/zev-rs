@@ -56,7 +56,9 @@ impl ZevMethod {
             Self::DualEnsemble => "Zev-Dual-Ensemble (PoE) 🏆 [RECOMMENDED BEST OVERALL]",
             Self::DualCascade => "Zev-Dual-Cascade ⚡ [THREE-TIER RECURSIVE]",
             Self::LoadBalanced => "Zev-Load-Balanced ⚖️ [HIGH-THROUGHPUT BALANCER]",
-            Self::PureSimd => "Zev-Default (Pure Hardware SIMD Reflex) 🚀 [UNIVERSAL / ZERO WEIGHTS]",
+            Self::PureSimd => {
+                "Zev-Default (Pure Hardware SIMD Reflex) 🚀 [UNIVERSAL / ZERO WEIGHTS]"
+            }
             Self::Apfel => "Zev-Apfel 🍎 [APPLE NEURAL ENGINE]",
             Self::Gemma => "Zev-Gemma4 🧠 [DISTILLED GEMMA / OLLAMA]",
             Self::Mlx => "Zev-Mlx ⚡ [APPLE SILICON MLX]",
@@ -134,7 +136,9 @@ impl ZevMethod {
 
     pub fn parse_str(s: &str) -> Option<Self> {
         match s.trim().to_lowercase().as_str() {
-            "1" | "dual-ensemble" | "ensemble" | "poe" | "zev-dual-ensemble" => Some(Self::DualEnsemble),
+            "1" | "dual-ensemble" | "ensemble" | "poe" | "zev-dual-ensemble" => {
+                Some(Self::DualEnsemble)
+            }
             "2" | "dual-cascade" | "cascade" | "zev-dual-cascade" => Some(Self::DualCascade),
             "3" | "load-balanced" | "balanced" | "zev-load-balanced" => Some(Self::LoadBalanced),
             "4" | "pure-simd" | "simd" | "default" | "zev-default" => Some(Self::PureSimd),
@@ -300,9 +304,15 @@ impl SystemEnvironment {
     /// Formats a clean terminal diagnostic box.
     pub fn format_diagnostic_box(&self) -> String {
         let mut s = String::new();
-        s.push_str("╭────────────────────────────────────────────────────────────────────────────╮\n");
-        s.push_str("│ 🔍 Zev Hardware & Environment Diagnostics                                 │\n");
-        s.push_str("╰────────────────────────────────────────────────────────────────────────────╯\n");
+        s.push_str(
+            "╭────────────────────────────────────────────────────────────────────────────╮\n",
+        );
+        s.push_str(
+            "│ 🔍 Zev Hardware & Environment Diagnostics                                 │\n",
+        );
+        s.push_str(
+            "╰────────────────────────────────────────────────────────────────────────────╯\n",
+        );
 
         s.push_str(&format!(
             "  • Operating System:     {} ({})\n",
@@ -457,8 +467,7 @@ impl ZevConfig {
         let dir = Self::config_dir();
         fs::create_dir_all(&dir)?;
         let path = Self::config_path();
-        let content = serde_json::to_string_pretty(self)
-            .map_err(io::Error::other)?;
+        let content = serde_json::to_string_pretty(self).map_err(io::Error::other)?;
         fs::write(path, content)?;
         Ok(())
     }
@@ -522,7 +531,10 @@ pub fn run_setup_wizard(force_interactive: bool) -> io::Result<ZevConfig> {
     println!("   ███╔╝  ██╔══╝  ╚██╗ ██╔╝");
     println!("  ███████╗███████╗ ╚████╔╝ ");
     println!("  ╚══════╝╚══════╝  ╚═══╝  ");
-    println!("  ✦ High-Performance Zero-Token Decision Engine (v{})", env!("CARGO_PKG_VERSION"));
+    println!(
+        "  ✦ High-Performance Zero-Token Decision Engine (v{})",
+        env!("CARGO_PKG_VERSION")
+    );
     println!();
 
     print!("{}", env.format_diagnostic_box());
@@ -605,7 +617,10 @@ pub fn run_setup_wizard(force_interactive: bool) -> io::Result<ZevConfig> {
         && (force_interactive || std::io::stdin().is_terminal())
     {
         println!();
-        println!("  ℹ Gemma/Ollama endpoint not currently active at {}.", env.gemma_endpoint);
+        println!(
+            "  ℹ Gemma/Ollama endpoint not currently active at {}.",
+            env.gemma_endpoint
+        );
         print!("  Enter custom endpoint URL (or press Enter to keep default with automatic SIMD fallback): ");
         io::stdout().flush()?;
         let mut ep_in = String::new();
@@ -623,13 +638,18 @@ pub fn run_setup_wizard(force_interactive: bool) -> io::Result<ZevConfig> {
     println!("╭────────────────────────────────────────────────────────────────────────────╮");
     println!("│ ✓ Configuration Initialized Successfully                                  │");
     println!("╰────────────────────────────────────────────────────────────────────────────╯");
-    println!("  • Saved to:          {}", ZevConfig::config_path().display());
+    println!(
+        "  • Saved to:          {}",
+        ZevConfig::config_path().display()
+    );
     println!("  • Active Method:     {}", config.method.display_name());
     println!("  • Accuracy Floor:    {}", config.method.accuracy());
     println!("  • Average Latency:   {}", config.method.latency());
     println!();
     println!("💡 Quick Start Examples:");
-    println!(r#"  1. Route customer request:  zev route --routes '{{"billing":"Disputes","tech":"Bug"}}' --state "App crashed""#);
+    println!(
+        r#"  1. Route customer request:  zev route --routes '{{"billing":"Disputes","tech":"Bug"}}' --state "App crashed""#
+    );
     println!("  2. Evaluate JSON decision:  zev decide --file request.json");
     println!("  3. Launch local API server: zev serve --port 8080");
     println!("  4. Check diagnostics:       zev doctor");
@@ -675,7 +695,10 @@ mod tests {
     #[test]
     fn test_zev_method_parsing() {
         assert_eq!(ZevMethod::parse_str("1"), Some(ZevMethod::DualEnsemble));
-        assert_eq!(ZevMethod::parse_str("dual-ensemble"), Some(ZevMethod::DualEnsemble));
+        assert_eq!(
+            ZevMethod::parse_str("dual-ensemble"),
+            Some(ZevMethod::DualEnsemble)
+        );
         assert_eq!(ZevMethod::parse_str("pure-simd"), Some(ZevMethod::PureSimd));
         assert_eq!(ZevMethod::parse_str("4"), Some(ZevMethod::PureSimd));
         assert_eq!(ZevMethod::parse_str("gemma"), Some(ZevMethod::Gemma));

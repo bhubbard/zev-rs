@@ -530,7 +530,10 @@ mod tests {
         });
         assert_eq!(q_choice.instructions(), "pick one");
 
-        let q_score = Question::Score(ScoreQuestion::new("rate quality", vec!["bad".into(), "good".into()]));
+        let q_score = Question::Score(ScoreQuestion::new(
+            "rate quality",
+            vec!["bad".into(), "good".into()],
+        ));
         assert_eq!(q_score.instructions(), "rate quality");
 
         let q_num = Question::Numeric(NumericQuestion {

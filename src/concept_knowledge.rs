@@ -318,7 +318,6 @@ pub fn boost_routing_specialist_associations(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

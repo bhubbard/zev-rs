@@ -10,8 +10,8 @@
 //! When detected, it triggers fast `UNKNOWN` (`__insufficient__`) abstention in <4 µs
 //! before executing full logit decoding.
 
-use serde::{Deserialize, Serialize};
 use crate::types::UNKNOWN;
+use serde::{Deserialize, Serialize};
 
 pub const TOLERANCE: f64 = 1e-6;
 
@@ -175,7 +175,11 @@ pub fn check_series_guardrails_with_config(
             variance: 0.0,
             min_val: if min_val.is_finite() { min_val } else { 0.0 },
             max_val: if max_val.is_finite() { max_val } else { 0.0 },
-            mean_val: if valid_points > 0 { sum / valid_points as f64 } else { 0.0 },
+            mean_val: if valid_points > 0 {
+                sum / valid_points as f64
+            } else {
+                0.0
+            },
             is_flatline: true,
         };
     }
