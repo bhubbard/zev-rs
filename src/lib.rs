@@ -1,4 +1,5 @@
 pub mod abstain;
+pub mod cact;
 pub mod calibration;
 pub mod cascade;
 pub mod clef;
@@ -20,13 +21,16 @@ pub mod matrix;
 pub mod mcp;
 pub mod multimodal;
 pub mod order_invariant;
+pub mod patterns;
 pub mod premise_window;
 pub mod preprocessor;
 pub mod qos;
 pub mod readout;
 pub mod semantic_sieve;
+pub mod series_guardrails;
 pub mod shortlist;
 pub mod tabular;
+pub mod temporal_numeric;
 pub mod tev1;
 pub mod types;
 pub mod wire;
@@ -78,20 +82,31 @@ pub use logic::{
 };
 pub use matrix::{AnchorPartnerEvaluator, PartnerMatrix};
 pub use multimodal::{MultimodalTriageEngine, VisualFeature};
+pub use cact::{fast_walsh_hadamard_transform, CactArchive, CactHeader, TensorRecord};
 pub use order_invariant::{
-    compute_order_invariant_logits, compute_order_invariant_logits_with_context, PremiseContext,
+    compute_order_invariant_logits, compute_order_invariant_logits_with_context,
+    generate_block_diagonal_mask, BlockDiagonalAttentionMask, PremiseContext,
 };
-pub use preprocessor::{clean_text, inject_temporal_facts, preprocess_state};
+pub use patterns::{composite_score, confidence_gate, route_decision, CompositeScoreResult, GateResult};
+pub use preprocessor::{
+    clean_email_body, clean_text, compute_pairwise_date_facts, detect_script, inject_temporal_facts,
+    preprocess_state, ScriptDetection,
+};
 pub use qos::elevate_thread_qos;
 pub use readout::{
     BinaryReadout, ClassTokenPool, PrunedHead, DEFAULT_FALSE_SPELLINGS, DEFAULT_TRUE_SPELLINGS,
 };
 pub use semantic_sieve::{CandidateVector, RemoteEmbeddingProvider, SemanticSieve, SieveResult};
-pub use shortlist::shortlist_options;
+pub use series_guardrails::{
+    check_series_guardrails, check_series_guardrails_with_config, make_safe_for_division,
+    revin_denormalize, revin_normalize, update_running_stats, GuardrailConfig, GuardrailResult,
+};
+pub use shortlist::{cosine_similarity, shortlist_by_embedding, shortlist_options, ShortlistResult};
 pub use tabular::{
     BatchExecutionReport, RunningStats, TabularBatch, TabularEngine, TabularFilterPredicate,
     TabularRow,
 };
+pub use temporal_numeric::{extract_numeric_tokens, ComparisonOp, ThresholdRule};
 pub use tev1::{Tev1Request, Tev1Response};
 pub use types::*;
 
