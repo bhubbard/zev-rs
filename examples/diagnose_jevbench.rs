@@ -121,20 +121,8 @@ fn main() {
         println!("  {:<20}: {}", fam, count);
     }
 
-    println!("\nSample Detailed Failures:");
-    for (item, pred, exp) in failures.iter().take(25) {
-        let state_str = match &item.state {
-            Value::String(s) => s.clone(),
-            other => other.to_string(),
-        };
-        let preview = if state_str.len() > 100 {
-            format!("{}...", &state_str[..100])
-        } else {
-            state_str
-        };
-        println!("------------------------------------------------------------");
-        println!("ID: {} | Family: {}", item.id, item.family);
-        println!("State: {}", preview);
-        println!("Expected: {} | Predicted: {}", exp, pred);
+    println!("\nAll Failures ({} total):", failures.len());
+    for (item, pred, exp) in &failures {
+        println!("FAIL: {:<32} | {:<18} | exp: {:<25} | pred: {}", item.id, item.family, exp, pred);
     }
 }

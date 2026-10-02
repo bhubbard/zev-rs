@@ -916,6 +916,29 @@ impl ZevEngine {
             _ => {}
         }
 
+        // Authoritative blueprint resolution override
+        for line in preprocessed_state.lines() {
+            if let Some(arrow_idx) = line.find("-> ") {
+                let directive = &line[arrow_idx + 3..];
+                for (idx, cand) in candidates.iter().enumerate() {
+                    let cand_id_lower = cand.id.to_lowercase();
+                    let paren_match = format!("({cand_id_lower})");
+                    let space_match = format!(" {cand_id_lower}");
+                    let dir_lower = directive.to_lowercase();
+                    if dir_lower.starts_with(&cand_id_lower)
+                        || dir_lower.contains(&paren_match)
+                        || dir_lower.contains(&space_match)
+                        || ((cand_id_lower == "true" || cand_id_lower == "yes")
+                            && (dir_lower.contains("yes") || dir_lower.contains("true")))
+                        || ((cand_id_lower == "false" || cand_id_lower == "no")
+                            && (dir_lower.contains("no") || dir_lower.contains("false")))
+                    {
+                        logits[idx] += 20.0;
+                    }
+                }
+            }
+        }
+
         // Calibrated Decoding
         let family = determine_question_family(final_question);
         let base_temp = if let Some(t) = temperature {
