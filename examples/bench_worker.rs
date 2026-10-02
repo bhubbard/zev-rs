@@ -121,7 +121,8 @@ fn load_workflowevals_samples() -> Vec<WorkflowEvalSample> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let worker_url = std::env::var("ZEV_WORKER_URL").unwrap_or_else(|_| DEFAULT_WORKER_URL.to_string());
+    let worker_url =
+        std::env::var("ZEV_WORKER_URL").unwrap_or_else(|_| DEFAULT_WORKER_URL.to_string());
     let worker_url = worker_url.trim_end_matches('/');
 
     println!("\n╔════════════════════════════════════════════════════════════════════════════════════════════╗");
@@ -131,33 +132,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. Health check & version
     print!("Connecting to worker health endpoint (/)... ");
-    let info_resp: Value = ureq::get(worker_url)
-        .call()?
-        .body_mut()
-        .read_json()?;
+    let info_resp: Value = ureq::get(worker_url).call()?.body_mut().read_json()?;
     println!("OK");
-    println!("  Engine       : {}", info_resp["engine"].as_str().unwrap_or("unknown"));
-    println!("  Version      : {}", info_resp["version"].as_str().unwrap_or("unknown"));
-    println!("  Architecture : {}", info_resp["architecture"].as_str().unwrap_or("unknown"));
-    println!("  Latency Tier : {}", info_resp["latency_tier"].as_str().unwrap_or("unknown"));
+    println!(
+        "  Engine       : {}",
+        info_resp["engine"].as_str().unwrap_or("unknown")
+    );
+    println!(
+        "  Version      : {}",
+        info_resp["version"].as_str().unwrap_or("unknown")
+    );
+    println!(
+        "  Architecture : {}",
+        info_resp["architecture"].as_str().unwrap_or("unknown")
+    );
+    println!(
+        "  Latency Tier : {}",
+        info_resp["latency_tier"].as_str().unwrap_or("unknown")
+    );
 
     // 2. In-Isolate Microbenchmark (/bench)
     print!("\nQuerying in-isolate microbenchmark (/bench)... ");
     let bench_url = format!("{worker_url}/bench");
-    let bench_resp: Value = ureq::get(&bench_url)
-        .call()?
-        .body_mut()
-        .read_json()?;
+    let bench_resp: Value = ureq::get(&bench_url).call()?.body_mut().read_json()?;
     println!("OK");
     println!("  Isolate Iterations  : {}", bench_resp["iterations"]);
-    println!("  Isolate Total Time  : {} ms", bench_resp["total_duration_ms"]);
-    println!("  Avg In-Isolate Lat  : {} µs", bench_resp["avg_latency_us"]);
-    let tp = bench_resp["throughput_decisions_per_sec"].as_i64().unwrap_or(0);
+    println!(
+        "  Isolate Total Time  : {} ms",
+        bench_resp["total_duration_ms"]
+    );
+    println!(
+        "  Avg In-Isolate Lat  : {} µs",
+        bench_resp["avg_latency_us"]
+    );
+    let tp = bench_resp["throughput_decisions_per_sec"]
+        .as_i64()
+        .unwrap_or(0);
     println!("  Throughput Rating   : {tp} decisions/sec");
 
     // 3. JevBench 231 Benchmark: Cloudflare Worker vs Local SIMD
     let jevbench_items = load_jevbench_231();
-    println!("\n" );
+    println!("\n");
     println!("==============================================================================================");
     println!("      BENCHMARK 1: AUTHENTIC JEVBENCH (231 FROZEN REASONING TASKS) OVER CLOUDFLARE EDGE       ");
     println!("==============================================================================================");
@@ -194,14 +209,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let local_acc = (local_correct as f64 / jevbench_items.len() as f64) * 100.0;
 
     println!("\n[Local SIMD Baseline]");
-    println!("  Accuracy       : {}/{} ({:.2}%)", local_correct, jevbench_items.len(), local_acc);
+    println!(
+        "  Accuracy       : {}/{} ({:.2}%)",
+        local_correct,
+        jevbench_items.len(),
+        local_acc
+    );
     println!("  Average Time   : {:.2} µs / decision", local_avg_us);
-    println!("  Throughput     : {:.0} decisions/sec", 1_000_000.0 / local_avg_us);
+    println!(
+        "  Throughput     : {:.0} decisions/sec",
+        1_000_000.0 / local_avg_us
+    );
 
     // 3b. Cloudflare Edge Worker evaluation (concurrent pool)
     println!("\n[Testing Live Cloudflare Edge Worker (Concurrency = 16)]");
     let worker_correct = Arc::new(AtomicUsize::new(0));
-    let worker_latencies = Arc::new(std::sync::Mutex::new(Vec::with_capacity(jevbench_items.len())));
+    let worker_latencies = Arc::new(std::sync::Mutex::new(Vec::with_capacity(
+        jevbench_items.len(),
+    )));
     let worker_t0 = Instant::now();
 
     // Setup pool
@@ -271,15 +296,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mean_ms = (lats.iter().sum::<f64>() / lats.len() as f64) / 1000.0;
     let worker_tp = jevbench_items.len() as f64 / worker_total_elapsed.as_secs_f64();
 
-    println!("  Accuracy       : {}/{} ({:.2}%)", w_corr, jevbench_items.len(), w_acc);
-    println!("  Total RTT Wall : {:.2}s for all 231 decisions", worker_total_elapsed.as_secs_f64());
-    println!("  Network Latency: p50 = {:.2} ms | p90 = {:.2} ms | p99 = {:.2} ms | mean = {:.2} ms", p50_ms, p90_ms, p99_ms, mean_ms);
-    println!("  Effective TP   : {:.1} decisions/sec (concurrent over WAN)", worker_tp);
-    println!("  Parity Check   : {}", if w_corr == local_correct { "✅ 100% IDENTICAL DECISION PARITY TO NATIVE RUST" } else { "⚠️ Parity deviation" });
+    println!(
+        "  Accuracy       : {}/{} ({:.2}%)",
+        w_corr,
+        jevbench_items.len(),
+        w_acc
+    );
+    println!(
+        "  Total RTT Wall : {:.2}s for all 231 decisions",
+        worker_total_elapsed.as_secs_f64()
+    );
+    println!(
+        "  Network Latency: p50 = {:.2} ms | p90 = {:.2} ms | p99 = {:.2} ms | mean = {:.2} ms",
+        p50_ms, p90_ms, p99_ms, mean_ms
+    );
+    println!(
+        "  Effective TP   : {:.1} decisions/sec (concurrent over WAN)",
+        worker_tp
+    );
+    println!(
+        "  Parity Check   : {}",
+        if w_corr == local_correct {
+            "✅ 100% IDENTICAL DECISION PARITY TO NATIVE RUST"
+        } else {
+            "⚠️ Parity deviation"
+        }
+    );
 
     // 4. TypeSafe WorkflowEvals 80 Benchmark
     let wf_samples = load_workflowevals_samples();
-    println!("\n" );
+    println!("\n");
     println!("==============================================================================================");
     println!("       BENCHMARK 2: TYPESAFE WORKFLOWEVALS (80 PRODUCTION WORKFLOW CASES) OVER EDGE           ");
     println!("==============================================================================================");
@@ -315,17 +361,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let wf_tp = wf_samples.len() as f64 / wf_elapsed.as_secs_f64();
 
     println!("\n[Live Cloudflare Edge Worker]");
-    println!("  Accuracy       : {}/{} ({:.2}%)", wf_corr, wf_samples.len(), wf_acc);
-    println!("  Total RTT Wall : {:.2}s for all 80 workflow cases", wf_elapsed.as_secs_f64());
-    println!("  Effective TP   : {:.1} decisions/sec (concurrent over WAN)", wf_tp);
+    println!(
+        "  Accuracy       : {}/{} ({:.2}%)",
+        wf_corr,
+        wf_samples.len(),
+        wf_acc
+    );
+    println!(
+        "  Total RTT Wall : {:.2}s for all 80 workflow cases",
+        wf_elapsed.as_secs_f64()
+    );
+    println!(
+        "  Effective TP   : {:.1} decisions/sec (concurrent over WAN)",
+        wf_tp
+    );
 
     println!("\n==============================================================================================");
     println!("                                   FINAL SCORECARD                                            ");
     println!("==============================================================================================");
     println!("Target: {}", worker_url);
-    println!("  • JevBench 231 Accuracy  : {:.2}% ({} / {})", w_acc, w_corr, jevbench_items.len());
-    println!("  • WorkflowEvals Accuracy : {:.2}% ({} / {})", wf_acc, wf_corr, wf_samples.len());
-    println!("  • End-to-End p50 Latency : {:.2} ms (including cross-country TLS/HTTP round-trip)", p50_ms);
+    println!(
+        "  • JevBench 231 Accuracy  : {:.2}% ({} / {})",
+        w_acc,
+        w_corr,
+        jevbench_items.len()
+    );
+    println!(
+        "  • WorkflowEvals Accuracy : {:.2}% ({} / {})",
+        wf_acc,
+        wf_corr,
+        wf_samples.len()
+    );
+    println!(
+        "  • End-to-End p50 Latency : {:.2} ms (including cross-country TLS/HTTP round-trip)",
+        p50_ms
+    );
     println!("  • In-Isolate Exec Time   : <100 µs (sub-millisecond zero-token execution)");
     println!("  • Accuracy Parity        : 100% matched to local SIMD Native");
     println!("==============================================================================================\n");

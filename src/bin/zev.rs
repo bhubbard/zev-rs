@@ -24,10 +24,7 @@ enum ConfigAction {
     /// Show current configuration and configuration file path
     Show,
     /// Set a configuration value (e.g. `zev config set method dual-ensemble`)
-    Set {
-        key: String,
-        value: String,
-    },
+    Set { key: String, value: String },
     /// Reset configuration to default settings
     Reset,
 }
@@ -257,7 +254,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Some(Commands::Init { force }) => {
             if !force && zev::config_path().exists() {
-                println!("Configuration file already exists at: {}", zev::config_path().display());
+                println!(
+                    "Configuration file already exists at: {}",
+                    zev::config_path().display()
+                );
                 println!("Use `zev init --force` to reconfigure, or `zev config show` to inspect settings.");
                 return Ok(());
             }
@@ -270,8 +270,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             print!("{}", env.format_diagnostic_box());
             println!("\nCurrent Configuration: {}", zev::config_path().display());
             if zev::config_path().exists() {
-                println!("  Configured Method:   {} ({})", config.method.display_name(), config.method.as_str());
-                println!("  Accuracy / Latency:  {} | {}", config.method.accuracy(), config.method.latency());
+                println!(
+                    "  Configured Method:   {} ({})",
+                    config.method.display_name(),
+                    config.method.as_str()
+                );
+                println!(
+                    "  Accuracy / Latency:  {} | {}",
+                    config.method.accuracy(),
+                    config.method.latency()
+                );
                 println!("  Confidence Threshold:{}", config.confidence_threshold);
                 println!("  Margin Threshold:    {}", config.margin_threshold);
                 println!("  Apfel Weight:        {}", config.apfel_weight);
@@ -285,7 +293,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if env.apfel_available && env.gemma_available {
                 println!("  ⭐ Optimal configuration: Zev-Dual-Ensemble (74.89% accuracy) is fully supported!");
             } else if env.apfel_available {
-                println!("  ✓ Apple Neural Engine is ready. Zev-Dual-Ensemble or Zev-Apfel can be used.");
+                println!(
+                    "  ✓ Apple Neural Engine is ready. Zev-Dual-Ensemble or Zev-Apfel can be used."
+                );
                 println!("    (Tip: Run Ollama or vLLM with Gemma 27B to unlock the full 74.89% PoE ensemble)");
             } else if env.gemma_available {
                 println!("  ✓ Gemma endpoint is active. You can run Zev-Gemma or Zev-Dual-Ensemble with SIMD reflex.");
@@ -309,22 +319,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             config.method = m;
                         }
                         "gemma-endpoint" | "endpoint" | "gemma-url" => {
-                            config.gemma_url = if value.is_empty() || value == "null" || value == "none" {
-                                None
-                            } else {
-                                Some(value)
-                            };
+                            config.gemma_url =
+                                if value.is_empty() || value == "null" || value == "none" {
+                                    None
+                                } else {
+                                    Some(value)
+                                };
                         }
                         "confidence-threshold" | "threshold" => {
-                            let t: f64 = value.parse().map_err(|_| zev::ZevError::InvalidRequest("Invalid number for confidence threshold".into()))?;
+                            let t: f64 = value.parse().map_err(|_| {
+                                zev::ZevError::InvalidRequest(
+                                    "Invalid number for confidence threshold".into(),
+                                )
+                            })?;
                             config.confidence_threshold = t;
                         }
                         "margin-threshold" => {
-                            let t: f64 = value.parse().map_err(|_| zev::ZevError::InvalidRequest("Invalid number for margin threshold".into()))?;
+                            let t: f64 = value.parse().map_err(|_| {
+                                zev::ZevError::InvalidRequest(
+                                    "Invalid number for margin threshold".into(),
+                                )
+                            })?;
                             config.margin_threshold = t;
                         }
                         "apfel-weight" | "ensemble-weight" => {
-                            let w: f64 = value.parse().map_err(|_| zev::ZevError::InvalidRequest("Invalid number for apfel weight".into()))?;
+                            let w: f64 = value.parse().map_err(|_| {
+                                zev::ZevError::InvalidRequest(
+                                    "Invalid number for apfel weight".into(),
+                                )
+                            })?;
                             config.apfel_weight = w;
                         }
                         other => {
@@ -339,7 +362,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ConfigAction::Reset => {
                     config = zev::ZevConfig::default();
                     config.save()?;
-                    println!("Reset configuration to defaults at {}", zev::config_path().display());
+                    println!(
+                        "Reset configuration to defaults at {}",
+                        zev::config_path().display()
+                    );
                 }
             }
         }
@@ -760,7 +786,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match zev::run_setup_wizard(false) {
                     Ok(_) => {
                         println!("\nConfiguration saved. You're ready to use Zev!");
-                        println!("Try running: zev doctor or zev route --routes '{{\"a\":\"...\"}}'");
+                        println!(
+                            "Try running: zev doctor or zev route --routes '{{\"a\":\"...\"}}'"
+                        );
                     }
                     Err(e) => {
                         eprintln!("Setup cancelled or failed: {}", e);
@@ -773,16 +801,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("High-performance, 100% order-invariant zero-token LLM decision engine\n");
                 println!("Configuration: {}", zev::config_path().display());
                 if zev::config_path().exists() {
-                    println!("  Active Method:       {} ({})", config.method.display_name(), config.method.as_str());
-                    println!("  Accuracy / Latency:  {} | {}", config.method.accuracy(), config.method.latency());
+                    println!(
+                        "  Active Method:       {} ({})",
+                        config.method.display_name(),
+                        config.method.as_str()
+                    );
+                    println!(
+                        "  Accuracy / Latency:  {} | {}",
+                        config.method.accuracy(),
+                        config.method.latency()
+                    );
                 } else {
                     println!("  Status:              Not configured (run `zev init` to configure)");
                 }
                 println!("\nSystem Environment:");
                 println!("  Platform:            {} ({})", env.os, env.arch);
-                println!("  SIMD Capabilities:   {} (Enabled)", env.simd_instruction_set);
-                println!("  Apple Neural Engine: {}", if env.apfel_available { "Available (apfel-rs)" } else { "Not available" });
-                println!("  Gemma Endpoint:      {}", if env.gemma_available { format!("Online ({})", env.gemma_endpoint) } else { "Offline / not detected".into() });
+                println!(
+                    "  SIMD Capabilities:   {} (Enabled)",
+                    env.simd_instruction_set
+                );
+                println!(
+                    "  Apple Neural Engine: {}",
+                    if env.apfel_available {
+                        "Available (apfel-rs)"
+                    } else {
+                        "Not available"
+                    }
+                );
+                println!(
+                    "  Gemma Endpoint:      {}",
+                    if env.gemma_available {
+                        format!("Online ({})", env.gemma_endpoint)
+                    } else {
+                        "Offline / not detected".into()
+                    }
+                );
                 println!("\nCommon commands:");
                 println!("  zev init             Run interactive setup wizard");
                 println!("  zev doctor           Comprehensive environment diagnostics");

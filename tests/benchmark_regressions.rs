@@ -890,3 +890,104 @@ fn test_laya_377_cancellation_negation_inversion() {
     let decision = get_choice_decision(&resp, "q");
     assert_eq!(decision, Some("no_action".to_string()));
 }
+
+#[test]
+fn test_temporal_warranty_date_grounding() {
+    let engine = DecisionEngine::new();
+    let mut questions = BTreeMap::new();
+    questions.insert(
+        "eligible".to_string(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Is this item within the 30-day return window?".into(),
+            options: vec![
+                OptionDef {
+                    id: "eligible".into(),
+                    description: "return within 30 days is accepted".into(),
+                },
+                OptionDef {
+                    id: "expired".into(),
+                    description: "past the 30 day return window".into(),
+                },
+            ],
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
+        }),
+    );
+
+    let req = ZevRequest {
+        state: serde_json::json!("Item delivered on 2026-08-01. Return initiated on 2026-08-15."),
+        questions,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: true,
+        images: None,
+    };
+
+    let resp = engine.eval(&req).expect("evaluation failed");
+    let decision = get_choice_decision(&resp, "eligible");
+    assert_eq!(decision, Some("eligible".to_string()));
+}
+
+#[test]
+fn test_entity_masking_noisy_payload() {
+    let engine = DecisionEngine::new();
+    let mut questions = BTreeMap::new();
+    questions.insert(
+        "severity".to_string(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Classify the reported system problem".into(),
+            options: vec![
+                OptionDef {
+                    id: "database_down".into(),
+                    description: "primary database cluster connection lost".into(),
+                },
+                OptionDef {
+                    id: "css_issue".into(),
+                    description: "minor visual stylesheet glitch".into(),
+                },
+            ],
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
+        }),
+    );
+
+    let raw_state = "Alert on https://alerting.prod.internal/v2/alarms?alert_id=9871&owner=pager@corp.com with command `kubectl exec -it pg-primary-0 -- pg_isready`: Database cluster connection timed out after 30 seconds.";
+
+    let req = ZevRequest {
+        state: serde_json::json!(raw_state),
+        questions,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+        images: None,
+    };
+
+    let resp = engine.eval(&req).expect("evaluation failed");
+    let decision = get_choice_decision(&resp, "severity");
+    assert_eq!(decision, Some("database_down".to_string()));
+}
+
+#[test]
+fn test_phonetic_soundex_typo_resilience() {
+    use zev::fuzzy_match::fuzzy_option_match;
+    assert!(fuzzy_option_match("cancelling", "cancellation", 0.70));
+    assert!(fuzzy_option_match("reimbersment", "reimbursement", 0.80));
+    assert!(fuzzy_option_match("subscripshun", "subscription", 0.75));
+    assert!(!fuzzy_option_match("refund", "escalate", 0.50));
+}
+
+#[test]
+fn test_script_detection_guard() {
+    use zev::preprocessor::detect_script;
+    let det = detect_script("The order has been successfully confirmed.");
+    assert!(det.is_english);
+    assert_eq!(det.primary_script, "latin");
+
+    let det_cyr = detect_script("Клиент запросил возврат средств.");
+    assert!(!det_cyr.is_english);
+    assert_eq!(det_cyr.primary_script, "cyrillic");
+}

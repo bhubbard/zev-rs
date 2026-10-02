@@ -155,9 +155,18 @@ where
     latencies_us.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     let evaluated = tasks.len();
-    let p50_us = latencies_us.get(latencies_us.len() / 2).copied().unwrap_or(0.0);
-    let p95_us = latencies_us.get((latencies_us.len() as f64 * 0.95) as usize).copied().unwrap_or(0.0);
-    let p99_us = latencies_us.get((latencies_us.len() as f64 * 0.99) as usize).copied().unwrap_or(0.0);
+    let p50_us = latencies_us
+        .get(latencies_us.len() / 2)
+        .copied()
+        .unwrap_or(0.0);
+    let p95_us = latencies_us
+        .get((latencies_us.len() as f64 * 0.95) as usize)
+        .copied()
+        .unwrap_or(0.0);
+    let p99_us = latencies_us
+        .get((latencies_us.len() as f64 * 0.99) as usize)
+        .copied()
+        .unwrap_or(0.0);
     let accuracy = if evaluated > 0 {
         (correct as f64 / evaluated as f64) * 100.0
     } else {
@@ -188,7 +197,14 @@ fn print_results_table(title: &str, results: &[MethodResult]) {
     println!("=============================================================================================================================");
     println!(
         "{:<28} | {:<12} | {:<10} | {:<10} | {:<10} | {:<10} | {:<14} | {:<22}",
-        "Execution Method", "Score", "Accuracy", "p50 (µs)", "p95 (µs)", "p99 (µs)", "Throughput", "Engine Backend"
+        "Execution Method",
+        "Score",
+        "Accuracy",
+        "p50 (µs)",
+        "p95 (µs)",
+        "p99 (µs)",
+        "Throughput",
+        "Engine Backend"
     );
     println!("─────────────────────────────+──────────────+────────────+────────────+────────────+────────────+────────────────+───────────────────────");
 
@@ -226,7 +242,10 @@ fn main() {
     // 1. SYNTHETIC SCALE SUITE (1,200 TASKS)
     // -------------------------------------------------------------------------
     let full_dataset_path = "datasets/zev_benchmarks/zev_benchmarks.jsonl";
-    println!("Loading Synthetic Scale Suite from '{}'...", full_dataset_path);
+    println!(
+        "Loading Synthetic Scale Suite from '{}'...",
+        full_dataset_path
+    );
     let full_tasks = load_dataset(full_dataset_path);
     println!("Loaded {} evaluation tasks.\n", full_tasks.len());
 
@@ -317,7 +336,10 @@ fn main() {
     // -------------------------------------------------------------------------
     let test_dataset_path = "datasets/zev_benchmarks/test.jsonl";
     if Path::new(test_dataset_path).exists() {
-        println!("Loading Held-out Test Split from '{}'...", test_dataset_path);
+        println!(
+            "Loading Held-out Test Split from '{}'...",
+            test_dataset_path
+        );
         let test_tasks = load_dataset(test_dataset_path);
         println!("Loaded {} held-out test tasks.\n", test_tasks.len());
 

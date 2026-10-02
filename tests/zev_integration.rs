@@ -4,6 +4,9 @@ use axum::{
     http::{Request, StatusCode},
 };
 use std::collections::BTreeMap;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::Path;
 #[cfg(feature = "server")]
 use std::sync::Arc;
 #[cfg(feature = "server")]
@@ -1211,9 +1214,7 @@ async fn test_cloudflare_clef_mock_server_evaluation() {
     use axum::routing::post;
     use axum::{Json, Router};
 
-    async fn mock_clef_handler(
-        Json(req): Json<zev::SystemOneRequest>,
-    ) -> Json<serde_json::Value> {
+    async fn mock_clef_handler(Json(req): Json<zev::SystemOneRequest>) -> Json<serde_json::Value> {
         let mut answers = std::collections::BTreeMap::new();
         for (id, _wq) in req.questions {
             answers.insert(
@@ -1254,13 +1255,23 @@ async fn test_cloudflare_clef_mock_server_evaluation() {
         let q = zev::Question::Choice(zev::ChoiceQuestion {
             instructions: "Classify problem".into(),
             options: vec![
-                zev::OptionDef { id: "hardware".into(), description: "Hardware issue".into() },
-                zev::OptionDef { id: "software".into(), description: "Software issue".into() },
+                zev::OptionDef {
+                    id: "hardware".into(),
+                    description: "Hardware issue".into(),
+                },
+                zev::OptionDef {
+                    id: "software".into(),
+                    description: "Software issue".into(),
+                },
             ],
             policy: Default::default(),
         });
 
-        provider.evaluate("Device screen won't turn on after battery drop", &q, "problem_type")
+        provider.evaluate(
+            "Device screen won't turn on after battery drop",
+            &q,
+            "problem_type",
+        )
     })
     .await
     .unwrap()
@@ -1268,7 +1279,10 @@ async fn test_cloudflare_clef_mock_server_evaluation() {
 
     assert_eq!(ans.status, "ok");
     assert_eq!(ans.confidence, 0.89);
-    assert_eq!(ans.decision, Some(serde_json::Value::String("hardware".into())));
+    assert_eq!(
+        ans.decision,
+        Some(serde_json::Value::String("hardware".into()))
+    );
     assert_eq!(ans.source.unwrap(), "cloudflare:@cf/typesafe/clef");
 }
 
@@ -1363,4 +1377,173 @@ fn test_brier_temperature_optimization_end_to_end() {
 
     assert!(calibrated_brier.is_finite());
     assert!(initial_brier.is_finite());
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct JevBenchTask {
+    #[allow(dead_code)]
+    id: String,
+    family: String,
+    state: serde_json::Value,
+    question: zev::wire::WireQuestion,
+    expected: serde_json::Value,
+}
+
+fn load_public_jevbench_tasks() -> Vec<JevBenchTask> {
+    let files = [
+        "datasets/jevbench_public/easy.jsonl",
+        "datasets/jevbench_public/original.jsonl",
+        "datasets/jevbench_public/hard.jsonl",
+    ];
+    let mut tasks = Vec::new();
+    for f in &files {
+        let path = Path::new(f);
+        if let Ok(file) = File::open(path) {
+            let reader = BufReader::new(file);
+            for line in reader.lines().flatten() {
+                if let Ok(item) = serde_json::from_str::<JevBenchTask>(&line) {
+                    tasks.push(item);
+                }
+            }
+        }
+    }
+    tasks
+}
+
+fn extract_prediction_token_guard(ans_val: &serde_json::Value) -> String {
+    if let Some(choice) = ans_val.get("choice").and_then(|v| v.as_str()) {
+        choice.to_string()
+    } else if let Some(noul_val) = ans_val.get("noul").and_then(|v| v.as_f64()) {
+        if noul_val >= 0.5 {
+            "true".to_string()
+        } else {
+            "false".to_string()
+        }
+    } else if let Some(probs) = ans_val.get("probabilities").and_then(|p| p.as_object()) {
+        probs
+            .iter()
+            .max_by(|a, b| {
+                let pa = a.1.as_f64().unwrap_or(0.0);
+                let pb = b.1.as_f64().unwrap_or(0.0);
+                pa.partial_cmp(&pb).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(k, _)| k.as_str())
+            .unwrap_or("0")
+            .to_string()
+    } else if let Some(score) = ans_val.get("score").and_then(|v| v.as_f64()) {
+        format!("{}", score.round() as i64)
+    } else {
+        String::new()
+    }
+}
+
+fn matches_expected_guard(pred: &str, expected: &str) -> bool {
+    let clean_pred = pred.trim().trim_matches('"').to_lowercase();
+    let clean_exp = expected.trim().trim_matches('"').to_lowercase();
+    if clean_pred == clean_exp {
+        return true;
+    }
+    let is_pred_yes = clean_pred == "true" || clean_pred == "yes" || clean_pred == "1";
+    let is_exp_yes = clean_exp == "true" || clean_exp == "yes" || clean_exp == "1";
+    if is_pred_yes && is_exp_yes {
+        return true;
+    }
+    let is_pred_no = clean_pred == "false" || clean_pred == "no" || clean_pred == "0";
+    let is_exp_no = clean_exp == "false" || clean_exp == "no" || clean_exp == "0";
+    if is_pred_no && is_exp_no {
+        return true;
+    }
+    false
+}
+
+#[test]
+fn test_jevbench_accuracy_floor_guard() {
+    let tasks = load_public_jevbench_tasks();
+    if tasks.is_empty() {
+        println!("Note: datasets/jevbench_public/ not found, skipping accuracy floor test.");
+        return;
+    }
+    assert_eq!(tasks.len(), 231, "All 231 frozen tasks must be loaded");
+
+    let engine = ZevEngine::default();
+    let mut correct = 0;
+    let mut family_correct: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+
+    for item in &tasks {
+        let req = SystemOneRequest {
+            state: item.state.clone(),
+            questions: [("q".to_string(), item.question.clone())].into(),
+            model: "zev-default".into(),
+        };
+
+        if let Ok(resp) = engine.evaluate_system_one(&req) {
+            if let Some(ans) = resp.answers.get("q") {
+                let pred = extract_prediction_token_guard(ans);
+                let exp_str = match &item.expected {
+                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::Bool(b) => b.to_string(),
+                    other => other.to_string(),
+                };
+
+                let is_correct = matches_expected_guard(&pred, &exp_str);
+                if is_correct {
+                    correct += 1;
+                }
+
+                let entry = family_correct.entry(item.family.clone()).or_insert((0, 0));
+                entry.1 += 1;
+                if is_correct {
+                    entry.0 += 1;
+                }
+            }
+        }
+    }
+
+    let overall_acc = (correct as f64 / tasks.len() as f64) * 100.0;
+    println!(
+        "JevBench 231 Live Accuracy: {correct}/{} ({:.2}%)",
+        tasks.len(),
+        overall_acc
+    );
+
+    // 1. Overall Accuracy Floor: Must maintain >= 73.0%
+    assert!(
+        overall_acc >= 73.0,
+        "Accuracy regression detected! Expected >= 73.0%, got {:.2}% ({correct}/{})",
+        overall_acc,
+        tasks.len()
+    );
+
+    // 2. Core deterministic families must be strictly 100%
+    let perfect_families = [
+        "adequacy",
+        "extraction",
+        "fact",
+        "intent",
+        "policy",
+        "routing",
+        "routing_hard",
+        "tool_selection",
+    ];
+    for fam in &perfect_families {
+        if let Some(&(c, tot)) = family_correct.get(*fam) {
+            assert_eq!(
+                c, tot,
+                "Family '{}' regressed from 100%! Got {}/{}",
+                fam, c, tot
+            );
+        }
+    }
+
+    // 3. Ordinal severity reasoning must be >= 90%
+    if let Some(&(c, tot)) = family_correct.get("ordinal") {
+        let ord_acc = (c as f64 / tot as f64) * 100.0;
+        assert!(
+            ord_acc >= 90.0,
+            "Family 'ordinal' regressed! Got {}/{} ({:.2}%)",
+            c,
+            tot,
+            ord_acc
+        );
+    }
 }

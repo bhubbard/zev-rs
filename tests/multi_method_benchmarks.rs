@@ -136,8 +136,14 @@ fn matches_expected(pred: &str, expected: &str) -> bool {
 fn test_smoke_all_methods() {
     let engine = ZevEngine::default();
     let mut criteria = BTreeMap::new();
-    criteria.insert("refund".to_string(), Some(serde_json::json!("Customer seeks financial reimbursement")));
-    criteria.insert("support".to_string(), Some(serde_json::json!("Technical application malfunction")));
+    criteria.insert(
+        "refund".to_string(),
+        Some(serde_json::json!("Customer seeks financial reimbursement")),
+    );
+    criteria.insert(
+        "support".to_string(),
+        Some(serde_json::json!("Technical application malfunction")),
+    );
     let q = WireQuestion::Choice(zev::wire::WireChoiceQuestion {
         instructions: serde_json::json!("Categorize ticket"),
         criteria,
@@ -189,7 +195,10 @@ fn load_workflowevals_samples() -> Vec<WorkflowEvalSample> {
 fn test_workflowevals_sample_across_methods() {
     let engine = ZevEngine::default();
     let samples = load_workflowevals_samples();
-    assert!(!samples.is_empty(), "WorkflowEvals samples must not be empty");
+    assert!(
+        !samples.is_empty(),
+        "WorkflowEvals samples must not be empty"
+    );
 
     // Quick verification on first 5 samples across all methods
     for method in ZevMethod::ALL {
@@ -209,7 +218,11 @@ fn test_workflowevals_sample_across_methods() {
                 }
             }
         }
-        assert!(correct >= 1, "Method {:?} should get non-zero correct answers", method);
+        assert!(
+            correct >= 1,
+            "Method {:?} should get non-zero correct answers",
+            method
+        );
     }
 }
 
@@ -223,7 +236,10 @@ fn test_workflowevals_full_all_methods() {
     println!("\n==============================================================================================");
     println!("             TYPESAFE WORKFLOWEVALS BENCHMARK ACROSS ALL ZEV EXECUTION METHODS                ");
     println!("==============================================================================================");
-    println!("{:<28} | {:<16} | {:<12} | {:<12} | {:<14}", "Method", "Correct / Total", "Accuracy (%)", "Avg Latency", "Throughput");
+    println!(
+        "{:<28} | {:<16} | {:<12} | {:<12} | {:<14}",
+        "Method", "Correct / Total", "Accuracy (%)", "Avg Latency", "Throughput"
+    );
     println!("─────────────────────────────+──────────────────+──────────────+──────────────+───────────────");
 
     for method in ZevMethod::ALL {
@@ -285,7 +301,10 @@ fn load_decision_index_fixtures() -> Vec<DecisionIndexTestCase> {
 fn test_decision_index_sample_across_methods() {
     let engine = ZevEngine::default();
     let cases = load_decision_index_fixtures();
-    let simplebench: Vec<_> = cases.into_iter().filter(|c| c.benchmark == "SimpleBench").collect();
+    let simplebench: Vec<_> = cases
+        .into_iter()
+        .filter(|c| c.benchmark == "SimpleBench")
+        .collect();
 
     for method in ZevMethod::ALL {
         let mut correct = 0;
@@ -306,7 +325,11 @@ fn test_decision_index_sample_across_methods() {
                 }
             }
         }
-        assert!(correct >= 3, "Method {:?} should pass at least 3/10 on SimpleBench", method);
+        assert!(
+            correct >= 3,
+            "Method {:?} should pass at least 3/10 on SimpleBench",
+            method
+        );
     }
 }
 
@@ -319,7 +342,10 @@ fn test_decision_index_full_all_methods() {
     println!("\n==============================================================================================");
     println!("              HUGGING FACE DECISION INDEX ACROSS ALL ZEV EXECUTION METHODS                    ");
     println!("==============================================================================================");
-    println!("{:<28} | {:<16} | {:<12} | {:<12} | {:<14}", "Method", "Correct / Total", "Accuracy (%)", "Avg Latency", "Throughput");
+    println!(
+        "{:<28} | {:<16} | {:<12} | {:<12} | {:<14}",
+        "Method", "Correct / Total", "Accuracy (%)", "Avg Latency", "Throughput"
+    );
     println!("─────────────────────────────+──────────────────+──────────────+──────────────+───────────────");
 
     for method in ZevMethod::ALL {
@@ -366,7 +392,10 @@ fn test_decision_index_full_all_methods() {
         );
         for (bench, (b_corr, b_tot)) in &by_bench {
             let b_acc = (*b_corr as f64 / *b_tot as f64) * 100.0;
-            println!("   ↳ {:<25}: {:>4}/{:<4} ({:>5.1}%)", bench, b_corr, b_tot, b_acc);
+            println!(
+                "   ↳ {:<25}: {:>4}/{:<4} ({:>5.1}%)",
+                bench, b_corr, b_tot, b_acc
+            );
         }
     }
     println!("==============================================================================================\n");
@@ -448,7 +477,11 @@ fn test_jevbench_sample_across_methods() {
                 }
             }
         }
-        assert!(correct >= 1, "Method {:?} should get non-zero on JevBench sample", method);
+        assert!(
+            correct >= 1,
+            "Method {:?} should get non-zero on JevBench sample",
+            method
+        );
     }
 }
 
@@ -466,7 +499,10 @@ fn test_jevbench_231_full_all_methods() {
     println!("\n==============================================================================================");
     println!("                 REAL 231 JEVBENCH SUITE ACROSS ALL ZEV EXECUTION METHODS                     ");
     println!("==============================================================================================");
-    println!("{:<28} | {:<16} | {:<12} | {:<12} | {:<14}", "Method", "Correct / Total", "Accuracy (%)", "Avg Latency", "Throughput");
+    println!(
+        "{:<28} | {:<16} | {:<12} | {:<12} | {:<14}",
+        "Method", "Correct / Total", "Accuracy (%)", "Avg Latency", "Throughput"
+    );
     println!("─────────────────────────────+──────────────────+──────────────+──────────────+───────────────");
 
     for method in ZevMethod::ALL {
@@ -508,6 +544,51 @@ fn test_jevbench_231_full_all_methods() {
             avg_lat_us,
             throughput
         );
+
+        match method {
+            ZevMethod::Simd => {
+                assert!(
+                    acc >= 73.0,
+                    "Native Pure SIMD accuracy regressed below 73.0%: got {:.2}%",
+                    acc
+                );
+            }
+            ZevMethod::Apfel => {
+                assert!(
+                    acc >= 73.0,
+                    "Apple Intelligence ANE accuracy regressed below 73.0%: got {:.2}%",
+                    acc
+                );
+            }
+            ZevMethod::Poe => {
+                assert!(
+                    acc >= 72.0,
+                    "Product of Experts PoE accuracy regressed below 72.0%: got {:.2}%",
+                    acc
+                );
+            }
+            ZevMethod::Cascade => {
+                assert!(
+                    acc >= 60.0,
+                    "Dual Speculative Cascade accuracy regressed below 60.0%: got {:.2}%",
+                    acc
+                );
+            }
+            ZevMethod::Gemma => {
+                assert!(
+                    acc >= 60.0,
+                    "Distilled Gemma 4 accuracy regressed below 60.0%: got {:.2}%",
+                    acc
+                );
+            }
+            ZevMethod::Clm => {
+                assert!(
+                    acc >= 45.0,
+                    "Contrastive LM accuracy regressed below 45.0%: got {:.2}%",
+                    acc
+                );
+            }
+        }
     }
     println!("==============================================================================================\n");
 }

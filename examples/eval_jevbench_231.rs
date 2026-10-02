@@ -20,13 +20,13 @@ use std::time::Instant;
 use serde::Deserialize;
 use serde_json::Value;
 use zev::calibration::compute_ece;
-use zev::wire::{wire_to_question, WireQuestion};
 use zev::types::ZevRequest;
+use zev::wire::{wire_to_question, WireQuestion};
 use zev::ZevEngine;
 
 #[derive(Debug, Deserialize)]
 struct JevBenchItem {
-#[allow(dead_code)]
+    #[allow(dead_code)]
     id: String,
     family: String,
     state: Value,
@@ -102,10 +102,16 @@ where
                     if let Some(dec) = &ans.decision {
                         match dec {
                             Value::String(s) => {
-                                s == exp_str || (is_exp_yes && (s == "true" || s == "yes")) || (is_exp_no && (s == "false" || s == "no"))
+                                s == exp_str
+                                    || (is_exp_yes && (s == "true" || s == "yes"))
+                                    || (is_exp_no && (s == "false" || s == "no"))
                             }
                             Value::Bool(b) => {
-                                if *b { is_exp_yes } else { is_exp_no }
+                                if *b {
+                                    is_exp_yes
+                                } else {
+                                    is_exp_no
+                                }
                             }
                             Value::Number(n) => {
                                 if let Ok(exp_num) = exp_str.parse::<f64>() {
@@ -186,10 +192,12 @@ where
             total_correct += 1;
         }
 
-        let entry = family_stats.entry(item.family.clone()).or_insert(FamilyStat {
-            total: 0,
-            correct: 0,
-        });
+        let entry = family_stats
+            .entry(item.family.clone())
+            .or_insert(FamilyStat {
+                total: 0,
+                correct: 0,
+            });
         entry.total += 1;
         if is_correct {
             entry.correct += 1;
@@ -199,9 +207,18 @@ where
     let total_wall = t_start_all.elapsed().as_secs_f64();
     latencies_us.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-    let p50_us = latencies_us.get(latencies_us.len() / 2).copied().unwrap_or(0.0);
-    let p95_us = latencies_us.get((latencies_us.len() as f64 * 0.95) as usize).copied().unwrap_or(0.0);
-    let p99_us = latencies_us.get((latencies_us.len() as f64 * 0.99) as usize).copied().unwrap_or(0.0);
+    let p50_us = latencies_us
+        .get(latencies_us.len() / 2)
+        .copied()
+        .unwrap_or(0.0);
+    let p95_us = latencies_us
+        .get((latencies_us.len() as f64 * 0.95) as usize)
+        .copied()
+        .unwrap_or(0.0);
+    let p99_us = latencies_us
+        .get((latencies_us.len() as f64 * 0.99) as usize)
+        .copied()
+        .unwrap_or(0.0);
     let total_eval = tasks.len();
     let accuracy = if total_eval > 0 {
         (total_correct as f64 / total_eval as f64) * 100.0
@@ -273,9 +290,12 @@ fn main() {
 
     // 1. Zev-Default (Pure SIMD)
     std::env::set_var("ZEV_FALLBACK", "none");
-    let (simd_res, family_stats) = evaluate_items("Zev-Default (Pure SIMD)", &all_tasks, &engine, |eng, req| {
-        eng.evaluate(req)
-    });
+    let (simd_res, family_stats) = evaluate_items(
+        "Zev-Default (Pure SIMD)",
+        &all_tasks,
+        &engine,
+        |eng, req| eng.evaluate(req),
+    );
 
     println!("==============================================================================================");
     println!("                   TASK FAMILY ACCURACY BREAKDOWN: ZEV-DEFAULT (PURE SIMD)                    ");
@@ -306,20 +326,42 @@ fn main() {
     println!("==============================================================================================");
     println!("  • Method Evaluated:         {}", simd_res.method_name);
     println!("  • Tasks Evaluated:          {}", simd_res.total);
-    println!("  • Median Latency (p50):     {:.2} µs ({:.4} ms)", simd_res.p50_us, simd_res.p50_us / 1000.0);
-    println!("  • 95th Percentile (p95):    {:.2} µs ({:.4} ms)", simd_res.p95_us, simd_res.p95_us / 1000.0);
-    println!("  • 99th Percentile (p99):    {:.2} µs ({:.4} ms)", simd_res.p99_us, simd_res.p99_us / 1000.0);
-    println!("  • Evaluation Throughput:    {:.0} decisions / second", simd_res.throughput);
-    println!("  • Expected Calibration (ECE): {:.4} ({:.2}%)", simd_res.ece, simd_res.ece * 100.0);
+    println!(
+        "  • Median Latency (p50):     {:.2} µs ({:.4} ms)",
+        simd_res.p50_us,
+        simd_res.p50_us / 1000.0
+    );
+    println!(
+        "  • 95th Percentile (p95):    {:.2} µs ({:.4} ms)",
+        simd_res.p95_us,
+        simd_res.p95_us / 1000.0
+    );
+    println!(
+        "  • 99th Percentile (p99):    {:.2} µs ({:.4} ms)",
+        simd_res.p99_us,
+        simd_res.p99_us / 1000.0
+    );
+    println!(
+        "  • Evaluation Throughput:    {:.0} decisions / second",
+        simd_res.throughput
+    );
+    println!(
+        "  • Expected Calibration (ECE): {:.4} ({:.2}%)",
+        simd_res.ece,
+        simd_res.ece * 100.0
+    );
     println!("==============================================================================================\n");
 
     // 2. Zev-Clm (Contrastive Sieve Hybrid)
     std::env::set_var("ZEV_FALLBACK", "clm");
     std::env::set_var("ZEV_FALLBACK_CONFIDENCE", "0.40");
     std::env::set_var("ZEV_FALLBACK_MARGIN", "0.10");
-    let (clm_res, _clm_family_stats) = evaluate_items("Zev-Clm (Contrastive Sieve)", &all_tasks, &engine, |eng, req| {
-        eng.evaluate(req)
-    });
+    let (clm_res, _clm_family_stats) = evaluate_items(
+        "Zev-Clm (Contrastive Sieve)",
+        &all_tasks,
+        &engine,
+        |eng, req| eng.evaluate(req),
+    );
 
     println!("==============================================================================================");
     println!("                   MULTI-METHOD COMPARISON ON REAL 231 JEVBENCH SUITE                         ");
@@ -331,11 +373,21 @@ fn main() {
     println!("─────────────────────────────+──────────────────+──────────────+──────────────+─────────────────");
     println!(
         "{:<28} | {:>6}/{:<6}    | {:>8.2}%   | {:>8.2} µs | {:>8.0} dec/s",
-        simd_res.method_name, simd_res.correct, simd_res.total, simd_res.accuracy, simd_res.p50_us, simd_res.throughput
+        simd_res.method_name,
+        simd_res.correct,
+        simd_res.total,
+        simd_res.accuracy,
+        simd_res.p50_us,
+        simd_res.throughput
     );
     println!(
         "{:<28} | {:>6}/{:<6}    | {:>8.2}%   | {:>8.2} µs | {:>8.0} dec/s",
-        clm_res.method_name, clm_res.correct, clm_res.total, clm_res.accuracy, clm_res.p50_us, clm_res.throughput
+        clm_res.method_name,
+        clm_res.correct,
+        clm_res.total,
+        clm_res.accuracy,
+        clm_res.p50_us,
+        clm_res.throughput
     );
     println!("==============================================================================================\n");
 }

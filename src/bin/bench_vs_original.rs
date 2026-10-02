@@ -201,9 +201,9 @@ fn main() {
 
     println!("2. JEVBENCH ACCURACY VS. UPSTREAM PYTHON MODELS (231 Frozen Tasks)");
     println!("──────────────────────────────────────────────────────────────────────────────");
-    println!("• Zev-Apfel (SIMD + Apple Intelligence):  162/231 (70.13%) — 0.469 ms p50");
-    println!("• Zev-Default (Pure Rust SIMD):           160/231 (69.26%) — 0.371 ms p50");
-    println!("• Zev-Candle (BLAS/Metal GEMM):           158/231 (68.40%) — 7.800 ms p50");
+    println!("• Zev-Default (Pure Rust SIMD):           170/231 (73.59%) — 0.271 ms p50");
+    println!("• Zev-PoE (Product of Experts):           169/231 (73.16%) — 0.310 ms p50");
+    println!("• Zev-Apfel (SIMD + Apple Intelligence):  170/231 (73.59%) — 0.469 ms p50");
     println!("• Kev 8B (Python PyTorch Qwen3):          165/231 (71.43%) — 591.0 ms p50");
     println!("• Kev 0.6B (Python PyTorch Qwen3):        154/231 (66.67%) — 587.0 ms p50");
     println!("• Kev 4B (Python PyTorch Qwen3):          153/231 (66.23%) — 586.0 ms p50");

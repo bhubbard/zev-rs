@@ -1,7 +1,7 @@
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use serde::Deserialize;
 use serde_json::Value;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use zev::types::SystemOneRequest;
 use zev::wire::WireQuestion;
 use zev::ZevEngine;
@@ -19,13 +19,22 @@ fn extract_prediction_token(ans_val: &Value) -> String {
     if let Some(choice) = ans_val.get("choice").and_then(|v| v.as_str()) {
         choice.to_string()
     } else if let Some(noul_val) = ans_val.get("noul").and_then(|v| v.as_f64()) {
-        if noul_val >= 0.5 { "true".to_string() } else { "false".to_string() }
+        if noul_val >= 0.5 {
+            "true".to_string()
+        } else {
+            "false".to_string()
+        }
     } else if let Some(probs) = ans_val.get("probabilities").and_then(|p| p.as_object()) {
-        probs.iter().max_by(|a, b| {
-            let pa = a.1.as_f64().unwrap_or(0.0);
-            let pb = b.1.as_f64().unwrap_or(0.0);
-            pa.partial_cmp(&pb).unwrap_or(std::cmp::Ordering::Equal)
-        }).map(|(k, _)| k.as_str()).unwrap_or("0").to_string()
+        probs
+            .iter()
+            .max_by(|a, b| {
+                let pa = a.1.as_f64().unwrap_or(0.0);
+                let pb = b.1.as_f64().unwrap_or(0.0);
+                pa.partial_cmp(&pb).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(k, _)| k.as_str())
+            .unwrap_or("0")
+            .to_string()
     } else if let Some(score) = ans_val.get("score").and_then(|v| v.as_f64()) {
         format!("{}", score.round() as i64)
     } else {
@@ -36,13 +45,19 @@ fn extract_prediction_token(ans_val: &Value) -> String {
 fn matches_expected(pred: &str, expected: &str) -> bool {
     let clean_pred = pred.trim().trim_matches('"').to_lowercase();
     let clean_exp = expected.trim().trim_matches('"').to_lowercase();
-    if clean_pred == clean_exp { return true; }
+    if clean_pred == clean_exp {
+        return true;
+    }
     let is_pred_yes = clean_pred == "true" || clean_pred == "yes" || clean_pred == "1";
     let is_exp_yes = clean_exp == "true" || clean_exp == "yes" || clean_exp == "1";
-    if is_pred_yes && is_exp_yes { return true; }
+    if is_pred_yes && is_exp_yes {
+        return true;
+    }
     let is_pred_no = clean_pred == "false" || clean_pred == "no" || clean_pred == "0";
     let is_exp_no = clean_exp == "false" || clean_exp == "no" || clean_exp == "0";
-    if is_pred_no && is_exp_no { return true; }
+    if is_pred_no && is_exp_no {
+        return true;
+    }
     false
 }
 
@@ -91,9 +106,13 @@ fn main() {
     }
 
     println!("Total Failures: {} / {}", failures.len(), items.len());
-    println!("Current Accuracy: {:.2}%\n", (items.len() - failures.len()) as f64 / items.len() as f64 * 100.0);
+    println!(
+        "Current Accuracy: {:.2}%\n",
+        (items.len() - failures.len()) as f64 / items.len() as f64 * 100.0
+    );
 
-    let mut by_family: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let mut by_family: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
     for (item, _, _) in &failures {
         *by_family.entry(item.family.clone()).or_insert(0) += 1;
     }
@@ -108,7 +127,11 @@ fn main() {
             Value::String(s) => s.clone(),
             other => other.to_string(),
         };
-        let preview = if state_str.len() > 100 { format!("{}...", &state_str[..100]) } else { state_str };
+        let preview = if state_str.len() > 100 {
+            format!("{}...", &state_str[..100])
+        } else {
+            state_str
+        };
         println!("------------------------------------------------------------");
         println!("ID: {} | Family: {}", item.id, item.family);
         println!("State: {}", preview);
