@@ -2,7 +2,7 @@ use crate::decoding::decode_decision;
 use crate::error::Result;
 use crate::shortlist::shortlist_options;
 use crate::types::{ChoiceQuestion, Question, ZevAnswer};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 /// Configuration for the Contrastive Language Model (CLM) projection head.
 #[derive(Debug, Clone)]
@@ -24,6 +24,12 @@ impl Default for HeadConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct SlotMeta {
+    slot_idx: usize,
+    last_accessed: u64,
+}
+
 /// A reserved device/host memory arena for candidate action vector embeddings.
 /// Implements disaggregated state and action caching (Kwok et al., 2026).
 /// Prevents OOM and achieves zero-allocation candidate scoring during repetitive agent loops.
@@ -32,8 +38,8 @@ pub struct VectorArena {
     dim: usize,
     capacity: usize,
     buffer: Vec<f32>,
-    slots: HashMap<String, usize>,
-    lru_order: VecDeque<String>,
+    slots: HashMap<String, SlotMeta>,
+    access_counter: u64,
     free_slots: Vec<usize>,
     pub hits: usize,
     pub misses: usize,
@@ -54,7 +60,7 @@ impl VectorArena {
             capacity,
             buffer: vec![0.0; capacity * dim],
             slots: HashMap::with_capacity(capacity),
-            lru_order: VecDeque::with_capacity(capacity),
+            access_counter: 0,
             free_slots,
             hits: 0,
             misses: 0,
@@ -87,16 +93,13 @@ impl VectorArena {
         self.slots.contains_key(key)
     }
 
-    /// Retrieves an L2-normalized vector slice from the arena, updating LRU recency.
+    /// Retrieves an L2-normalized vector slice from the arena, updating LRU recency in O(1).
     pub fn get(&mut self, key: &str) -> Option<&[f32]> {
-        if let Some(&slot_idx) = self.slots.get(key) {
+        if let Some(meta) = self.slots.get_mut(key) {
             self.hits += 1;
-            // Update LRU position
-            if let Some(pos) = self.lru_order.iter().position(|k| k == key) {
-                let k = self.lru_order.remove(pos).unwrap();
-                self.lru_order.push_back(k);
-            }
-            let start = slot_idx * self.dim;
+            self.access_counter += 1;
+            meta.last_accessed = self.access_counter;
+            let start = meta.slot_idx * self.dim;
             Some(&self.buffer[start..start + self.dim])
         } else {
             self.misses += 1;
@@ -107,7 +110,10 @@ impl VectorArena {
     /// Inserts a vector into the arena, normalizing it to unit length.
     /// If full, evicts the least recently used vector.
     pub fn insert(&mut self, key: &str, raw_vec: &[f32]) -> usize {
-        if let Some(&existing_slot) = self.slots.get(key) {
+        self.access_counter += 1;
+        if let Some(meta) = self.slots.get_mut(key) {
+            meta.last_accessed = self.access_counter;
+            let existing_slot = meta.slot_idx;
             self.copy_and_normalize(existing_slot, raw_vec);
             return existing_slot;
         }
@@ -116,21 +122,26 @@ impl VectorArena {
             slot
         } else {
             // Evict least-recently used slot
-            let lru_key = self
-                .lru_order
-                .pop_front()
-                .expect("Arena is full but no LRU items");
-            let evicted_slot = self
+            let (lru_key, &lru_meta) = self
                 .slots
-                .remove(&lru_key)
-                .expect("LRU key missing from slot map");
+                .iter()
+                .min_by_key(|(_, meta)| meta.last_accessed)
+                .expect("Arena is full but no slots to evict");
+            let lru_key = lru_key.clone();
+            let evicted_slot = lru_meta.slot_idx;
+            self.slots.remove(&lru_key);
             self.evictions += 1;
             evicted_slot
         };
 
         self.copy_and_normalize(slot_idx, raw_vec);
-        self.slots.insert(key.to_string(), slot_idx);
-        self.lru_order.push_back(key.to_string());
+        self.slots.insert(
+            key.to_string(),
+            SlotMeta {
+                slot_idx,
+                last_accessed: self.access_counter,
+            },
+        );
         slot_idx
     }
 
@@ -158,7 +169,8 @@ impl VectorArena {
         let start = slot_idx * self.dim;
         let slot_vec = &self.buffer[start..start + self.dim];
         let mut sum = 0.0f32;
-        for i in 0..self.dim {
+        let len = self.dim.min(query_norm.len());
+        for i in 0..len {
             sum += slot_vec[i] * query_norm[i];
         }
         sum
@@ -167,11 +179,12 @@ impl VectorArena {
     /// Computes dot products for a slice of cached candidate keys against a query vector.
     pub fn score_keys(&mut self, query_norm: &[f32], keys: &[&str]) -> Vec<Option<f32>> {
         let dim = self.dim;
+        let len = dim.min(query_norm.len());
         keys.iter()
             .map(|&k| {
                 if let Some(vec) = self.get(k) {
                     let mut sum = 0.0f32;
-                    for i in 0..dim {
+                    for i in 0..len {
                         sum += vec[i] * query_norm[i];
                     }
                     Some(sum)

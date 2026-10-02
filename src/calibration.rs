@@ -77,9 +77,14 @@ pub fn scaled_softmax(logits: &[f64], temperature: f64) -> Result<Vec<f64>> {
 
 #[inline(always)]
 pub fn scaled_softmax_slice(logits: &[f64], temperature: f64, out: &mut [f64]) -> Result<()> {
-    if logits.is_empty() || logits.len() != out.len() {
+    if logits.is_empty() {
         return Err(ZevError::DecodingError(
             "Logits array cannot be empty".into(),
+        ));
+    }
+    if logits.len() != out.len() {
+        return Err(ZevError::DecodingError(
+            "Logits and output slice lengths must match".into(),
         ));
     }
     if !temperature.is_finite() || temperature <= 0.0 {
@@ -279,6 +284,10 @@ pub fn fit_temperature(
     max_t: f64,
     max_iters: usize,
 ) -> f64 {
+    if pairs.is_empty() {
+        return (min_t + max_t) / 2.0;
+    }
+
     let phi = (1.0 + 5.0_f64.sqrt()) / 2.0;
     let inv_phi = 1.0 / phi;
 
@@ -616,7 +625,10 @@ mod tests {
         assert!((0.5..=4.0).contains(&fitted_t));
 
         let empty: Vec<(Vec<f64>, usize)> = vec![];
-        assert_eq!(fit_temperature_brier(&empty, 0.5, 4.0, 10), DEFAULT_CALIBRATED_TEMPERATURE);
+        assert_eq!(
+            fit_temperature_brier(&empty, 0.5, 4.0, 10),
+            DEFAULT_CALIBRATED_TEMPERATURE
+        );
     }
 
     #[test]
@@ -631,7 +643,10 @@ mod tests {
 
         for (probs, target) in test_cases {
             let bs = compute_brier_score(&probs, target);
-            assert!((0.0..=2.0).contains(&bs), "Brier score {bs} out of [0, 2] bounds");
+            assert!(
+                (0.0..=2.0).contains(&bs),
+                "Brier score {bs} out of [0, 2] bounds"
+            );
         }
     }
 
@@ -641,11 +656,7 @@ mod tests {
         let p2 = [0.1, 0.9]; // target 1: 0.1^2 + (0.9-1)^2 = 0.01 + 0.01 = 0.02
         let p3 = [0.4, 0.6]; // target 0: (0.4-1)^2 + 0.6^2 = 0.36 + 0.36 = 0.72
 
-        let dataset: Vec<(&[f64], usize)> = vec![
-            (&p1[..], 0),
-            (&p2[..], 1),
-            (&p3[..], 0),
-        ];
+        let dataset: Vec<(&[f64], usize)> = vec![(&p1[..], 0), (&p2[..], 1), (&p3[..], 0)];
 
         let mean_bs = compute_dataset_brier_score(&dataset);
         let expected = (0.08 + 0.02 + 0.72) / 3.0; // 0.82 / 3 = 0.273333...
@@ -672,7 +683,10 @@ mod tests {
         let t_moderate = fit_temperature_brier(&moderate_noisy_pairs, 0.5, 8.0, 30);
         let t_extreme = fit_temperature_brier(&extreme_noisy_pairs, 0.5, 8.0, 30);
 
-        assert!(t_extreme > t_moderate, "Extreme logit scale on noisy data must yield higher softening temperature");
+        assert!(
+            t_extreme > t_moderate,
+            "Extreme logit scale on noisy data must yield higher softening temperature"
+        );
     }
 
     #[test]
@@ -694,4 +708,3 @@ mod tests {
         assert!((0.5..=4.0).contains(&t_brier));
     }
 }
-

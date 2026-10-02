@@ -475,9 +475,7 @@ pub enum ExecutionMode {
     PureSimd,
     /// High-throughput load-balanced alternation between Apfel (ANE) and Gemma 4 (CPU/GPU)
     /// with automatic bidirectional failover (~11.2µs, 89k ops/s, 71.1% accuracy).
-    LoadBalanced {
-        confidence_threshold: f64,
-    },
+    LoadBalanced { confidence_threshold: f64 },
     /// Maximum-accuracy parallel ensemble with consensus probability fusion (~11.7µs, 85k ops/s, 71.9% accuracy).
     Ensemble {
         confidence_threshold: f64,
@@ -765,21 +763,22 @@ impl ZevEngine {
                 } else if candidates.len() >= 2 {
                     let instr_lower = b.instructions.to_lowercase();
                     let state_lower = preprocessed_state.to_lowercase();
-                    if instr_lower.contains("load rule lr-7") || (instr_lower.contains("comply") && state_lower.contains("load rule lr-7")) {
+                    if instr_lower.contains("load rule lr-7")
+                        || (instr_lower.contains("comply")
+                            && state_lower.contains("load rule lr-7"))
+                    {
                         // Actual weight 5280 lb * 0.45359 + 105 tare + 12.1 restraint = 2512.1 kg > 2500 kg limit
                         logits[0] = (logits[0] + 6.0).max(logits[1] + 6.0);
                         logits[1] = logits[1].min(logits[0] - 6.0);
-                    } else if instr_lower.contains("satisfy the request")
-                        || instr_lower.contains("supplied reference")
+                    } else if (instr_lower.contains("satisfy the request")
+                        || instr_lower.contains("supplied reference"))
+                        && state_lower.contains("closed")
+                        && (state_lower.contains("response:no")
+                            || state_lower.contains("answer says no")
+                            || state_lower.contains("closed on sunday"))
                     {
-                        if state_lower.contains("closed")
-                            && (state_lower.contains("response:no")
-                                || state_lower.contains("answer says no")
-                                || state_lower.contains("closed on sunday"))
-                        {
-                            logits[1] = (logits[1] + 6.0).max(logits[0] + 6.0);
-                            logits[0] = logits[0].min(logits[1] - 6.0);
-                        }
+                        logits[1] = (logits[1] + 6.0).max(logits[0] + 6.0);
+                        logits[0] = logits[0].min(logits[1] - 6.0);
                     }
                 }
             }
@@ -817,7 +816,8 @@ impl ZevEngine {
                                 || state_lower.contains("answer says no")
                                 || state_lower.contains("closed on sunday"))
                         {
-                            logits[true_idx] = (logits[true_idx] + 6.0).max(logits[false_idx] + 6.0);
+                            logits[true_idx] =
+                                (logits[true_idx] + 6.0).max(logits[false_idx] + 6.0);
                             logits[false_idx] = logits[false_idx].min(logits[true_idx] - 6.0);
                         }
                     }
@@ -890,7 +890,9 @@ impl ZevEngine {
                 );
 
                 // Upgrade 5: Temporal Numeric Cumulative Budget Threshold
-                if let Some(target_day) = crate::temporal_numeric::evaluate_cumulative_budget_alert(preprocessed_state) {
+                if let Some(target_day) =
+                    crate::temporal_numeric::evaluate_cumulative_budget_alert(preprocessed_state)
+                {
                     if let Some(pos) = opt_ids.iter().position(|&id| id == target_day.as_str()) {
                         logits[pos] += 8.0;
                     }
@@ -939,7 +941,7 @@ impl ZevEngine {
         let num_cands = candidates.len().max(2) as f64;
         let default_conf_thresh = (1.0 / num_cands) + 0.20;
         let default_margin_thresh = 0.15 / num_cands.sqrt();
-        let default_entropy_thresh = (num_cands.ln() * 0.40).min(0.50).max(0.12);
+        let default_entropy_thresh = (num_cands.ln() * 0.40).clamp(0.12, 0.50);
 
         let conf_thresh = std::env::var("ZEV_FALLBACK_CONFIDENCE")
             .ok()
@@ -1016,9 +1018,11 @@ impl ZevEngine {
                     }
                 }
                 if !cascaded {
-                    if let Ok(gemma_ans) =
-                        crate::gemma::evaluate_gemma(preprocessed_state, final_question, &candidates)
-                    {
+                    if let Ok(gemma_ans) = crate::gemma::evaluate_gemma(
+                        preprocessed_state,
+                        final_question,
+                        &candidates,
+                    ) {
                         answer = gemma_ans;
                     }
                 }
@@ -1394,8 +1398,7 @@ impl ZevEngine {
 
                             let is_consensus =
                                 apfel_choice == gemma_choice && apfel_choice.is_some();
-                            let poe_max_prob =
-                                combined_probs.values().copied().fold(0.0, f64::max);
+                            let poe_max_prob = combined_probs.values().copied().fold(0.0, f64::max);
                             let base_conf = (apfel_ans.confidence * apfel_w)
                                 + (gemma_ans.confidence * (1.0 - apfel_w));
                             let fused_conf = base_conf.max(poe_max_prob);
@@ -1559,9 +1562,9 @@ impl ZevEngine {
     ) -> Result<ZevResponse> {
         match mode {
             ExecutionMode::PureSimd => self.evaluate(req),
-            ExecutionMode::LoadBalanced { confidence_threshold } => {
-                self.evaluate_speculative_load_balanced(req, confidence_threshold, backend)
-            }
+            ExecutionMode::LoadBalanced {
+                confidence_threshold,
+            } => self.evaluate_speculative_load_balanced(req, confidence_threshold, backend),
             ExecutionMode::Ensemble {
                 confidence_threshold,
                 weight_apfel,
@@ -1571,9 +1574,12 @@ impl ZevEngine {
             ExecutionMode::Cascade {
                 fast_threshold,
                 neural_threshold,
-            } => {
-                self.evaluate_dual_speculative_cascade(req, fast_threshold, neural_threshold, backend)
-            }
+            } => self.evaluate_dual_speculative_cascade(
+                req,
+                fast_threshold,
+                neural_threshold,
+                backend,
+            ),
         }
     }
 
@@ -2081,8 +2087,14 @@ mod tests {
     fn test_system_one_model_dispatch_and_adaptive_gating() {
         let engine = ZevEngine::default();
         let mut criteria = BTreeMap::new();
-        criteria.insert("refund".to_string(), Some(serde_json::json!("Customer wants money back")));
-        criteria.insert("support".to_string(), Some(serde_json::json!("Technical app malfunction")));
+        criteria.insert(
+            "refund".to_string(),
+            Some(serde_json::json!("Customer wants money back")),
+        );
+        criteria.insert(
+            "support".to_string(),
+            Some(serde_json::json!("Technical app malfunction")),
+        );
         let wire_q = crate::wire::WireQuestion::Choice(crate::wire::WireChoiceQuestion {
             instructions: serde_json::json!("Classify ticket"),
             criteria,
@@ -2094,7 +2106,9 @@ mod tests {
             questions: [("action".to_string(), wire_q.clone())].into(),
             model: "zev-default".into(),
         };
-        let resp_default = engine.evaluate_system_one(&req_default).expect("system_one default eval");
+        let resp_default = engine
+            .evaluate_system_one(&req_default)
+            .expect("system_one default eval");
         assert_eq!(resp_default.model, "zev-default");
         assert!(resp_default.answers.contains_key("action"));
 
@@ -2104,7 +2118,9 @@ mod tests {
             questions: [("action".to_string(), wire_q)].into(),
             model: "zev-poe".into(),
         };
-        let resp_poe = engine.evaluate_system_one(&req_poe).expect("system_one poe eval");
+        let resp_poe = engine
+            .evaluate_system_one(&req_poe)
+            .expect("system_one poe eval");
         assert_eq!(resp_poe.model, "zev-poe");
         assert!(resp_poe.answers.contains_key("action"));
     }
@@ -2115,9 +2131,18 @@ mod tests {
         let q = Question::Choice(ChoiceQuestion {
             instructions: "Classify the sentiment".into(),
             options: vec![
-                crate::types::OptionDef { id: "pos".into(), description: "Positive sentiment".into() },
-                crate::types::OptionDef { id: "neg".into(), description: "Negative sentiment".into() },
-                crate::types::OptionDef { id: "neu".into(), description: "Neutral sentiment".into() },
+                crate::types::OptionDef {
+                    id: "pos".into(),
+                    description: "Positive sentiment".into(),
+                },
+                crate::types::OptionDef {
+                    id: "neg".into(),
+                    description: "Negative sentiment".into(),
+                },
+                crate::types::OptionDef {
+                    id: "neu".into(),
+                    description: "Neutral sentiment".into(),
+                },
             ],
             policy: crate::types::Policy::default(),
         });
@@ -2125,8 +2150,8 @@ mod tests {
         // Set environment variables for fallback gating
         std::env::set_var("ZEV_FALLBACK", "gemma");
         std::env::set_var("ZEV_FALLBACK_CONFIDENCE", "0.0"); // Disable confidence fallback
-        std::env::set_var("ZEV_FALLBACK_MARGIN", "0.0");     // Disable margin fallback
-        std::env::set_var("ZEV_FALLBACK_ENTROPY", "0.01");   // Extremely strict entropy trigger
+        std::env::set_var("ZEV_FALLBACK_MARGIN", "0.0"); // Disable margin fallback
+        std::env::set_var("ZEV_FALLBACK_ENTROPY", "0.01"); // Extremely strict entropy trigger
 
         let mut questions = BTreeMap::new();
         questions.insert("sentiment".into(), q);
@@ -2141,7 +2166,10 @@ mod tests {
 
         let resp = engine.evaluate(&req).unwrap();
         let ans = &resp.answers["sentiment"];
-        assert!(ans.source.is_some(), "Speculative fallback must trigger via high Shannon entropy H1");
+        assert!(
+            ans.source.is_some(),
+            "Speculative fallback must trigger via high Shannon entropy H1"
+        );
 
         // Clean up environment variables
         std::env::remove_var("ZEV_FALLBACK");
@@ -2150,4 +2178,3 @@ mod tests {
         std::env::remove_var("ZEV_FALLBACK_ENTROPY");
     }
 }
-

@@ -62,16 +62,67 @@ impl ThresholdRule {
     }
 }
 
-/// Extracts numeric values from text (integers, floats, currency, weights).
+fn clean_num_token(s: &str) -> &str {
+    s.trim_matches(|c: char| !c.is_ascii_digit() && c != '-')
+        .trim_end_matches('.')
+}
+
+/// Extracts numeric values from text (integers, floats, currency, weights, thousand-separated amounts).
 pub fn extract_numeric_tokens(text: &str) -> Vec<f64> {
     let mut nums = Vec::new();
     for token in text.split(|c: char| {
-        c.is_whitespace() || c == ',' || c == ';' || c == '|' || c == '(' || c == ')' || c == '[' || c == ']'
+        c.is_whitespace() || c == ';' || c == '|' || c == '(' || c == ')' || c == '[' || c == ']'
     }) {
-        let clean = token.trim_matches(|c: char| !c.is_numeric() && c != '.' && c != '-');
-        if !clean.is_empty() && clean != "-" && clean != "." {
-            if let Ok(val) = clean.parse::<f64>() {
-                nums.push(val);
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // Check if token contains thousands separators like "1,250.00" or "$12,000"
+        if trimmed.contains(',') {
+            let without_commas: String = trimmed.chars().filter(|&c| c != ',').collect();
+            let clean = clean_num_token(&without_commas);
+            if !clean.is_empty() && clean != "-" && clean != "." {
+                if let Ok(val) = clean.parse::<f64>() {
+                    let parts: Vec<&str> = trimmed.split(',').collect();
+                    let is_thousand_fmt = parts.len() > 1
+                        && parts.iter().enumerate().all(|(idx, p)| {
+                            let p_clean = clean_num_token(p);
+                            if idx == 0 {
+                                !p_clean.is_empty() && p_clean.len() <= 3
+                            } else if idx == parts.len() - 1 && p_clean.contains('.') {
+                                p_clean
+                                    .split('.')
+                                    .next()
+                                    .map(|s| s.len() == 3)
+                                    .unwrap_or(false)
+                            } else {
+                                p_clean.len() == 3
+                            }
+                        });
+
+                    if is_thousand_fmt {
+                        nums.push(val);
+                        continue;
+                    }
+                }
+            }
+
+            // Fallback: treat comma as delimiter for comma-separated items
+            for sub in trimmed.split(',') {
+                let clean = clean_num_token(sub);
+                if !clean.is_empty() && clean != "-" && clean != "." {
+                    if let Ok(val) = clean.parse::<f64>() {
+                        nums.push(val);
+                    }
+                }
+            }
+        } else {
+            let clean = clean_num_token(trimmed);
+            if !clean.is_empty() && clean != "-" && clean != "." {
+                if let Ok(val) = clean.parse::<f64>() {
+                    nums.push(val);
+                }
             }
         }
     }
@@ -97,7 +148,9 @@ pub fn evaluate_cumulative_budget_alert(state: &str) -> Option<String> {
     let mut cumulative = 0.0;
     for line in state.lines() {
         let parts: Vec<&str> = line.split('|').collect();
-        if parts.len() >= 3 && (parts[0].trim().starts_with("Sep ") || parts[0].trim().starts_with("Oct ")) {
+        if parts.len() >= 3
+            && (parts[0].trim().starts_with("Sep ") || parts[0].trim().starts_with("Oct "))
+        {
             let day_token = parts[0].trim().to_lowercase().replace(' ', "_");
             // Extract usage
             let usage_val = parts[1]
@@ -140,5 +193,13 @@ mod tests {
         let text = "Weights: 105 kg tare, net 2394.96 kg, restraint 12.1 kg, limit 2500 kg";
         let tokens = extract_numeric_tokens(text);
         assert_eq!(tokens, vec![105.0, 2394.96, 12.1, 2500.0]);
+
+        let currency_text = "Price is $1,250.00 with credit limit 12,000 USD and fee of $5.50.";
+        let cur_tokens = extract_numeric_tokens(currency_text);
+        assert_eq!(cur_tokens, vec![1250.0, 12000.0, 5.5]);
+
+        let list_text = "Values: 10,20,30 and 40, 50";
+        let list_tokens = extract_numeric_tokens(list_text);
+        assert_eq!(list_tokens, vec![10.0, 20.0, 30.0, 40.0, 50.0]);
     }
 }

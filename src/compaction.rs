@@ -70,7 +70,11 @@ impl ToolCompactor {
             tool.tool_name,
             tool.arguments,
             if tool.result.len() > 1000 {
-                &tool.result[..1000]
+                let mut cut = 1000;
+                while cut > 0 && !tool.result.is_char_boundary(cut) {
+                    cut -= 1;
+                }
+                &tool.result[..cut]
             } else {
                 &tool.result
             },

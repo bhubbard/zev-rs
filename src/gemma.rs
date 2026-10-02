@@ -139,12 +139,16 @@ pub fn evaluate_gemma(
                 if cached_ep == &config.endpoint && (now - cached_time) < 10 {
                     cached_alive
                 } else {
-                    let alive = crate::config::probe_http_endpoint(&config.endpoint, Duration::from_millis(50));
+                    let alive = crate::config::probe_http_endpoint(
+                        &config.endpoint,
+                        Duration::from_millis(50),
+                    );
                     *cache = Some((config.endpoint.clone(), now, alive));
                     alive
                 }
             } else {
-                let alive = crate::config::probe_http_endpoint(&config.endpoint, Duration::from_millis(50));
+                let alive =
+                    crate::config::probe_http_endpoint(&config.endpoint, Duration::from_millis(50));
                 *cache = Some((config.endpoint.clone(), now, alive));
                 alive
             }
@@ -152,16 +156,22 @@ pub fn evaluate_gemma(
 
         if !is_alive {
             if config.fallback_to_heuristic {
-                return evaluate_gemma_distilled(state, question, &effective_candidates, candidates);
+                return evaluate_gemma_distilled(
+                    state,
+                    question,
+                    &effective_candidates,
+                    candidates,
+                );
             } else {
                 return Err(crate::error::ZevError::Evaluation(format!(
-                    "Gemma endpoint {} is offline or unreachable", config.endpoint
+                    "Gemma endpoint {} is offline or unreachable",
+                    config.endpoint
                 )));
             }
         }
 
         let prompt = format_gemma_prompt(state, question.instructions(), &effective_candidates);
-        let top_lp = (effective_candidates.len() as u32).max(10).min(64);
+        let top_lp = (effective_candidates.len() as u32).clamp(10, 64);
         let vllm_xargs = if config.diffusion_read_only {
             Some(VllmDiffusionXArgs {
                 diffusion_seed_canvas: None,
@@ -227,7 +237,8 @@ pub fn evaluate_gemma(
                         }
 
                         // 2. Fallback to bracketed ID parsing
-                        if let Some(content_str) = json_val["choices"][0]["message"]["content"].as_str()
+                        if let Some(content_str) =
+                            json_val["choices"][0]["message"]["content"].as_str()
                         {
                             if let Some(answer) = parse_gemma_decision(
                                 content_str,
@@ -276,7 +287,9 @@ pub fn parse_gemma_logprobs_decision(
                     entry.get("token").and_then(|v| v.as_str()),
                     entry.get("logprob").and_then(|v| v.as_f64()),
                 ) {
-                    let cleaned = token.trim().trim_matches(|c| c == '[' || c == ']' || c == '<' || c == '>');
+                    let cleaned = token
+                        .trim()
+                        .trim_matches(|c| c == '[' || c == ']' || c == '<' || c == '>');
                     for c in effective_candidates {
                         if c.id.eq_ignore_ascii_case(cleaned) || cleaned.contains(&c.id) {
                             let curr = logit_map.entry(c.id.clone()).or_insert(f64::NEG_INFINITY);
@@ -301,10 +314,12 @@ pub fn parse_gemma_logprobs_decision(
         c_logits.push(l);
     }
 
-    crate::decoding::decode_decision(question, all_candidates, &c_logits, 1.0).ok().map(|mut ans| {
-        ans.source = Some("diffusion_gemma".to_string());
-        ans
-    })
+    crate::decoding::decode_decision(question, all_candidates, &c_logits, 1.0)
+        .ok()
+        .map(|mut ans| {
+            ans.source = Some("diffusion_gemma".to_string());
+            ans
+        })
 }
 
 /// Formats the prompt using Gemma turn tokens
@@ -798,9 +813,21 @@ mod tests {
     #[test]
     fn test_parse_gemma_logprobs_decision() {
         let candidates = vec![
-            Candidate { id: "retry".into(), description: "Retry the request".into(), value: None },
-            Candidate { id: "abort".into(), description: "Abort and report error".into(), value: None },
-            Candidate { id: "ignore".into(), description: "Ignore and continue".into(), value: None },
+            Candidate {
+                id: "retry".into(),
+                description: "Retry the request".into(),
+                value: None,
+            },
+            Candidate {
+                id: "abort".into(),
+                description: "Abort and report error".into(),
+                value: None,
+            },
+            Candidate {
+                id: "ignore".into(),
+                description: "Ignore and continue".into(),
+                value: None,
+            },
         ];
         let q = Question::Choice(crate::types::ChoiceQuestion {
             instructions: "Select action".into(),
@@ -824,7 +851,10 @@ mod tests {
         });
 
         let ans = parse_gemma_logprobs_decision(&mock_json, &candidates, &candidates, &q).unwrap();
-        assert_eq!(ans.decision, Some(serde_json::Value::String("retry".into())));
+        assert_eq!(
+            ans.decision,
+            Some(serde_json::Value::String("retry".into()))
+        );
         assert_eq!(ans.source.as_deref(), Some("diffusion_gemma"));
         assert!(ans.confidence > 0.80);
         assert!(ans.probabilities.contains_key("retry"));

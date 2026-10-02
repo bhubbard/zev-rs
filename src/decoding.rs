@@ -48,24 +48,18 @@ pub fn generate_candidates(question: &Question) -> Vec<Candidate> {
                     value: Some(a.value),
                 });
             }
-            items.push(Candidate {
-                id: BELOW.into(),
-                description: format!(
-                    "The value is below {} {}.",
-                    n.anchors.first().unwrap().value,
-                    n.unit
-                ),
-                value: None,
-            });
-            items.push(Candidate {
-                id: ABOVE.into(),
-                description: format!(
-                    "The value is above {} {}.",
-                    n.anchors.last().unwrap().value,
-                    n.unit
-                ),
-                value: None,
-            });
+            if let (Some(first), Some(last)) = (n.anchors.first(), n.anchors.last()) {
+                items.push(Candidate {
+                    id: BELOW.into(),
+                    description: format!("The value is below {} {}.", first.value, n.unit),
+                    value: None,
+                });
+                items.push(Candidate {
+                    id: ABOVE.into(),
+                    description: format!("The value is above {} {}.", last.value, n.unit),
+                    value: None,
+                });
+            }
             items
         }
     };
@@ -621,7 +615,10 @@ mod tests {
 
         // Zero / negative alpha or single element
         assert_eq!(smooth_ordinal_probabilities(&[1.0], 0.2), vec![1.0]);
-        assert_eq!(smooth_ordinal_probabilities(&[0.5, 0.5], 0.0), vec![0.5, 0.5]);
+        assert_eq!(
+            smooth_ordinal_probabilities(&[0.5, 0.5], 0.0),
+            vec![0.5, 0.5]
+        );
     }
 
     #[test]
@@ -698,7 +695,10 @@ mod tests {
         assert!((smoothed.iter().sum::<f64>() - 1.0).abs() < 1e-9);
         // Monotonic order must remain strictly increasing
         for w in smoothed.windows(2) {
-            assert!(w[0] < w[1], "Ordinal smoothing must preserve monotonic rank order");
+            assert!(
+                w[0] < w[1],
+                "Ordinal smoothing must preserve monotonic rank order"
+            );
         }
     }
 

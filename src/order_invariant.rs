@@ -675,8 +675,7 @@ impl PremiseContext {
                     // Stem prefix check
                     let stem = word_str.get(..word_str.len() - 1).unwrap_or("");
                     if self.contains_bounded(stem) {
-                        let stem_is_carrier =
-                            carrier_tokens.is_some_and(|set| set.contains(stem));
+                        let stem_is_carrier = carrier_tokens.is_some_and(|set| set.contains(stem));
                         let stem_carrier_scale = if stem_is_carrier { 0.20 } else { carrier_scale };
                         let w = self.recency_weight(stem) * stem_carrier_scale;
                         if self.is_negated(stem) {
@@ -708,17 +707,17 @@ pub fn extract_carrier_tokens(candidates: &[Candidate]) -> std::collections::Has
     }
 
     let k = candidates.len();
-    let threshold_count = if k == 2 {
-        2
-    } else {
-        (k * 3).div_ceil(4)
-    };
+    let threshold_count = if k == 2 { 2 } else { (k * 3).div_ceil(4) };
 
-    let mut token_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut token_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
 
     for c in candidates {
         let mut seen = std::collections::HashSet::new();
-        for word in c.description.split(|ch: char| !ch.is_alphanumeric() && ch != '_') {
+        for word in c
+            .description
+            .split(|ch: char| !ch.is_alphanumeric() && ch != '_')
+        {
             let w = word.trim().to_lowercase();
             if w.len() >= 3 && seen.insert(w.clone()) {
                 *token_counts.entry(w).or_insert(0) += 1;
@@ -748,11 +747,107 @@ pub fn compute_order_invariant_logits_with_context(
         if !carriers.is_empty() {
             return candidates
                 .iter()
-                .map(|c| ctx.score_candidate_raw_contrastive(&c.id, &c.description, Some(&carriers)))
+                .map(|c| {
+                    ctx.score_candidate_raw_contrastive(&c.id, &c.description, Some(&carriers))
+                })
                 .collect();
         }
     }
     candidates.iter().map(|c| ctx.score_candidate(c)).collect()
+}
+
+/// Block-diagonal attention mask structure for single-pass parallel option evaluation.
+///
+/// Synthesized from the Decision Index (`decision-index`) specification.
+/// Packs all candidate options into one forward pass while strictly isolating option
+/// attention slots, ensuring 100% order-invariance and eliminating per-option recomputation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlockDiagonalAttentionMask {
+    /// 2D boolean mask of shape [total_len, k_len] where allowed[i][j] is true if query token i attends to key token j.
+    pub allowed: Vec<Vec<bool>>,
+    /// Rotary position IDs for each token in flat query sequence.
+    pub position_ids: Vec<usize>,
+    /// Indices of logits to keep for option score computation.
+    pub logits_to_keep: Vec<usize>,
+    /// Slices in flat token stream for each option: (start_idx, length).
+    pub option_slices: Vec<(usize, usize)>,
+    /// Total sequence length (prompt + options).
+    pub total_len: usize,
+}
+
+/// Generates a block-diagonal attention mask and position IDs for single-pass candidate scoring.
+pub fn generate_block_diagonal_mask(
+    prefix_len: usize,
+    prompt_len: usize,
+    option_lens: &[usize],
+) -> BlockDiagonalAttentionMask {
+    let mut starts = Vec::with_capacity(option_lens.len());
+    let mut current_offset = prompt_len;
+    for &olen in option_lens {
+        starts.push(current_offset);
+        current_offset += olen;
+    }
+    let total_len = current_offset;
+    let k_len = prefix_len + total_len;
+
+    let mut allowed = vec![vec![false; k_len]; total_len];
+
+    // 1. Prompt tokens attend causally to prefix + prior prompt tokens
+    for (i, row) in allowed.iter_mut().enumerate().take(prompt_len) {
+        for val in row.iter_mut().take(prefix_len + i + 1) {
+            *val = true;
+        }
+    }
+
+    // 2. Each option attends to prefix + entire prompt + its own prior tokens in that option
+    for (&start, &olen) in starts.iter().zip(option_lens.iter()) {
+        for local_i in 0..olen {
+            let row = start + local_i;
+            // attend to prefix + prompt
+            for val in allowed[row].iter_mut().take(prefix_len + prompt_len) {
+                *val = true;
+            }
+            // attend to own option tokens causally
+            for local_j in 0..=local_i {
+                allowed[row][prefix_len + start + local_j] = true;
+            }
+        }
+    }
+
+    // 3. Position IDs: prompt gets prefix_len..prefix_len + prompt_len, each option starts at prefix_len + prompt_len
+    let mut position_ids = Vec::with_capacity(total_len);
+    for p in 0..prompt_len {
+        position_ids.push(prefix_len + p);
+    }
+    for &olen in option_lens {
+        for local in 0..olen {
+            position_ids.push(prefix_len + prompt_len + local);
+        }
+    }
+
+    // 4. Logits to keep: last token of prompt (prompt_len - 1) and internal tokens of options
+    let mut logits_to_keep = Vec::new();
+    if prompt_len > 0 {
+        logits_to_keep.push(prompt_len - 1);
+    }
+    for (&start, &olen) in starts.iter().zip(option_lens.iter()) {
+        for local in 0..olen.saturating_sub(1) {
+            logits_to_keep.push(start + local);
+        }
+    }
+
+    let option_slices = starts
+        .into_iter()
+        .zip(option_lens.iter().copied())
+        .collect();
+
+    BlockDiagonalAttentionMask {
+        allowed,
+        position_ids,
+        logits_to_keep,
+        option_slices,
+        total_len,
+    }
 }
 
 #[cfg(test)]
@@ -1106,4 +1201,3 @@ mod tests {
         assert_eq!(logits[1], logits_rev[0]);
     }
 }
-
