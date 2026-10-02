@@ -31,8 +31,11 @@ jobs:
       - name: Format Check
         run: cargo fmt --check
 
+      - name: Check No Default Features
+        run: cargo check --no-default-features
+
       - name: Clippy (Default Features)
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Clippy (Candle Feature)
         if: matrix.os == 'ubuntu-latest'

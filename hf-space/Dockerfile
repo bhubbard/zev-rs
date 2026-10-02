@@ -1,5 +1,5 @@
 # Multi-stage Docker build for Hugging Face Spaces (Port 7860)
-FROM rust:1.80-slim-bookworm AS builder
+FROM rust:1.85-slim-bookworm AS builder
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
