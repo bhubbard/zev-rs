@@ -69,28 +69,28 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
     for (idx, &id) in candidate_ids.iter().enumerate() {
         let id_lower = id.to_lowercase();
         if is_card && (id_lower.contains("card") || has_token(&id_lower, "pin")) {
-            logits[idx] += 5.0;
+            logits[idx] += 2.0;
         }
         if is_transfer && (id_lower.contains("transfer") || id_lower.contains("beneficiary")) {
-            logits[idx] += 5.0;
+            logits[idx] += 2.0;
         }
         if is_charge_fee && (has_token(&id_lower, "fee") || id_lower.contains("charge")) {
-            logits[idx] += 5.0;
+            logits[idx] += 2.0;
         }
         if is_balance && id_lower.contains("balance") {
-            logits[idx] += 5.0;
+            logits[idx] += 2.0;
         }
         if is_exchange && (id_lower.contains("exchange") || id_lower.contains("currency")) {
-            logits[idx] += 5.0;
+            logits[idx] += 2.0;
         }
         if is_weather && id_lower.contains("weather") {
-            logits[idx] += 6.0;
+            logits[idx] += 2.0;
         }
         if is_alarm && (id_lower.contains("alarm") || has_token(&id_lower, "timer")) {
-            logits[idx] += 6.0;
+            logits[idx] += 2.0;
         }
         if is_travel && (id_lower.contains("flight") || id_lower.contains("travel")) {
-            logits[idx] += 6.0;
+            logits[idx] += 2.0;
         }
     }
 }

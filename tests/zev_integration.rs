@@ -1506,44 +1506,19 @@ fn test_jevbench_accuracy_floor_guard() {
         overall_acc
     );
 
-    // 1. Overall Accuracy Floor: Must maintain >= 73.0%
+    // 1. Overall Accuracy Floor: Honest pure SIMD zero-token baseline >= 54.0%
     assert!(
-        overall_acc >= 73.0,
-        "Accuracy regression detected! Expected >= 73.0%, got {:.2}% ({correct}/{})",
+        overall_acc >= 54.0,
+        "Accuracy regression detected! Expected honest zero-token baseline >= 54.0%, got {:.2}% ({correct}/{})",
         overall_acc,
         tasks.len()
     );
 
-    // 2. Core deterministic families must be strictly 100%
-    let perfect_families = [
-        "adequacy",
-        "extraction",
-        "fact",
-        "intent",
-        "policy",
-        "routing",
-        "routing_hard",
-        "tool_selection",
-    ];
-    for fam in &perfect_families {
-        if let Some(&(c, tot)) = family_correct.get(*fam) {
-            assert_eq!(
-                c, tot,
-                "Family '{}' regressed from 100%! Got {}/{}",
-                fam, c, tot
-            );
-        }
+    // 2. High-affinity lexical families should maintain solid baselines without cheats
+    if let Some(&(c, tot)) = family_correct.get("tool_selection") {
+        assert!(c >= 10, "Family 'tool_selection' got {}/{}", c, tot);
     }
-
-    // 3. Ordinal severity reasoning must be >= 90%
-    if let Some(&(c, tot)) = family_correct.get("ordinal") {
-        let ord_acc = (c as f64 / tot as f64) * 100.0;
-        assert!(
-            ord_acc >= 90.0,
-            "Family 'ordinal' regressed! Got {}/{} ({:.2}%)",
-            c,
-            tot,
-            ord_acc
-        );
+    if let Some(&(c, tot)) = family_correct.get("routing_hard") {
+        assert!(c >= 4, "Family 'routing_hard' got {}/{}", c, tot);
     }
 }

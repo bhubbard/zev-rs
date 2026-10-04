@@ -129,50 +129,6 @@ pub fn extract_numeric_tokens(text: &str) -> Vec<f64> {
     nums
 }
 
-/// Evaluates cumulative daily usage against a threshold to find the firing day.
-pub fn evaluate_cumulative_budget_alert(state: &str) -> Option<String> {
-    let lower = state.to_lowercase();
-    if !lower.contains("budget") || !lower.contains("daily export") {
-        return None;
-    }
-
-    let budget = if lower.contains("12,000") {
-        12000.0
-    } else {
-        return None;
-    };
-
-    let threshold_ratio = if lower.contains("80%") { 0.80 } else { 1.0 };
-    let threshold = budget * threshold_ratio;
-
-    let mut cumulative = 0.0;
-    for line in state.lines() {
-        let parts: Vec<&str> = line.split('|').collect();
-        if parts.len() >= 3
-            && (parts[0].trim().starts_with("Sep ") || parts[0].trim().starts_with("Oct "))
-        {
-            let day_token = parts[0].trim().to_lowercase().replace(' ', "_");
-            // Extract usage
-            let usage_val = parts[1]
-                .split_whitespace()
-                .filter_map(|w| w.parse::<f64>().ok())
-                .next()
-                .unwrap_or(0.0);
-            // Extract credits
-            let credit_val = parts[2]
-                .split_whitespace()
-                .filter_map(|w| w.parse::<f64>().ok())
-                .next()
-                .unwrap_or(0.0);
-
-            cumulative += usage_val - credit_val;
-            if cumulative >= threshold - 1e-4 {
-                return Some(day_token);
-            }
-        }
-    }
-    None
-}
 
 #[cfg(test)]
 mod tests {

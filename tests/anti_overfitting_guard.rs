@@ -61,8 +61,8 @@ fn test_no_benchmark_entity_memorization_in_src() {
     collect_rs_files(Path::new("src"), &mut files);
     assert!(!files.is_empty(), "src directory must contain .rs files");
 
-    // Dataset-specific entities from JevBench and other private benchmarks that should
-    // NEVER appear as hardcoded strings in general engine logic.
+    // Dataset-specific entities and benchmark phrases from JevBench, SimpleBench, and
+    // other suites that should NEVER appear as hardcoded strings in general engine logic.
     let forbidden_dataset_entities = [
         "ALDERMOOR",
         "NS-2026-131",
@@ -94,6 +94,35 @@ fn test_no_benchmark_entity_memorization_in_src() {
         "Kuznets Technik",
         "HARTWELL SECONDARY",
         "inject_blueprint_knowledge",
+        // SimpleBench cheats:
+        "ice cubes in a frying pan",
+        "diverts up the stairs",
+        "global nuclear war",
+        // JevBench phrase cheats:
+        "load rule lr-7",
+        "closed on sunday",
+        "replacing the earlier courier",
+        "send it to my new office instead",
+        "pet dragon",
+        "failing parser",
+        "standalone python",
+        "reschedule my meeting",
+        "attached contract",
+        "daily export",
+        "irreversibly deleted",
+        "cannot sign in",
+        "nonessential function impaired",
+        "every function works",
+        "thanks for explaining",
+        "understand the policy",
+        "proof is absent",
+        "dispute is open",
+        "suspension blocks",
+        "only red",
+        "stop renewing",
+        "cancelled yesterday",
+        "depot pickup",
+        "did not change the booking",
     ];
 
     for file in &files {
@@ -103,9 +132,42 @@ fn test_no_benchmark_entity_memorization_in_src() {
         for entity in &forbidden_dataset_entities {
             assert!(
                 !content.contains(entity),
-                "OVERFITTING GUARD VIOLATION: File {} contains hardcoded benchmark entity '{}'",
+                "OVERFITTING GUARD VIOLATION: File {} contains hardcoded benchmark entity/phrase '{}'",
                 file.display(),
                 entity
+            );
+        }
+    }
+}
+
+#[test]
+fn test_no_cheat_functions_in_src() {
+    let mut files = Vec::new();
+    collect_rs_files(Path::new("src"), &mut files);
+    assert!(!files.is_empty(), "src directory must contain .rs files");
+
+    let forbidden_function_names = [
+        "evaluate_ordinal_severity_ladder",
+        "detect_confirmed_delivery_extraction",
+        "detect_customer_intent_action",
+        "evaluate_cumulative_budget_alert",
+        "boost_routing_specialist_associations",
+        "detect_constraint_violation",
+        "detect_policy_precondition_violation",
+        "apply_mention_vs_request_intent_filter",
+        "inject_blueprint_knowledge",
+    ];
+
+    for file in &files {
+        let content = fs::read_to_string(file)
+            .unwrap_or_else(|e| panic!("Failed to read {}: {}", file.display(), e));
+
+        for fn_name in &forbidden_function_names {
+            assert!(
+                !content.contains(fn_name),
+                "OVERFITTING GUARD VIOLATION: File {} contains hardcoded benchmark cheat function '{}'",
+                file.display(),
+                fn_name
             );
         }
     }
@@ -117,6 +179,8 @@ fn test_no_artificial_logit_boost_bypasses() {
     collect_rs_files(Path::new("src"), &mut files);
 
     let suspicious_patterns = [
+        "+= 6.0",
+        "+= 8.0",
         "+= 20.",
         "+= 25.",
         "+= 30.",
