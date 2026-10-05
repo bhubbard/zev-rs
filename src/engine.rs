@@ -435,7 +435,30 @@ impl ZevEngine {
         let effective_temp =
             crate::calibration::adaptive_margin_temperature(&logits, family_temp, 0.40);
 
-        let mut answer = decode_decision(final_question, &candidates, &logits, effective_temp)?;
+        // Counterfactual Shadow Inversion Probing: Detect and penalize spurious lexical attractors
+        // Gated to relevant families (policy, trap, adversarial, judge_hard) to maintain sub-100µs median latency
+        let effective_logits = if candidates.len() >= 2
+            && (family == "policy" || family == "trap" || family == "adversarial" || family == "judge_hard" || family == "ambiguous")
+            && !preprocessed_state.trim().is_empty()
+        {
+            let shadow_state = crate::counterfactual::generate_counterfactual_shadow(preprocessed_state);
+            if shadow_state != preprocessed_state {
+                let shadow_ctx = PremiseContext::new(&shadow_state);
+                let shadow_logits = compute_order_invariant_logits_with_context(&shadow_ctx, &candidates);
+                let cf_res = crate::counterfactual::evaluate_counterfactual_divergence(
+                    &logits,
+                    &shadow_logits,
+                    effective_temp,
+                );
+                cf_res.calibrated_logits
+            } else {
+                logits.clone()
+            }
+        } else {
+            logits.clone()
+        };
+
+        let mut answer = decode_decision(final_question, &candidates, &effective_logits, effective_temp)?;
 
         // Two-System Speculative Gating with Normalized Shannon Entropy & TimesFM Logit Variance Spread
         let num_cands = candidates.len().max(2) as f64;
@@ -462,7 +485,7 @@ impl ZevEngine {
 
         // TimesFM logit variance check: flatline indicates zero distinct lexical signal
         let mut logit_stats = crate::tabular::RunningStats::new();
-        for &l in &logits {
+        for &l in &effective_logits {
             logit_stats.update(l);
         }
         let is_flatline_logits = logit_stats.variance() < 0.005 && num_cands > 2.0;

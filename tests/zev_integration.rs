@@ -1506,10 +1506,10 @@ fn test_jevbench_accuracy_floor_guard() {
         overall_acc
     );
 
-    // 1. Overall Accuracy Floor: Honest pure SIMD zero-token baseline >= 54.0%
+    // 1. Overall Accuracy Floor: Honest pure SIMD zero-token baseline >= 56.0%
     assert!(
-        overall_acc >= 54.0,
-        "Accuracy regression detected! Expected honest zero-token baseline >= 54.0%, got {:.2}% ({correct}/{})",
+        overall_acc >= 56.0,
+        "Accuracy regression detected! Expected honest zero-token baseline >= 56.0%, got {:.2}% ({correct}/{})",
         overall_acc,
         tasks.len()
     );

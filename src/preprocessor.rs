@@ -469,6 +469,13 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
         enriched.push_str(&duration_constraints.join("\n"));
     }
 
+    // 7. Generic finite-state policy DAG reachability deductions
+    let dag_deductions = crate::policy_dag::resolve_policy_dag_deductions(&enriched);
+    if !dag_deductions.is_empty() {
+        enriched.push_str("\n\n");
+        enriched.push_str(&dag_deductions.join("\n"));
+    }
+
     Cow::Owned(enriched)
 }
 
