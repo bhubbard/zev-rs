@@ -442,6 +442,26 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
         enriched.push_str(&monetary_constraints.join("\n"));
     }
 
+    // 4. Generic symbolic arithmetic equation verification
+    let arithmetic_findings = crate::symbolic::verify_arithmetic_equations(&enriched);
+    if !arithmetic_findings.is_empty() {
+        enriched.push_str("\n\n");
+        enriched.push_str(&arithmetic_findings.join("\n"));
+    }
+
+    // 5. Generic structural constraint verification for request/response pairs
+    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(state_str.trim()) {
+        if let (Some(req_val), Some(resp_val)) = (map.get("request"), map.get("response")) {
+            if let (Some(req_str), Some(resp_str)) = (req_val.as_str(), resp_val.as_str()) {
+                let structural_findings = crate::symbolic::verify_structural_constraints(req_str, resp_str);
+                if !structural_findings.is_empty() {
+                    enriched.push_str("\n\n");
+                    enriched.push_str(&structural_findings.join("\n"));
+                }
+            }
+        }
+    }
+
     Cow::Owned(enriched)
 }
 

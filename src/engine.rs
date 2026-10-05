@@ -435,11 +435,11 @@ impl ZevEngine {
 
         let mut answer = decode_decision(final_question, &candidates, &logits, effective_temp)?;
 
-        // Upgrade 5: Two-System Speculative Gating with Option-Count Adaptive Fallback & H1 Shannon Entropy Gating (vLLM PR #57250)
+        // Two-System Speculative Gating with Normalized Shannon Entropy & TimesFM Logit Variance Spread
         let num_cands = candidates.len().max(2) as f64;
-        let default_conf_thresh = (1.0 / num_cands) + 0.20;
-        let default_margin_thresh = 0.15 / num_cands.sqrt();
-        let default_entropy_thresh = (num_cands.ln() * 0.40).clamp(0.12, 0.50);
+        let default_conf_thresh = (1.0 / num_cands) + 0.22;
+        let default_margin_thresh = 0.14 / num_cands.sqrt();
+        let default_norm_entropy_thresh = 0.65; // Normalized entropy threshold (65% of theoretical max)
 
         let conf_thresh = std::env::var("ZEV_FALLBACK_CONFIDENCE")
             .ok()
@@ -452,12 +452,23 @@ impl ZevEngine {
         let entropy_thresh = std::env::var("ZEV_FALLBACK_ENTROPY")
             .ok()
             .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(default_entropy_thresh);
+            .unwrap_or(default_norm_entropy_thresh);
 
-        let is_high_entropy = answer.uncertainty.entropy_nats > entropy_thresh;
+        let max_entropy = num_cands.ln().max(1e-6);
+        let normalized_entropy = answer.uncertainty.entropy_nats / max_entropy;
+        let is_high_entropy = normalized_entropy > entropy_thresh;
+
+        // TimesFM logit variance check: flatline indicates zero distinct lexical signal
+        let mut logit_stats = crate::tabular::RunningStats::new();
+        for &l in &logits {
+            logit_stats.update(l);
+        }
+        let is_flatline_logits = logit_stats.variance() < 0.005 && num_cands > 2.0;
+
         let should_fallback = answer.confidence < conf_thresh
             || answer.uncertainty.margin.is_some_and(|m| m < margin_thresh)
-            || is_high_entropy;
+            || is_high_entropy
+            || is_flatline_logits;
 
         let is_clm = fallback_mode == "clm";
         let is_poe = fallback_mode == "poe";

@@ -33,6 +33,7 @@ pub mod semantic_sieve;
 pub mod series_guardrails;
 pub mod shortlist;
 pub mod stop_matcher;
+pub mod symbolic;
 pub mod table_graph;
 pub mod tabular;
 pub mod teacache;
