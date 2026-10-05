@@ -274,6 +274,8 @@ impl ZevEngine {
                 "apfel".to_string()
             } else if m_lower.contains("clm") {
                 "clm".to_string()
+            } else if m_lower.contains("clef") {
+                "clef".to_string()
             } else if m_lower.contains("cascade") {
                 "cascade".to_string()
             } else if m_lower.contains("poe") || m_lower.contains("ensemble") {
@@ -527,6 +529,15 @@ impl ZevEngine {
                     }
                 }
                 if !cascaded {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if let Some(provider) = crate::clef::CloudflareClefProvider::from_env() {
+                        if let Ok(clef_ans) = provider.evaluate(preprocessed_state, final_question, key) {
+                            answer = clef_ans;
+                            cascaded = true;
+                        }
+                    }
+                }
+                if !cascaded {
                     if let Ok(gemma_ans) = crate::gemma::evaluate_gemma(
                         preprocessed_state,
                         final_question,
@@ -537,7 +548,14 @@ impl ZevEngine {
                 }
             }
         } else if should_fallback && !fallback_mode.is_empty() {
-            if fallback_mode == "gemma" {
+            if fallback_mode == "clef" {
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Some(provider) = crate::clef::CloudflareClefProvider::from_env() {
+                    if let Ok(clef_ans) = provider.evaluate(preprocessed_state, final_question, key) {
+                        answer = clef_ans;
+                    }
+                }
+            } else if fallback_mode == "gemma" {
                 if let Ok(gemma_ans) =
                     crate::gemma::evaluate_gemma(preprocessed_state, final_question, &candidates)
                 {
@@ -1109,7 +1127,6 @@ impl ZevEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{WireChoiceQuestion, WireNoulQuestion, WireQuestion, WireScoreQuestion};
 
     #[test]
     fn test_multimodal_engine_evaluation() {

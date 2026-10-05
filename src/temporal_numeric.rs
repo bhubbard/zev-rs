@@ -129,6 +129,114 @@ pub fn extract_numeric_tokens(text: &str) -> Vec<f64> {
     nums
 }
 
+use chrono::NaiveDate;
+use regex::Regex;
+use std::sync::LazyLock;
+
+static RE_DURATION_POLICY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(?:within|allow(?:s|ed)?\s+up\s+to|valid\s+for|window\s+of|limit\s+of|policy\s+of|has\s+a)\s*(\d+)\s*(day|week|month|year)s?|(\d+)-(day|week|month|year)\s*(?:return|warranty|grace\s+period|trial|window|policy|limit|deadline)")
+        .expect("valid duration policy regex")
+});
+
+static RE_ISO_DATE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b(\d{4})-(\d{2})-(\d{2})\b").expect("valid iso date regex")
+});
+
+static RE_TEXT_DATE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\b")
+        .expect("valid text date regex")
+});
+
+/// Evaluates whether elapsed durations between dates mentioned in text exceed or satisfy stated policy windows.
+/// Returns descriptive findings for warranty, return, grace period, and SLA questions.
+pub fn resolve_temporal_duration_constraints(text: &str) -> Vec<String> {
+    let mut policies = Vec::new();
+
+    for cap in RE_DURATION_POLICY.captures_iter(text) {
+        let (num_str, unit_str) = if let (Some(n), Some(u)) = (cap.get(1), cap.get(2)) {
+            (n.as_str(), u.as_str())
+        } else if let (Some(n), Some(u)) = (cap.get(3), cap.get(4)) {
+            (n.as_str(), u.as_str())
+        } else {
+            continue;
+        };
+
+        if let Ok(num) = num_str.parse::<i64>() {
+            let days = match unit_str.to_lowercase().as_str() {
+                "day" => num,
+                "week" => num * 7,
+                "month" => num * 30,
+                "year" => num * 365,
+                _ => continue,
+            };
+            policies.push((days, format!("{} {}", num, unit_str)));
+        }
+    }
+
+    if policies.is_empty() {
+        return Vec::new();
+    }
+
+    // Extract all unique dates
+    let mut found_dates: Vec<(String, NaiveDate)> = Vec::new();
+    for cap in RE_ISO_DATE.captures_iter(text) {
+        let raw = cap.get(0).unwrap().as_str();
+        if let Ok(d) = NaiveDate::parse_from_str(raw, "%Y-%m-%d") {
+            if !found_dates.iter().any(|(r, _)| *r == raw) {
+                found_dates.push((raw.to_string(), d));
+            }
+        }
+    }
+
+    for cap in RE_TEXT_DATE.captures_iter(text) {
+        let raw = cap.get(0).unwrap().as_str();
+        let month_str = &cap[1];
+        let day_str = &cap[2];
+        let year_str = &cap[3];
+        let date_str = format!("{month_str} {day_str}, {year_str}");
+        if let Ok(d) = NaiveDate::parse_from_str(&date_str, "%B %d, %Y") {
+            if !found_dates.iter().any(|(r, _)| *r == raw) {
+                found_dates.push((raw.to_string(), d));
+            }
+        }
+    }
+
+    if found_dates.len() < 2 {
+        return Vec::new();
+    }
+
+    found_dates.sort_by_key(|&(_, d)| d);
+
+    let mut findings = Vec::new();
+    for i in 0..found_dates.len() {
+        for j in (i + 1)..found_dates.len() {
+            let (raw_i, date_i) = &found_dates[i];
+            let (raw_j, date_j) = &found_dates[j];
+            let elapsed = (*date_j - *date_i).num_days();
+
+            if elapsed <= 0 {
+                continue;
+            }
+
+            for &(policy_days, ref policy_name) in &policies {
+                if elapsed > policy_days {
+                    findings.push(format!(
+                        "[TEMPORAL CONSTRAINT]: Elapsed duration between {} and {} is {} days, which exceeds the stated {} limit (EXCEEDS_POLICY_DURATION: TRUE, WITHIN_WINDOW: FALSE).",
+                        raw_i, raw_j, elapsed, policy_name
+                    ));
+                } else {
+                    findings.push(format!(
+                        "[TEMPORAL CONSTRAINT]: Elapsed duration between {} and {} is {} days, which is within the stated {} limit (EXCEEDS_POLICY_DURATION: FALSE, WITHIN_WINDOW: TRUE).",
+                        raw_i, raw_j, elapsed, policy_name
+                    ));
+                }
+            }
+        }
+    }
+
+    findings
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -157,5 +265,18 @@ mod tests {
         let list_text = "Values: 10,20,30 and 40, 50";
         let list_tokens = extract_numeric_tokens(list_text);
         assert_eq!(list_tokens, vec![10.0, 20.0, 30.0, 40.0, 50.0]);
+    }
+
+    #[test]
+    fn test_resolve_temporal_duration_constraints() {
+        let text_expired = "Store has a 30-day return policy. Order delivered on 2023-01-10. Customer requested return on 2023-02-25.";
+        let res_expired = resolve_temporal_duration_constraints(text_expired);
+        assert!(!res_expired.is_empty());
+        assert!(res_expired[0].contains("EXCEEDS_POLICY_DURATION: TRUE"));
+
+        let text_valid = "Covered under a 1-year warranty. Purchased on 2022-03-01. Defect reported on 2022-08-15.";
+        let res_valid = resolve_temporal_duration_constraints(text_valid);
+        assert!(!res_valid.is_empty());
+        assert!(res_valid[0].contains("EXCEEDS_POLICY_DURATION: FALSE"));
     }
 }

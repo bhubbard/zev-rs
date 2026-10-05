@@ -7,7 +7,7 @@
 //! modifying core model weights or using hardcoded entity memorization.
 
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::LazyLock;
 
 /// A parsed tabular structure from text.
@@ -109,20 +109,31 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
         return Vec::new();
     }
 
-    // Extract potential query tokens from the text outside tables
+    // Extract potential query tokens strictly from text outside tables
     let mut query_tokens: HashSet<String> = HashSet::new();
-    for word in text.split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_') {
-        let clean = word.trim();
-        if clean.len() >= 3 && !clean.chars().all(|ch| ch.is_numeric()) {
-            query_tokens.insert(clean.to_lowercase());
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('|') && trimmed.ends_with('|') {
+            continue; // Skip table lines
+        }
+        for word in trimmed.split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_') {
+            let clean = word.trim();
+            if clean.len() >= 3 && !clean.chars().all(|ch| ch.is_numeric()) {
+                query_tokens.insert(clean.to_lowercase());
+            }
         }
     }
 
     let mut relations = Vec::new();
 
-    // Map each table row into key-value pairs
-    for table in &tables {
-        for row in &table.rows {
+    // Collect 1-hop bridge entities from matched rows
+    let mut hop1_bridge_entities: HashSet<String> = HashSet::new();
+    let mut matched_row_fingerprints: HashSet<String> = HashSet::new();
+
+    // Map each table row into key-value pairs (Hop 1: Direct matches)
+    for (t_idx, table) in tables.iter().enumerate() {
+        for (r_idx, row) in table.rows.iter().enumerate() {
+            let row_fp = format!("{}:{}:{}", t_idx, r_idx, row.join("|"));
             let mut matches_query = false;
 
             // Check if any cell in this row matches an entity mentioned in the query
@@ -140,11 +151,18 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
             }
 
             if matches_query {
+                matched_row_fingerprints.insert(row_fp);
                 let mut facts = Vec::new();
                 for (h_idx, header) in table.headers.iter().enumerate() {
                     if let Some(val) = row.get(h_idx) {
-                        if !val.is_empty() {
-                            facts.push(format!("{}: {}", header, val));
+                        let trimmed_val = val.trim();
+                        if !trimmed_val.is_empty() {
+                            facts.push(format!("{}: {}", header, trimmed_val));
+                            // Non-numeric tokens longer than 2 chars become bridge entities for hop 2
+                            let val_lower = trimmed_val.to_lowercase();
+                            if val_lower.len() >= 3 && !val_lower.chars().all(|c| c.is_numeric() || c == '.' || c == ',') {
+                                hop1_bridge_entities.insert(val_lower);
+                            }
                         }
                     }
                 }
@@ -161,21 +179,52 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
         }
     }
 
-    // Secondary relational join across tables on shared keys
-    if tables.len() >= 2 {
-        let mut key_to_attributes: HashMap<String, Vec<String>> = HashMap::new();
+    // Hop 2: Transitive multi-hop joins across tables or subsequent rows using bridge entities
+    if !hop1_bridge_entities.is_empty() {
+        for (t_idx, table) in tables.iter().enumerate() {
+            for (r_idx, row) in table.rows.iter().enumerate() {
+                let row_fp = format!("{}:{}:{}", t_idx, r_idx, row.join("|"));
+                if matched_row_fingerprints.contains(&row_fp) {
+                    continue; // Skip rows already included in Hop 1
+                }
 
-        for table in &tables {
-            for row in &table.rows {
-                for (idx, cell) in row.iter().enumerate() {
-                    let cell_trim = cell.trim().to_lowercase();
-                    if cell_trim.len() >= 3 {
-                        let header = table.headers.get(idx).map(|s| s.as_str()).unwrap_or("");
-                        let attr = format!("{}: {}", header, cell);
-                        key_to_attributes
-                            .entry(cell_trim)
-                            .or_default()
-                            .push(attr);
+                let mut matched_bridge = None;
+                for cell in row {
+                    let cell_lower = cell.trim().to_lowercase();
+                    for bridge in &hop1_bridge_entities {
+                        if cell_lower == *bridge || (bridge.len() >= 4 && cell_lower.contains(bridge)) {
+                            matched_bridge = Some(cell.trim().to_string());
+                            break;
+                        }
+                    }
+                    if matched_bridge.is_some() {
+                        break;
+                    }
+                }
+
+                if let Some(bridge_str) = matched_bridge {
+                    let mut facts = Vec::new();
+                    for (h_idx, header) in table.headers.iter().enumerate() {
+                        if let Some(val) = row.get(h_idx) {
+                            let trimmed_val = val.trim();
+                            if !trimmed_val.is_empty() && trimmed_val != bridge_str {
+                                facts.push(format!("{}: {}", header, trimmed_val));
+                            }
+                        }
+                    }
+
+                    if !facts.is_empty() {
+                        let title_prefix = table
+                            .title
+                            .as_deref()
+                            .map(|t| format!("in {}: ", t))
+                            .unwrap_or_default();
+                        relations.push(format!(
+                            "[TRANSITIVE RELATION (2-HOP)]: Via \"{}\" {}{}",
+                            bridge_str,
+                            title_prefix,
+                            facts.join(", ")
+                        ));
                     }
                 }
             }
@@ -321,6 +370,27 @@ Alert on host server-1: process="authd" is crashing.
         assert!(!rels.is_empty());
         assert!(rels[0].contains("Process: authd"));
         assert!(rels[0].contains("Owning Team: Security"));
+    }
+
+    #[test]
+    fn test_resolve_transitive_multi_hop_relations() {
+        let text = r#"
+Critical alert for ticket INC-9002: service unresponsive.
+
+Table 1:
+| Incident | Service |
+|----------|---------|
+| INC-9002 | payments|
+
+Table 2:
+| Service  | Owning Team | Escalation Channel |
+|----------|-------------|--------------------|
+| payments | Fintech     | Slack-Fintech-P1   |
+"#;
+        let rels = resolve_tabular_relations(text);
+        assert!(rels.len() >= 2);
+        assert!(rels.iter().any(|r| r.contains("payments")));
+        assert!(rels.iter().any(|r| r.contains("TRANSITIVE RELATION (2-HOP)") && r.contains("Fintech")));
     }
 
     #[test]

@@ -462,6 +462,13 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
         }
     }
 
+    // 6. Generic temporal policy duration and window constraints
+    let duration_constraints = crate::temporal_numeric::resolve_temporal_duration_constraints(&enriched);
+    if !duration_constraints.is_empty() {
+        enriched.push_str("\n\n");
+        enriched.push_str(&duration_constraints.join("\n"));
+    }
+
     Cow::Owned(enriched)
 }
 
