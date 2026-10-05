@@ -51,6 +51,52 @@ struct EvaluationResult {
     ece: f64,
 }
 
+fn extract_prediction_token(ans_val: &Value) -> String {
+    if let Some(choice) = ans_val.get("choice").and_then(|v| v.as_str()) {
+        choice.to_string()
+    } else if let Some(noul_val) = ans_val.get("noul").and_then(|v| v.as_f64()) {
+        if noul_val >= 0.5 {
+            "true".to_string()
+        } else {
+            "false".to_string()
+        }
+    } else if let Some(probs) = ans_val.get("probabilities").and_then(|p| p.as_object()) {
+        probs
+            .iter()
+            .max_by(|a, b| {
+                let pa = a.1.as_f64().unwrap_or(0.0);
+                let pb = b.1.as_f64().unwrap_or(0.0);
+                pa.partial_cmp(&pb).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(k, _)| k.as_str())
+            .unwrap_or("0")
+            .to_string()
+    } else if let Some(score) = ans_val.get("score").and_then(|v| v.as_f64()) {
+        format!("{}", score.round() as i64)
+    } else {
+        String::new()
+    }
+}
+
+fn matches_expected(pred: &str, expected: &str) -> bool {
+    let clean_pred = pred.trim().trim_matches('"').to_lowercase();
+    let clean_exp = expected.trim().trim_matches('"').to_lowercase();
+    if clean_pred == clean_exp {
+        return true;
+    }
+    let is_pred_yes = clean_pred == "true" || clean_pred == "yes" || clean_pred == "1";
+    let is_exp_yes = clean_exp == "true" || clean_exp == "yes" || clean_exp == "1";
+    if is_pred_yes && is_exp_yes {
+        return true;
+    }
+    let is_pred_no = clean_pred == "false" || clean_pred == "no" || clean_pred == "0";
+    let is_exp_no = clean_exp == "false" || clean_exp == "no" || clean_exp == "0";
+    if is_pred_no && is_exp_no {
+        return true;
+    }
+    false
+}
+
 fn evaluate_items<F>(
     name: &'static str,
     tasks: &[JevBenchItem],
@@ -93,96 +139,15 @@ where
 
         let is_correct = if let Some(ans) = resp.answers.get("q") {
             confidences.push(ans.confidence);
-
-            match &item.expected {
-                Value::String(exp_str) => {
-                    let is_exp_yes = exp_str == "yes" || exp_str == "true";
-                    let is_exp_no = exp_str == "no" || exp_str == "false";
-
-                    if let Some(dec) = &ans.decision {
-                        match dec {
-                            Value::String(s) => {
-                                s == exp_str
-                                    || (is_exp_yes && (s == "true" || s == "yes"))
-                                    || (is_exp_no && (s == "false" || s == "no"))
-                            }
-                            Value::Bool(b) => {
-                                if *b {
-                                    is_exp_yes
-                                } else {
-                                    is_exp_no
-                                }
-                            }
-                            Value::Number(n) => {
-                                if let Ok(exp_num) = exp_str.parse::<f64>() {
-                                    (n.as_f64().unwrap_or(-999.0) - exp_num).abs() < 0.5
-                                } else {
-                                    false
-                                }
-                            }
-                            _ => false,
-                        }
-                    } else {
-                        let p_true = ans.probabilities.get("true").copied().unwrap_or(0.0);
-                        let p_false = ans.probabilities.get("false").copied().unwrap_or(0.0);
-                        if is_exp_yes {
-                            p_true > p_false
-                        } else if is_exp_no {
-                            p_false >= p_true
-                        } else {
-                            false
-                        }
-                    }
-                }
-                Value::Bool(exp_bool) => {
-                    if let Some(dec) = &ans.decision {
-                        match dec {
-                            Value::Bool(b) => b == exp_bool,
-                            Value::String(s) => {
-                                if *exp_bool {
-                                    s == "true" || s == "yes"
-                                } else {
-                                    s == "false" || s == "no"
-                                }
-                            }
-                            _ => false,
-                        }
-                    } else {
-                        let p_true = ans.probabilities.get("true").copied().unwrap_or(0.0);
-                        let p_false = ans.probabilities.get("false").copied().unwrap_or(0.0);
-                        if *exp_bool {
-                            p_true > p_false
-                        } else {
-                            p_false >= p_true
-                        }
-                    }
-                }
-                Value::Number(exp_num) => {
-                    if let Some(exp_f) = exp_num.as_f64() {
-                        let pred_f = if let Some(Value::Number(n)) = &ans.decision {
-                            n.as_f64().unwrap_or(-999.0)
-                        } else if let Some(Value::String(s)) = &ans.decision {
-                            s.parse::<f64>().unwrap_or(-999.0)
-                        } else {
-                            let mut best_score = -1.0;
-                            let mut best_p = -1.0;
-                            for (k, &p) in &ans.probabilities {
-                                if let Ok(score_val) = k.parse::<f64>() {
-                                    if p > best_p {
-                                        best_p = p;
-                                        best_score = score_val;
-                                    }
-                                }
-                            }
-                            best_score
-                        };
-                        (pred_f - exp_f).abs() < 0.5
-                    } else {
-                        false
-                    }
-                }
-                _ => false,
-            }
+            let wire_ans = zev::wire::wire_answer_from_zev_answer(&item.question, ans);
+            let wire_val = serde_json::to_value(wire_ans).unwrap_or(serde_json::Value::Null);
+            let pred = extract_prediction_token(&wire_val);
+            let exp_str = match &item.expected {
+                Value::String(s) => s.clone(),
+                Value::Bool(b) => b.to_string(),
+                other => other.to_string(),
+            };
+            matches_expected(&pred, &exp_str)
         } else {
             false
         };
@@ -363,6 +328,18 @@ fn main() {
         |eng, req| eng.evaluate(req),
     );
 
+    // 3. Zev-Cascade (Speculative Dynamic Gating with Normalized Entropy & Logit Spread)
+    std::env::set_var("ZEV_FALLBACK", "cascade");
+    std::env::remove_var("ZEV_FALLBACK_CONFIDENCE");
+    std::env::remove_var("ZEV_FALLBACK_MARGIN");
+    std::env::remove_var("ZEV_FALLBACK_ENTROPY");
+    let (cascade_res, _cascade_family_stats) = evaluate_items(
+        "Zev-Cascade (Speculative)",
+        &all_tasks,
+        &engine,
+        |eng, req| eng.evaluate(req),
+    );
+
     println!("==============================================================================================");
     println!("                   MULTI-METHOD COMPARISON ON REAL 231 JEVBENCH SUITE                         ");
     println!("==============================================================================================");
@@ -388,6 +365,15 @@ fn main() {
         clm_res.accuracy,
         clm_res.p50_us,
         clm_res.throughput
+    );
+    println!(
+        "{:<28} | {:>6}/{:<6}    | {:>8.2}%   | {:>8.2} µs | {:>8.0} dec/s",
+        cascade_res.method_name,
+        cascade_res.correct,
+        cascade_res.total,
+        cascade_res.accuracy,
+        cascade_res.p50_us,
+        cascade_res.throughput
     );
     println!("==============================================================================================\n");
 }

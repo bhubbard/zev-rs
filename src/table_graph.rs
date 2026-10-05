@@ -243,13 +243,13 @@ pub fn resolve_policy_hierarchy(text: &str) -> Vec<String> {
 pub fn resolve_monetary_constraints(text: &str) -> Vec<String> {
     let mut constraints = Vec::new();
 
-    // Find sublimit caps
-    let mut caps: Vec<f64> = Vec::new();
+    // Find sublimit caps and their matched byte spans
+    let mut caps: Vec<(f64, std::ops::Range<usize>)> = Vec::new();
     for cap in RE_SUBLIMIT_CAP.captures_iter(text) {
-        if let Some(amt_str) = cap.get(1) {
-            let clean = amt_str.as_str().replace(',', "");
+        if let Some(amt_match) = cap.get(1) {
+            let clean = amt_match.as_str().replace(',', "");
             if let Ok(val) = clean.parse::<f64>() {
-                caps.push(val);
+                caps.push((val, amt_match.range()));
             }
         }
     }
@@ -258,23 +258,28 @@ pub fn resolve_monetary_constraints(text: &str) -> Vec<String> {
         return constraints;
     }
 
-    // Find all mentioned dollar amounts
+    // Find all mentioned dollar amounts that are not the sublimit itself
     for cap_match in RE_CURRENCY_AMOUNT.captures_iter(text) {
-        if let Some(amt_str) = cap_match.get(1) {
-            let clean = amt_str.as_str().replace(',', "");
-            if let Ok(claim_val) = clean.parse::<f64>() {
-                for &cap_val in &caps {
-                    if claim_val > cap_val {
-                        constraints.push(format!(
-                            "[NUMERIC CONSTRAINT]: Claim amount ${:.2} exceeds stated sublimit ${:.2} (EXCEEDS_SUBLIMIT: TRUE).",
-                            claim_val, cap_val
-                        ));
-                    } else if (claim_val - cap_val).abs() < 0.01 {
-                        constraints.push(format!(
-                            "[NUMERIC CONSTRAINT]: Claim amount ${:.2} matches exactly stated sublimit ${:.2} (MEETS_SUBLIMIT: TRUE).",
-                            claim_val, cap_val
-                        ));
-                    }
+        let m = cap_match.get(1).unwrap();
+        let m_range = m.range();
+        // Skip if this currency amount is part of the sublimit definition
+        if caps.iter().any(|(_, r)| r.start == m_range.start && r.end == m_range.end) {
+            continue;
+        }
+
+        let clean = m.as_str().replace(',', "");
+        if let Ok(claim_val) = clean.parse::<f64>() {
+            for &(cap_val, _) in &caps {
+                if claim_val > cap_val {
+                    constraints.push(format!(
+                        "[NUMERIC CONSTRAINT]: Claim amount ${:.2} exceeds stated sublimit ${:.2} (EXCEEDS_SUBLIMIT: TRUE).",
+                        claim_val, cap_val
+                    ));
+                } else if (claim_val - cap_val).abs() < 0.01 {
+                    constraints.push(format!(
+                        "[NUMERIC CONSTRAINT]: Claim amount ${:.2} matches exactly stated sublimit ${:.2} (MEETS_SUBLIMIT: TRUE).",
+                        claim_val, cap_val
+                    ));
                 }
             }
         }

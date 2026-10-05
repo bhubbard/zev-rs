@@ -143,7 +143,7 @@ pub fn verify_arithmetic_equations(text: &str) -> Vec<String> {
         if let (Some(actual_res), Ok(expected_res)) = (eval_simple_math(lhs), rhs_str.parse::<f64>()) {
             equation_count += 1;
             let diff = (actual_res - expected_res).abs();
-            let tolerance = 0.02 * expected_res.abs().max(1.0);
+            let tolerance = 0.01; // Deterministic calculation tolerance (accounts for rounding)
 
             if diff > tolerance {
                 all_correct = false;
