@@ -415,11 +415,34 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
     };
     let unmasked = mask_untrusted_payload(&base_text);
 
-    if enable_temporal {
-        Cow::Owned(inject_temporal_facts(&unmasked).into_owned())
+    let mut enriched = if enable_temporal {
+        inject_temporal_facts(&unmasked).into_owned()
     } else {
-        Cow::Owned(unmasked.into_owned())
+        unmasked.into_owned()
+    };
+
+    // 1. Generic markdown table resolution
+    let table_relations = crate::table_graph::resolve_tabular_relations(&enriched);
+    if !table_relations.is_empty() {
+        enriched.push_str("\n\n");
+        enriched.push_str(&table_relations.join("\n"));
     }
+
+    // 2. Generic policy hierarchy resolution
+    let policy_overrides = crate::table_graph::resolve_policy_hierarchy(&enriched);
+    if !policy_overrides.is_empty() {
+        enriched.push_str("\n\n");
+        enriched.push_str(&policy_overrides.join("\n"));
+    }
+
+    // 3. Generic monetary sublimit and claim constraint checks
+    let monetary_constraints = crate::table_graph::resolve_monetary_constraints(&enriched);
+    if !monetary_constraints.is_empty() {
+        enriched.push_str("\n\n");
+        enriched.push_str(&monetary_constraints.join("\n"));
+    }
+
+    Cow::Owned(enriched)
 }
 
 // -------------------------------------------------------------------------------------------------
