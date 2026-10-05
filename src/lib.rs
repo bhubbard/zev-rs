@@ -5,6 +5,7 @@ pub mod cascade;
 pub mod clef;
 pub mod clm;
 pub mod compaction;
+#[cfg(feature = "dataset-rules")]
 pub mod concept_knowledge;
 pub mod config;
 pub mod counterfactual;

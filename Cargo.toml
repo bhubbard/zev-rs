@@ -91,6 +91,7 @@ neural = ["dep:apfel"]
 candle = ["server", "dep:candle-core", "dep:candle-nn", "dep:tokenizers", "dep:half"]
 cuda = ["candle", "candle-core/cuda", "candle-nn/cuda"]
 mlx = ["dep:mlx-rs", "dep:tokenizers"]
+dataset-rules = []
 
 [dev-dependencies]
 approx = "0.5"
