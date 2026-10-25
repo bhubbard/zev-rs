@@ -81,12 +81,19 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
         return options.to_vec();
     }
 
-    let state_tokens: HashSet<String> = state
-        .to_lowercase()
-        .split_whitespace()
-        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string())
-        .filter(|w| w.len() > 2)
-        .collect();
+    let state_lower = if state.is_ascii() {
+        state.to_ascii_lowercase()
+    } else {
+        state.to_lowercase()
+    };
+    let mut state_tokens: HashSet<&str, crate::fast_hash::Xxh3BuildHasher> =
+        HashSet::with_capacity_and_hasher(64, crate::fast_hash::Xxh3BuildHasher);
+    for w in state_lower.split_whitespace() {
+        let trimmed = w.trim_matches(|c: char| !c.is_alphanumeric());
+        if trimmed.len() > 2 {
+            state_tokens.insert(trimmed);
+        }
+    }
 
     let mut scored: Vec<(f64, &OptionDef)> = options
         .iter()
@@ -95,8 +102,19 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
             let mut opt_token_count = 0usize;
 
             // Direct ID match & constituent ID token match
-            let id_lower = opt.id.to_lowercase();
-            if state_tokens.contains(&id_lower) {
+            let id_lower_owned;
+            let id_lower: &str = if opt.id.bytes().any(|b| b.is_ascii_uppercase() || !b.is_ascii())
+            {
+                id_lower_owned = if opt.id.is_ascii() {
+                    opt.id.to_ascii_lowercase()
+                } else {
+                    opt.id.to_lowercase()
+                };
+                &id_lower_owned
+            } else {
+                &opt.id
+            };
+            if state_tokens.contains(id_lower) {
                 matches += 4.0;
             }
             for part in id_lower.split(['_', '-']) {
@@ -113,9 +131,19 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
                 let trimmed = word.trim_matches(|c: char| !c.is_alphanumeric());
                 if trimmed.len() > 2 {
                     opt_token_count += 1;
-                    let word_lower = trimmed.to_lowercase();
-                    if state_tokens.contains(&word_lower) {
-                        // Weighted by length (discriminative tokens carry more weight)
+                    let word_lower_owned;
+                    let word_lower: &str =
+                        if trimmed.bytes().any(|b| b.is_ascii_uppercase() || !b.is_ascii()) {
+                            word_lower_owned = if trimmed.is_ascii() {
+                                trimmed.to_ascii_lowercase()
+                            } else {
+                                trimmed.to_lowercase()
+                            };
+                            &word_lower_owned
+                        } else {
+                            trimmed
+                        };
+                    if state_tokens.contains(word_lower) {
                         let weight = 1.0 + (word_lower.len() as f64 - 3.0).clamp(0.0, 3.0) * 0.2;
                         matches += weight;
                     }

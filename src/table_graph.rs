@@ -37,6 +37,9 @@ static RE_SUBLIMIT_CAP: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Parses all markdown / pipe-delimited tables found in the text.
 pub fn parse_markdown_tables(text: &str) -> Vec<MarkdownTable> {
+    if !text.contains('|') {
+        return Vec::new();
+    }
     let mut tables = Vec::new();
     let mut current_title: Option<String> = None;
     let mut current_headers: Vec<String> = Vec::new();
@@ -109,8 +112,27 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
         return Vec::new();
     }
 
+    let mut header_tokens: HashSet<String, crate::fast_hash::Xxh3BuildHasher> =
+        HashSet::with_capacity_and_hasher(32, crate::fast_hash::Xxh3BuildHasher);
+    for t in &tables {
+        for h in &t.headers {
+            for w in h.split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_') {
+                if w.len() >= 3 {
+                    header_tokens.insert(w.to_ascii_lowercase());
+                }
+            }
+        }
+    }
+
+    const TABLE_STOPWORDS: [&str; 28] = [
+        "the", "and", "for", "are", "was", "with", "that", "from", "this", "these", "than",
+        "then", "have", "been", "were", "some", "which", "what", "when", "where", "who",
+        "does", "should", "would", "could", "table", "following", "below",
+    ];
+
     // Extract potential query tokens strictly from text outside tables
-    let mut query_tokens: HashSet<String> = HashSet::new();
+    let mut query_tokens: HashSet<String, crate::fast_hash::Xxh3BuildHasher> =
+        HashSet::with_capacity_and_hasher(64, crate::fast_hash::Xxh3BuildHasher);
     for line in text.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('|') && trimmed.ends_with('|') {
@@ -118,31 +140,41 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
         }
         for word in trimmed.split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_') {
             let clean = word.trim();
-            if clean.len() >= 3 && !clean.chars().all(|ch| ch.is_numeric()) {
-                query_tokens.insert(clean.to_lowercase());
+            if clean.len() >= 3 && !clean.bytes().all(|b| b.is_ascii_digit()) {
+                let lower = clean.to_ascii_lowercase();
+                if !TABLE_STOPWORDS.contains(&lower.as_str()) && !header_tokens.contains(&lower) {
+                    query_tokens.insert(lower);
+                }
             }
         }
+    }
+
+    if query_tokens.is_empty() {
+        return Vec::new();
     }
 
     let mut relations = Vec::new();
 
     // Collect 1-hop bridge entities from matched rows
-    let mut hop1_bridge_entities: HashSet<String> = HashSet::new();
-    let mut matched_row_fingerprints: HashSet<String> = HashSet::new();
+    let mut hop1_bridge_entities: HashSet<String, crate::fast_hash::Xxh3BuildHasher> =
+        HashSet::with_capacity_and_hasher(32, crate::fast_hash::Xxh3BuildHasher);
+    let mut matched_rows: HashSet<(usize, usize), crate::fast_hash::Xxh3BuildHasher> =
+        HashSet::with_capacity_and_hasher(32, crate::fast_hash::Xxh3BuildHasher);
 
     // Map each table row into key-value pairs (Hop 1: Direct matches)
     for (t_idx, table) in tables.iter().enumerate() {
         for (r_idx, row) in table.rows.iter().enumerate() {
-            let row_fp = format!("{}:{}:{}", t_idx, r_idx, row.join("|"));
             let mut matches_query = false;
 
             // Check if any cell in this row matches an entity mentioned in the query
             for cell in row {
-                let cell_lower = cell.to_lowercase();
-                for token in &query_tokens {
-                    if cell_lower.contains(token) && token.len() >= 4 {
-                        matches_query = true;
-                        break;
+                for word in cell.split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_') {
+                    if word.len() >= 4 {
+                        let w_lower = word.to_ascii_lowercase();
+                        if query_tokens.contains(&w_lower) {
+                            matches_query = true;
+                            break;
+                        }
                     }
                 }
                 if matches_query {
@@ -151,16 +183,26 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
             }
 
             if matches_query {
-                matched_row_fingerprints.insert(row_fp);
+                matched_rows.insert((t_idx, r_idx));
                 let mut facts = Vec::new();
                 for (h_idx, header) in table.headers.iter().enumerate() {
                     if let Some(val) = row.get(h_idx) {
                         let trimmed_val = val.trim();
                         if !trimmed_val.is_empty() {
                             facts.push(format!("{}: {}", header, trimmed_val));
-                            // Non-numeric tokens longer than 2 chars become bridge entities for hop 2
-                            let val_lower = trimmed_val.to_lowercase();
-                            if val_lower.len() >= 3 && !val_lower.chars().all(|c| c.is_numeric() || c == '.' || c == ',') {
+                            let val_lower = trimmed_val.to_ascii_lowercase();
+                            if val_lower.len() >= 3
+                                && !query_tokens.contains(&val_lower)
+                                && !matches!(
+                                    val_lower.as_str(),
+                                    "yes" | "no" | "true" | "false" | "active" | "inactive"
+                                        | "enabled" | "disabled" | "open" | "closed" | "high"
+                                        | "medium" | "low" | "none" | "null"
+                                )
+                                && !val_lower
+                                    .bytes()
+                                    .all(|b| b.is_ascii_digit() || b == b'.' || b == b',')
+                            {
                                 hop1_bridge_entities.insert(val_lower);
                             }
                         }
@@ -173,26 +215,41 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
                         .as_deref()
                         .map(|t| format!("In {}: ", t))
                         .unwrap_or_default();
-                    relations.push(format!("[TABULAR RELATION]: {}{}", title_prefix, facts.join(", ")));
+                    relations.push(format!(
+                        "[TABULAR RELATION]: {}{}",
+                        title_prefix,
+                        facts.join(", ")
+                    ));
+                    if relations.len() >= 12 {
+                        break;
+                    }
                 }
             }
+        }
+        if relations.len() >= 12 {
+            break;
         }
     }
 
     // Hop 2: Transitive multi-hop joins across tables or subsequent rows using bridge entities
-    if !hop1_bridge_entities.is_empty() {
+    if !hop1_bridge_entities.is_empty() && relations.len() < 16 {
         for (t_idx, table) in tables.iter().enumerate() {
             for (r_idx, row) in table.rows.iter().enumerate() {
-                let row_fp = format!("{}:{}:{}", t_idx, r_idx, row.join("|"));
-                if matched_row_fingerprints.contains(&row_fp) {
+                if matched_rows.contains(&(t_idx, r_idx)) {
                     continue; // Skip rows already included in Hop 1
                 }
 
                 let mut matched_bridge = None;
                 for cell in row {
-                    let cell_lower = cell.trim().to_lowercase();
-                    for bridge in &hop1_bridge_entities {
-                        if cell_lower == *bridge || (bridge.len() >= 4 && cell_lower.contains(bridge)) {
+                    let cell_lower = cell.trim().to_ascii_lowercase();
+                    if hop1_bridge_entities.contains(&cell_lower) {
+                        matched_bridge = Some(cell.trim().to_string());
+                        break;
+                    }
+                    for word in
+                        cell_lower.split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+                    {
+                        if word.len() >= 4 && hop1_bridge_entities.contains(word) {
                             matched_bridge = Some(cell.trim().to_string());
                             break;
                         }
@@ -225,8 +282,14 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
                             title_prefix,
                             facts.join(", ")
                         ));
+                        if relations.len() >= 16 {
+                            break;
+                        }
                     }
                 }
+            }
+            if relations.len() >= 16 {
+                break;
             }
         }
     }
@@ -238,6 +301,9 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
 /// Detects sections marked as Endorsements, Riders, Amendments, Overrides, or Exceptions.
 /// If an override section matches query terms, it elevates the override above the base terms.
 pub fn resolve_policy_hierarchy(text: &str) -> Vec<String> {
+    if !text.contains("====") && !text.contains('#') {
+        return Vec::new();
+    }
     let mut overrides = Vec::new();
 
     // Find section headers
@@ -260,11 +326,12 @@ pub fn resolve_policy_hierarchy(text: &str) -> Vec<String> {
         let section_body = &text[start_pos..end_pos];
 
         // Check if section is an override, endorsement, amendment, or exception
-        let is_override = section_title.to_lowercase().contains("endorsement")
-            || section_title.to_lowercase().contains("amendment")
-            || section_title.to_lowercase().contains("override")
-            || section_title.to_lowercase().contains("exception")
-            || section_title.to_lowercase().contains("rider");
+        let title_lower = section_title.to_lowercase();
+        let is_override = title_lower.contains("endorsement")
+            || title_lower.contains("amendment")
+            || title_lower.contains("override")
+            || title_lower.contains("exception")
+            || title_lower.contains("rider");
 
         if is_override {
             // Check for explicit waiver or replacement language
@@ -290,6 +357,9 @@ pub fn resolve_policy_hierarchy(text: &str) -> Vec<String> {
 /// Generic currency and numeric sublimit analyzer:
 /// Detects when a claimed amount exceeds an explicit monetary sublimit or policy cap.
 pub fn resolve_monetary_constraints(text: &str) -> Vec<String> {
+    if !text.contains('$') {
+        return Vec::new();
+    }
     let mut constraints = Vec::new();
 
     // Find sublimit caps and their matched byte spans

@@ -30,9 +30,12 @@ static RE_POLARITY_TERMS: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Synthesizes a counterfactual shadow inversion of the text by inverting modal rules and polarities in a single pass.
 pub fn generate_counterfactual_shadow(text: &str) -> String {
+    if !RE_POLARITY_TERMS.is_match(text) {
+        return text.to_string();
+    }
     RE_POLARITY_TERMS
         .replace_all(text, |caps: &regex::Captures| -> std::borrow::Cow<'static, str> {
-            let lower = caps[1].to_lowercase();
+            let lower = caps[1].to_ascii_lowercase();
             let repl: &'static str = match lower.as_str() {
                 "is eligible" => "is strictly ineligible",
                 "is not eligible" => "is fully eligible",
@@ -106,13 +109,18 @@ pub fn evaluate_counterfactual_divergence(
 
         let delta = p_o - p_s;
         sensitivities.push(delta);
+    }
 
-        // If candidate i has high probability in BOTH original and shadow states,
-        // it is a spurious lexical attractor that ignores policy constraints.
-        if p_o > 0.40 && p_s > 0.35 {
-            // Apply counterfactual invariance penalty
-            let penalty = 0.85 * (p_s - 0.20).max(0.0);
-            calibrated_logits[i] -= penalty;
+    if sym_kl > 1e-5 {
+        for i in 0..n {
+            let p_o = p_orig[i];
+            let p_s = p_shadow[i];
+            // If candidate i has high probability in BOTH original and shadow states
+            // despite non-zero counterfactual perturbation, penalize it.
+            if p_o > 0.40 && p_s > 0.35 {
+                let penalty = 0.85 * (p_s - 0.20).max(0.0);
+                calibrated_logits[i] -= penalty;
+            }
         }
     }
 

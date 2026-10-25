@@ -278,48 +278,80 @@ impl ContrastiveHead {
 }
 
 /// Generates a fast L2-normalized feature-hashed vector representation of text for contrastive scoring.
-/// Uses word and subword 3-gram hashing into `dim` buckets.
+/// Uses word and subword 3-gram hashing into `dim` buckets with zero intermediate allocations on ASCII text.
 pub fn embed_text(text: &str, dim: usize) -> Vec<f32> {
     let mut vec = vec![0.0f32; dim];
-    let lower = text.to_lowercase();
-    let words: Vec<&str> = lower.split_whitespace().collect();
+    if dim == 0 {
+        return vec;
+    }
 
-    for w in &words {
-        let clean: String = w.chars().filter(|c| c.is_alphanumeric()).collect();
-        if clean.is_empty() {
+    for w in text.split(|c: char| !c.is_alphanumeric()) {
+        if w.is_empty() {
             continue;
         }
 
-        // Word hash
-        let mut h = 2166136261u32;
-        for b in clean.bytes() {
-            h ^= b as u32;
-            h = h.wrapping_mul(16777619);
-        }
-        let idx = (h as usize) % dim;
-        let sign = if (h & 0x80000000) != 0 {
-            1.0f32
-        } else {
-            -1.0f32
-        };
-        vec[idx] += sign * 2.0;
+        if w.is_ascii() {
+            let bytes = w.as_bytes();
+            let mut h = 2166136261u32;
+            for &b in bytes {
+                h ^= b.to_ascii_lowercase() as u32;
+                h = h.wrapping_mul(16777619);
+            }
+            let idx = (h as usize) % dim;
+            let sign = if (h & 0x80000000) != 0 {
+                1.0f32
+            } else {
+                -1.0f32
+            };
+            vec[idx] += sign * 2.0;
 
-        // Subword 3-grams
-        let chars: Vec<char> = clean.chars().collect();
-        if chars.len() >= 3 {
-            for window in chars.windows(3) {
-                let mut sh = 2166136261u32;
-                for &ch in window {
-                    sh ^= ch as u32;
-                    sh = sh.wrapping_mul(16777619);
+            if bytes.len() >= 3 {
+                for window in bytes.windows(3) {
+                    let mut sh = 2166136261u32;
+                    for &b in window {
+                        sh ^= b.to_ascii_lowercase() as u32;
+                        sh = sh.wrapping_mul(16777619);
+                    }
+                    let sidx = (sh as usize) % dim;
+                    let ssign = if (sh & 0x80000000) != 0 {
+                        1.0f32
+                    } else {
+                        -1.0f32
+                    };
+                    vec[sidx] += ssign;
                 }
-                let sidx = (sh as usize) % dim;
-                let ssign = if (sh & 0x80000000) != 0 {
-                    1.0f32
-                } else {
-                    -1.0f32
-                };
-                vec[sidx] += ssign;
+            }
+        } else {
+            let clean = w.to_lowercase();
+            let mut h = 2166136261u32;
+            for b in clean.bytes() {
+                h ^= b as u32;
+                h = h.wrapping_mul(16777619);
+            }
+            let idx = (h as usize) % dim;
+            let sign = if (h & 0x80000000) != 0 {
+                1.0f32
+            } else {
+                -1.0f32
+            };
+            vec[idx] += sign * 2.0;
+
+            let chars: Vec<char> = clean.chars().collect();
+            if chars.len() >= 3 {
+                for window in chars.windows(3) {
+                    let mut sh = 2166136261u32;
+                    for &ch in window {
+                        sh ^= ch as u32;
+                        sh = sh.wrapping_mul(16777619);
+                    }
+                    let sidx = (sh as usize) % dim;
+                    let ssign = if (sh & 0x80000000) != 0 {
+                        1.0f32
+                    } else {
+                        -1.0f32
+                    };
+                    vec[sidx] += ssign;
+                }
             }
         }
     }

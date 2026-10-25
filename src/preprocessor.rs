@@ -21,33 +21,69 @@ static RE_TEXT_DATE: LazyLock<Regex> = LazyLock::new(|| {
     .expect("valid text date regex")
 });
 
+#[inline]
+fn has_at_least_two_four_digit_numbers(text: &str) -> bool {
+    let mut count = 0usize;
+    let mut run = 0usize;
+    for &b in text.as_bytes() {
+        if b.is_ascii_digit() {
+            run += 1;
+            if run == 4 {
+                count += 1;
+                if count >= 2 {
+                    return true;
+                }
+            }
+        } else {
+            run = 0;
+        }
+    }
+    false
+}
+
+#[inline]
+fn has_month_name(text: &str) -> bool {
+    const MONTHS: [&str; 12] = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ];
+    MONTHS.iter().any(|&m| text.contains(m))
+}
+
 /// Computes pairwise date arithmetic facts between all dates mentioned in the text.
 ///
 /// Ported from `kev-rs`. Eliminates temporal subtraction errors on warranty, return,
 /// SLA, and flight schedule queries by making relative date math explicitly available.
 pub fn compute_pairwise_date_facts(text: &str) -> String {
+    if !has_at_least_two_four_digit_numbers(text) {
+        return String::new();
+    }
     let mut found = Vec::new();
 
     // Match ISO dates: YYYY-MM-DD
-    for cap in RE_ISO_DATE.captures_iter(text) {
-        let raw = cap.get(0).unwrap().as_str();
-        if let Ok(d) = NaiveDate::parse_from_str(raw, "%Y-%m-%d") {
-            if !found.iter().any(|(r, _)| *r == raw) {
-                found.push((raw.to_string(), d));
+    if text.contains('-') {
+        for cap in RE_ISO_DATE.captures_iter(text) {
+            let raw = cap.get(0).unwrap().as_str();
+            if let Ok(d) = NaiveDate::parse_from_str(raw, "%Y-%m-%d") {
+                if !found.iter().any(|(r, _)| *r == raw) {
+                    found.push((raw.to_string(), d));
+                }
             }
         }
     }
 
     // Match Month D, YYYY dates
-    for cap in RE_TEXT_DATE.captures_iter(text) {
-        let raw = cap.get(0).unwrap().as_str();
-        let month_str = &cap[1];
-        let day_str = &cap[2];
-        let year_str = &cap[3];
-        let date_str = format!("{month_str} {day_str}, {year_str}");
-        if let Ok(d) = NaiveDate::parse_from_str(&date_str, "%B %d, %Y") {
-            if !found.iter().any(|(r, _)| *r == raw) {
-                found.push((raw.to_string(), d));
+    if has_month_name(text) {
+        for cap in RE_TEXT_DATE.captures_iter(text) {
+            let raw = cap.get(0).unwrap().as_str();
+            let month_str = &cap[1];
+            let day_str = &cap[2];
+            let year_str = &cap[3];
+            let date_str = format!("{month_str} {day_str}, {year_str}");
+            if let Ok(d) = NaiveDate::parse_from_str(&date_str, "%B %d, %Y") {
+                if !found.iter().any(|(r, _)| *r == raw) {
+                    found.push((raw.to_string(), d));
+                }
             }
         }
     }
@@ -57,8 +93,10 @@ pub fn compute_pairwise_date_facts(text: &str) -> String {
     }
 
     let mut facts = Vec::new();
+    let max_span = if found.len() <= 4 { found.len() } else { 2 };
     for i in 0..found.len() {
-        for j in (i + 1)..found.len() {
+        let end_j = (i + max_span).min(found.len());
+        for j in (i + 1)..end_j {
             let (raw_i, date_i) = &found[i];
             let (raw_j, date_j) = &found[j];
             let days = (*date_j - *date_i).num_days();
@@ -73,6 +111,12 @@ pub fn compute_pairwise_date_facts(text: &str) -> String {
                 let s = if abs_d == 1 { "" } else { "s" };
                 facts.push(format!("{raw_j} is {abs_d} day{s} before {raw_i}."));
             }
+            if facts.len() >= 12 {
+                break;
+            }
+        }
+        if facts.len() >= 12 {
+            break;
         }
     }
 
@@ -342,52 +386,101 @@ pub fn inject_temporal_facts<'a>(text: &'a str) -> Cow<'a, str> {
     Cow::Owned(result)
 }
 
+fn append_json_value(v: &serde_json::Value, out: &mut String, depth: usize) {
+    if depth > 4 {
+        return;
+    }
+    match v {
+        serde_json::Value::Null => {}
+        serde_json::Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        serde_json::Value::Number(n) => out.push_str(&n.to_string()),
+        serde_json::Value::String(s) => out.push_str(s),
+        serde_json::Value::Array(arr) => {
+            for (idx, item) in arr.iter().enumerate() {
+                if idx > 0 {
+                    out.push_str("; ");
+                }
+                append_json_value(item, out, depth + 1);
+            }
+        }
+        serde_json::Value::Object(obj) => {
+            let mut first = true;
+            for (k, val) in obj {
+                if k == "archive" || val.is_null() {
+                    continue;
+                }
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                out.push_str(k);
+                out.push_str(": ");
+                append_json_value(val, out, depth + 1);
+            }
+        }
+    }
+}
+
+/// Formats a `serde_json::Value` directly into clean natural text without intermediate JSON serialization.
+pub fn format_json_value(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Object(map) => {
+            let mut parts = Vec::with_capacity(map.len() + 2);
+            if let Some(serde_json::Value::Array(conv)) = map.get("conversation") {
+                for turn in conv {
+                    let speaker = turn
+                        .get("speaker")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("user");
+                    let text = turn.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                    parts.push(format!("{}: {}", speaker, text));
+                }
+            }
+            for (k, v) in map {
+                if k == "conversation" || k == "archive" || v.is_null() {
+                    continue;
+                }
+                let mut buf = String::with_capacity(64);
+                buf.push_str(k);
+                buf.push_str(": ");
+                append_json_value(v, &mut buf, 1);
+                parts.push(buf);
+            }
+            if let (Some(req_val), Some(resp_val)) = (map.get("request"), map.get("response")) {
+                if let (Some(req_str), Some(resp_str)) = (req_val.as_str(), resp_val.as_str()) {
+                    let structural_findings =
+                        crate::symbolic::verify_structural_constraints(req_str, resp_str);
+                    if !structural_findings.is_empty() {
+                        parts.push(structural_findings.join("\n"));
+                    }
+                }
+            }
+            if parts.is_empty() {
+                "{}".to_string()
+            } else {
+                parts.join("\n\n")
+            }
+        }
+        other => {
+            let mut out = String::new();
+            append_json_value(other, &mut out, 0);
+            out
+        }
+    }
+}
+
 /// Formats structured JSON state (e.g. conversations, invoices, tickets) into clean natural text.
 pub fn format_structured_state<'a>(input: &'a str) -> Cow<'a, str> {
     let trimmed = input.trim();
     if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
         return Cow::Borrowed(input);
     }
-    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(trimmed) {
-        let mut parts = Vec::new();
-        if let Some(serde_json::Value::Array(conv)) = map.get("conversation") {
-            for turn in conv {
-                let speaker = turn
-                    .get("speaker")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("user");
-                let text = turn.get("text").and_then(|v| v.as_str()).unwrap_or("");
-                parts.push(format!("{}: {}", speaker, text));
-            }
-        }
-        for (k, v) in &map {
-            if k == "conversation" || k == "archive" {
-                continue;
-            }
-            if let serde_json::Value::Object(sub) = v {
-                let sub_strs: Vec<String> = sub
-                    .iter()
-                    .map(|(sk, sv)| {
-                        match sv {
-                            serde_json::Value::String(s) => format!("{}: {}", sk, s),
-                            serde_json::Value::Object(nested) => {
-                                let nest_strs: Vec<String> = nested
-                                    .iter()
-                                    .map(|(nk, nv)| format!("{}: {}", nk, nv))
-                                    .collect();
-                                format!("{}: {{{}}}", sk, nest_strs.join(", "))
-                            }
-                            _ => format!("{}: {}", sk, sv),
-                        }
-                    })
-                    .collect();
-                parts.push(format!("{}: {}", k, sub_strs.join(", ")));
-            } else if !v.is_null() {
-                parts.push(format!("{}: {}", k, v));
-            }
-        }
-        if !parts.is_empty() {
-            return Cow::Owned(parts.join("\n\n"));
+    if let Ok(val @ serde_json::Value::Object(_)) = serde_json::from_str::<serde_json::Value>(trimmed)
+    {
+        let formatted = format_json_value(&val);
+        if !formatted.is_empty() {
+            return Cow::Owned(formatted);
         }
     }
     Cow::Borrowed(input)
@@ -397,86 +490,130 @@ static RE_UNTRUSTED_PAYLOAD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)((?:uploaded\s+file\s+preview\s+contains|preview\s+contains|text\s+layer\s+embedded\s+in\s+[^,]+\s+reads|contains\s+white-on-white\s+text|attachment\s+contains)[:,\s]+)[“"'\x60]([^“”"'\x60]+)[”"'\x60]"#).expect("valid untrusted regex")
 });
 
-/// Masks untrusted attachments, OCR text layers, and embedded prompt injection payloads.
+static RE_HTML_COMMENT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?s)<!--.*?-->").expect("valid html comment regex")
+});
+
+/// Masks untrusted attachments, OCR text layers, HTML comments, and embedded prompt injection payloads.
 pub fn mask_untrusted_payload<'a>(text: &'a str) -> Cow<'a, str> {
-    if RE_UNTRUSTED_PAYLOAD.is_match(text) {
-        let replaced = RE_UNTRUSTED_PAYLOAD.replace_all(text, "$1[UNTRUSTED_CONTENT_FILTERED]");
-        Cow::Owned(replaced.into_owned())
-    } else {
-        Cow::Borrowed(text)
+    let bytes = text.as_bytes();
+    let has_html_comment = text.contains("<!--");
+    let has_trigger = bytes.len() >= 20
+        && (bytes
+            .windows(8)
+            .any(|w| w.eq_ignore_ascii_case(b"contains") || w.eq_ignore_ascii_case(b"embedded")));
+
+    if !has_html_comment && !has_trigger {
+        return Cow::Borrowed(text);
     }
+
+    let mut current: Cow<'a, str> = Cow::Borrowed(text);
+    if has_html_comment && RE_HTML_COMMENT.is_match(&current) {
+        current = Cow::Owned(
+            RE_HTML_COMMENT
+                .replace_all(&current, "[UNTRUSTED_COMMENT_FILTERED]")
+                .into_owned(),
+        );
+    }
+    if has_trigger && RE_UNTRUSTED_PAYLOAD.is_match(&current) {
+        current = Cow::Owned(
+            RE_UNTRUSTED_PAYLOAD
+                .replace_all(&current, "$1[UNTRUSTED_CONTENT_FILTERED]")
+                .into_owned(),
+        );
+    }
+    current
 }
 
 pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a, str> {
     let structured = format_structured_state(state_str);
-    let base_text = match structured {
+    let base_text: Cow<'a, str> = match structured {
         Cow::Borrowed(s) => clean_text(s),
-        Cow::Owned(ref s) => clean_text(s),
+        Cow::Owned(s) => match clean_text(&s) {
+            Cow::Borrowed(_) => Cow::Owned(s),
+            Cow::Owned(cleaned) => Cow::Owned(cleaned),
+        },
     };
-    let unmasked = mask_untrusted_payload(&base_text);
+    let unmasked: Cow<'a, str> = match base_text {
+        Cow::Borrowed(s) => mask_untrusted_payload(s),
+        Cow::Owned(s) => match mask_untrusted_payload(&s) {
+            Cow::Borrowed(_) => Cow::Owned(s),
+            Cow::Owned(masked) => Cow::Owned(masked),
+        },
+    };
 
-    let mut enriched = if enable_temporal {
-        inject_temporal_facts(&unmasked).into_owned()
+    let mut enriched: Cow<'a, str> = if enable_temporal {
+        match unmasked {
+            Cow::Borrowed(s) => inject_temporal_facts(s),
+            Cow::Owned(s) => match inject_temporal_facts(&s) {
+                Cow::Borrowed(_) => Cow::Owned(s),
+                Cow::Owned(t) => Cow::Owned(t),
+            },
+        }
     } else {
-        unmasked.into_owned()
+        unmasked
     };
 
     // 1. Generic markdown table resolution
     let table_relations = crate::table_graph::resolve_tabular_relations(&enriched);
     if !table_relations.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&table_relations.join("\n"));
+        let mut_ref = enriched.to_mut();
+        mut_ref.push_str("\n\n");
+        mut_ref.push_str(&table_relations.join("\n"));
     }
 
     // 2. Generic policy hierarchy resolution
     let policy_overrides = crate::table_graph::resolve_policy_hierarchy(&enriched);
     if !policy_overrides.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&policy_overrides.join("\n"));
+        let mut_ref = enriched.to_mut();
+        mut_ref.push_str("\n\n");
+        mut_ref.push_str(&policy_overrides.join("\n"));
     }
 
     // 3. Generic monetary sublimit and claim constraint checks
     let monetary_constraints = crate::table_graph::resolve_monetary_constraints(&enriched);
     if !monetary_constraints.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&monetary_constraints.join("\n"));
+        let mut_ref = enriched.to_mut();
+        mut_ref.push_str("\n\n");
+        mut_ref.push_str(&monetary_constraints.join("\n"));
     }
 
     // 4. Generic symbolic arithmetic equation verification
     let arithmetic_findings = crate::symbolic::verify_arithmetic_equations(&enriched);
     if !arithmetic_findings.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&arithmetic_findings.join("\n"));
+        let mut_ref = enriched.to_mut();
+        mut_ref.push_str("\n\n");
+        mut_ref.push_str(&arithmetic_findings.join("\n"));
     }
 
-    // 5. Generic structural constraint verification for request/response pairs
-    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(state_str.trim()) {
-        if let (Some(req_val), Some(resp_val)) = (map.get("request"), map.get("response")) {
-            if let (Some(req_str), Some(resp_str)) = (req_val.as_str(), resp_val.as_str()) {
-                let structural_findings = crate::symbolic::verify_structural_constraints(req_str, resp_str);
-                if !structural_findings.is_empty() {
-                    enriched.push_str("\n\n");
-                    enriched.push_str(&structural_findings.join("\n"));
-                }
-            }
+    // 5. Generic structural constraint verification for plain-text request/response pairs
+    if !enriched.contains("CONSTRAINT_SATISFIED:") {
+        let structural_findings = crate::symbolic::verify_plain_text_request_response(&enriched);
+        if !structural_findings.is_empty() {
+            let mut_ref = enriched.to_mut();
+            mut_ref.push_str("\n\n");
+            mut_ref.push_str(&structural_findings.join("\n"));
         }
     }
 
     // 6. Generic temporal policy duration and window constraints
-    let duration_constraints = crate::temporal_numeric::resolve_temporal_duration_constraints(&enriched);
+    let duration_constraints =
+        crate::temporal_numeric::resolve_temporal_duration_constraints(&enriched);
     if !duration_constraints.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&duration_constraints.join("\n"));
+        let mut_ref = enriched.to_mut();
+        mut_ref.push_str("\n\n");
+        mut_ref.push_str(&duration_constraints.join("\n"));
     }
 
     // 7. Generic finite-state policy DAG reachability deductions
     let dag_deductions = crate::policy_dag::resolve_policy_dag_deductions(&enriched);
     if !dag_deductions.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&dag_deductions.join("\n"));
+        let mut_ref = enriched.to_mut();
+        mut_ref.push_str("\n\n");
+        mut_ref.push_str(&dag_deductions.join("\n"));
     }
 
-    Cow::Owned(enriched)
+    enriched
 }
 
 // -------------------------------------------------------------------------------------------------

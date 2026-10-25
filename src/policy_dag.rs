@@ -13,8 +13,13 @@ use std::sync::LazyLock;
 pub const MAX_DAG_NODES: usize = 64;
 
 static RE_IF_THEN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(?:if|when|where|provided\s+that|in\s+the\s+event\s+of|in\s+the\s+event\s+that)\s+([^,;:\.\n]{4,80})[,;:]\s+(?:then\s+)?([^,;:\.\n]{4,80})(?:\.|$|;)")
+    Regex::new(r"(?i)\b(?:if|when|where|provided\s+that|in\s+the\s+event\s+of|in\s+the\s+event\s+that)\s+([^,;:\.\n]{4,80})(?:[,;:]\s*(?:then\s+)?|\s+then\s+)([^,;:\.\n]{4,80})(?:\.|$|;)")
         .expect("valid if-then regex")
+});
+
+static RE_CAUSAL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b([^,;:\.\n]{4,60})\s+(?:causes|triggers|leads\s+to|results\s+in|implies|activates|initiates)\s+([^,;:\.\n]{4,60})(?:\.|$|;)")
+        .expect("valid causal regex")
 });
 
 static RE_REQUIRES: LazyLock<Regex> = LazyLock::new(|| {
@@ -124,47 +129,118 @@ impl PolicyDag {
     }
 }
 
+#[inline]
+fn contains_ascii_case_insensitive(haystack: &str, needle_lower: &[u8]) -> bool {
+    let hb = haystack.as_bytes();
+    let n = needle_lower.len();
+    if hb.len() < n {
+        return false;
+    }
+    hb.windows(n).any(|w| w.eq_ignore_ascii_case(needle_lower))
+}
+
 /// Parses conditional and policy dependency rules from natural text into a propositional DAG.
 pub fn build_policy_dag_from_text(text: &str) -> PolicyDag {
     let mut dag = PolicyDag::new();
 
-    // 1. If-Then rules: Condition -> Consequence
-    for cap in RE_IF_THEN.captures_iter(text) {
-        if let (Some(cond_m), Some(cons_m)) = (cap.get(1), cap.get(2)) {
-            if let (Some(u), Some(v)) = (
-                dag.get_or_create_node(cond_m.as_str()),
-                dag.get_or_create_node(cons_m.as_str()),
-            ) {
-                dag.add_implication(u, v);
+    for raw_sent in text.split(['.', ';', '\n']) {
+        let sent = raw_sent.trim();
+        if sent.len() < 10 || sent.len() > 240 {
+            continue;
+        }
+
+        // 1. If-Then rules: Condition -> Consequence
+        if (sent.contains(',')
+            || sent.contains(':')
+            || contains_ascii_case_insensitive(sent, b" then "))
+            && (contains_ascii_case_insensitive(sent, b"if ")
+                || contains_ascii_case_insensitive(sent, b"when ")
+                || contains_ascii_case_insensitive(sent, b"where ")
+                || contains_ascii_case_insensitive(sent, b"provided ")
+                || contains_ascii_case_insensitive(sent, b"event "))
+        {
+            for cap in RE_IF_THEN.captures_iter(sent) {
+                if let (Some(cond_m), Some(cons_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(u), Some(v)) = (
+                        dag.get_or_create_node(cond_m.as_str()),
+                        dag.get_or_create_node(cons_m.as_str()),
+                    ) {
+                        dag.add_implication(u, v);
+                    }
+                }
+            }
+        }
+
+        // 1b. Causal rules: Cause -> Effect
+        if contains_ascii_case_insensitive(sent, b"causes ")
+            || contains_ascii_case_insensitive(sent, b"triggers ")
+            || contains_ascii_case_insensitive(sent, b"leads to ")
+            || contains_ascii_case_insensitive(sent, b"results in ")
+            || contains_ascii_case_insensitive(sent, b"implies ")
+            || contains_ascii_case_insensitive(sent, b"activates ")
+            || contains_ascii_case_insensitive(sent, b"initiates ")
+        {
+            for cap in RE_CAUSAL.captures_iter(sent) {
+                if let (Some(cause_m), Some(eff_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(u), Some(v)) = (
+                        dag.get_or_create_node(cause_m.as_str()),
+                        dag.get_or_create_node(eff_m.as_str()),
+                    ) {
+                        dag.add_implication(u, v);
+                    }
+                }
+            }
+        }
+
+        // 2. Requires rules: Consequence requires Condition => Condition enables Consequence
+        if contains_ascii_case_insensitive(sent, b"requires")
+            || contains_ascii_case_insensitive(sent, b"subject to")
+            || contains_ascii_case_insensitive(sent, b"depends on")
+            || contains_ascii_case_insensitive(sent, b"conditional upon")
+        {
+            for cap in RE_REQUIRES.captures_iter(sent) {
+                if let (Some(cons_m), Some(cond_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(v), Some(u)) = (
+                        dag.get_or_create_node(cons_m.as_str()),
+                        dag.get_or_create_node(cond_m.as_str()),
+                    ) {
+                        dag.add_implication(u, v);
+                    }
+                }
+            }
+        }
+
+        // 3. Unless / Exception rules: Exception blocks Action (unless Action is a requirement/prohibition)
+        if contains_ascii_case_insensitive(sent, b"unless")
+            || contains_ascii_case_insensitive(sent, b"except")
+            || contains_ascii_case_insensitive(sent, b"excluding")
+        {
+            for cap in RE_UNLESS_EXCEPTION.captures_iter(sent) {
+                if let (Some(action_m), Some(exc_m)) = (cap.get(1), cap.get(2)) {
+                    let act_s = action_m.as_str();
+                    let is_req_exemption = contains_ascii_case_insensitive(act_s, b"need")
+                        || contains_ascii_case_insensitive(act_s, b"require")
+                        || contains_ascii_case_insensitive(act_s, b"must")
+                        || contains_ascii_case_insensitive(act_s, b"prohibit")
+                        || contains_ascii_case_insensitive(act_s, b"forbid")
+                        || contains_ascii_case_insensitive(act_s, b"deny")
+                        || contains_ascii_case_insensitive(act_s, b"denied");
+                    if !is_req_exemption {
+                        if let (Some(action_idx), Some(exc_idx)) = (
+                            dag.get_or_create_node(act_s),
+                            dag.get_or_create_node(exc_m.as_str()),
+                        ) {
+                            dag.add_inhibition(exc_idx, action_idx);
+                        }
+                    }
+                }
             }
         }
     }
 
-    // 2. Requires rules: Consequence requires Condition => Condition enables Consequence
-    for cap in RE_REQUIRES.captures_iter(text) {
-        if let (Some(cons_m), Some(cond_m)) = (cap.get(1), cap.get(2)) {
-            if let (Some(v), Some(u)) = (
-                dag.get_or_create_node(cons_m.as_str()),
-                dag.get_or_create_node(cond_m.as_str()),
-            ) {
-                dag.add_implication(u, v);
-            }
-        }
+    if dag.node_names.len() >= 2 {
+        dag.compute_transitive_closure();
     }
-
-    // 3. Unless / Exception rules: Exception blocks Action
-    for cap in RE_UNLESS_EXCEPTION.captures_iter(text) {
-        if let (Some(action_m), Some(exc_m)) = (cap.get(1), cap.get(2)) {
-            if let (Some(action_idx), Some(exc_idx)) = (
-                dag.get_or_create_node(action_m.as_str()),
-                dag.get_or_create_node(exc_m.as_str()),
-            ) {
-                dag.add_inhibition(exc_idx, action_idx);
-            }
-        }
-    }
-
-    dag.compute_transitive_closure();
     dag
 }
 
@@ -175,8 +251,35 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
         return Vec::new();
     }
 
-    let text_lower = text.to_lowercase();
+    let text_lower = if text.is_ascii() {
+        text.to_ascii_lowercase()
+    } else {
+        text.to_lowercase()
+    };
+    let mut token_set: HashSet<&str, crate::fast_hash::Xxh3BuildHasher> =
+        HashSet::with_capacity_and_hasher(128, crate::fast_hash::Xxh3BuildHasher);
+    for w in text_lower.split(|c: char| !c.is_alphanumeric() && c != '_') {
+        if w.len() >= 4 {
+            token_set.insert(w);
+        }
+    }
     let mut active_nodes = Vec::new();
+
+    // Collect tokens from non-exception sentences so inhibitor nodes ("unless X") are only
+    // marked active when X is actually asserted as a fact outside the "unless" rule itself.
+    let mut fact_token_set: HashSet<&str, crate::fast_hash::Xxh3BuildHasher> =
+        HashSet::with_capacity_and_hasher(128, crate::fast_hash::Xxh3BuildHasher);
+    for raw_sent in text_lower.split(['.', ';', '\n']) {
+        let s = raw_sent.trim();
+        if s.contains("unless ") || s.contains("except ") || s.contains("excluding ") {
+            continue;
+        }
+        for w in s.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            if w.len() >= 4 {
+                fact_token_set.insert(w);
+            }
+        }
+    }
 
     // Identify which proposition nodes are asserted / present as active facts in the text
     for (idx, name) in dag.node_names.iter().enumerate() {
@@ -185,11 +288,28 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
             continue;
         }
 
+        let is_inhibitor = dag.inhibit[idx] != 0;
+        if is_inhibitor {
+            // An exception condition must be asserted outside its own "unless/except" definition
+            let asserted_twice = text_lower.matches(name).count() >= 2;
+            let content_words_in_facts = words.iter().all(|w| {
+                let clean = w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+                clean.len() < 4 || fact_token_set.contains(clean)
+            });
+            if asserted_twice || content_words_in_facts {
+                active_nodes.push(idx);
+            }
+            continue;
+        }
+
         // Check for continuous substring or high token containment
         if text_lower.contains(name) {
             active_nodes.push(idx);
         } else if words.len() >= 3 {
-            let matches_all = words.iter().all(|w| w.len() < 4 || text_lower.contains(w));
+            let matches_all = words.iter().all(|w| {
+                let clean = w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+                clean.len() < 4 || token_set.contains(clean)
+            });
             if matches_all {
                 active_nodes.push(idx);
             }
@@ -201,7 +321,8 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
     }
 
     let mut findings = Vec::new();
-    let mut recorded_pairs = HashSet::new();
+    let mut recorded_pairs: HashSet<(usize, usize), crate::fast_hash::Xxh3BuildHasher> =
+        HashSet::with_capacity_and_hasher(16, crate::fast_hash::Xxh3BuildHasher);
 
     for &src in &active_nodes {
         let src_name = &dag.node_names[src];
@@ -212,8 +333,7 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
             }
 
             if dag.is_reachable(src, target) {
-                let pair_key = format!("{}:{}", src, target);
-                if !recorded_pairs.insert(pair_key) {
+                if !recorded_pairs.insert((src, target)) {
                     continue;
                 }
 
@@ -231,7 +351,13 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
                         src_name, target_name
                     ));
                 }
+                if findings.len() >= 8 {
+                    break;
+                }
             }
+        }
+        if findings.len() >= 8 {
+            break;
         }
     }
 

@@ -15,11 +15,6 @@ static RE_SENTENCE_CONSTRAINT: LazyLock<Regex> = LazyLock::new(|| {
         .expect("valid sentence constraint regex")
 });
 
-/// Regex matching requested word count, e.g. "in two words", "at most 5 words"
-static RE_WORD_CONSTRAINT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(?:in|at most|maximum of|exactly)\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+words?\b")
-        .expect("valid word constraint regex")
-});
 
 fn word_to_number(w: &str) -> Option<usize> {
     match w.to_lowercase().as_str() {
@@ -124,23 +119,51 @@ static RE_EQUATION_LINE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("valid equation line regex")
 });
 
+static RE_EXACT_WORD_CONSTRAINT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(exactly|in|at most|maximum of)\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+words?\b")
+        .expect("valid exact word constraint regex")
+});
+
+static RE_FLOAT_TOKEN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b(\d+\.\d+)\b").expect("valid float token regex")
+});
+
+static RE_PLAIN_REQ_RESP: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?is)^\s*(?:request|task)\s*:\s*(.*?)\b(?:response|answer)\s*:\s*(.+)$")
+        .expect("valid plain req resp regex")
+});
+
 /// Evaluates arithmetic equations present in the text.
 /// Returns descriptive findings of any calculation errors or confirmations.
 pub fn verify_arithmetic_equations(text: &str) -> Vec<String> {
+    if !text.contains('=') {
+        return Vec::new();
+    }
     let mut findings = Vec::new();
     let mut all_correct = true;
     let mut equation_count = 0;
 
+    let mut exact_rhs_floats: Vec<(f64, usize, usize)> = Vec::new();
     for cap in RE_EQUATION_LINE.captures_iter(text) {
         let lhs = cap[1].trim();
-        let rhs_str = cap[2].replace(',', "");
+        let rhs_raw = cap[2].trim();
+        let rhs_str = rhs_raw.replace(',', "");
 
         // Only evaluate if LHS contains an arithmetic operator (+, -, *, /)
-        if !lhs.contains('+') && !lhs.contains('-') && !lhs.contains('−') && !lhs.contains('*') && !lhs.contains('×') && !lhs.contains('/') && !lhs.contains('÷') {
+        if !lhs.contains('+')
+            && !lhs.contains('-')
+            && !lhs.contains('−')
+            && !lhs.contains('*')
+            && !lhs.contains('×')
+            && !lhs.contains('/')
+            && !lhs.contains('÷')
+        {
             continue;
         }
 
-        if let (Some(actual_res), Ok(expected_res)) = (eval_simple_math(lhs), rhs_str.parse::<f64>()) {
+        if let (Some(actual_res), Ok(expected_res)) =
+            (eval_simple_math(lhs), rhs_str.parse::<f64>())
+        {
             equation_count += 1;
             let diff = (actual_res - expected_res).abs();
             let tolerance = 0.01; // Deterministic calculation tolerance (accounts for rounding)
@@ -151,6 +174,44 @@ pub fn verify_arithmetic_equations(text: &str) -> Vec<String> {
                     "[ARITHMETIC ERROR]: Equation \"{} = {}\" is mathematically incorrect (actual result is {:.4}). (CALCULATION_VALID: FALSE)",
                     lhs, rhs_str, actual_res
                 ));
+            } else if let Some(dot_pos) = rhs_str.find('.') {
+                let dec_places = rhs_str.len() - dot_pos - 1;
+                if dec_places >= 4 {
+                    let end_pos = cap.get(0).map(|m| m.end()).unwrap_or(0);
+                    exact_rhs_floats.push((actual_res, dec_places, end_pos));
+                }
+            }
+        }
+    }
+
+    // Check if any subsequent rounded float in the text truncated instead of rounding half-up
+    for (exact_val, exact_decs, after_pos) in exact_rhs_floats {
+        if let Some(tail) = text.get(after_pos..) {
+            for fcap in RE_FLOAT_TOKEN.captures_iter(tail) {
+                let f_str = &fcap[1];
+                if let Some(dot_pos) = f_str.find('.') {
+                    let k = f_str.len() - dot_pos - 1;
+                    if (1..=3).contains(&k) && k < exact_decs {
+                        if let Ok(reported_val) = f_str.parse::<f64>() {
+                            let step = 10f64.powi(-(k as i32));
+                            let err = (exact_val - reported_val).abs();
+                            if err >= 0.49 * step && err < step {
+                                let scale = 10f64.powi(k as i32);
+                                let half_up = (exact_val * scale + 0.5).floor() / scale;
+                                if (half_up - reported_val).abs() > 1e-6 {
+                                    all_correct = false;
+                                    findings.push(format!(
+                                        "[ARITHMETIC ERROR]: Rounded value {} does not match half-up rounding of {} (expected {:.prec$}). (CALCULATION_VALID: FALSE)",
+                                        f_str,
+                                        exact_val,
+                                        half_up,
+                                        prec = k
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -179,10 +240,11 @@ pub fn count_sentences(text: &str) -> usize {
         .count()
 }
 
-/// Checks if prompt specifies structural length constraints (sentence count, word count)
+/// Checks if prompt specifies structural length or formatting constraints (sentence count, word count, trailing newline, JSON type)
 /// and verifies whether the provided response complies.
 pub fn verify_structural_constraints(request_text: &str, response_text: &str) -> Vec<String> {
     let mut findings = Vec::new();
+    let req_lower = request_text.to_lowercase();
 
     // 1. Sentence count constraint check
     if let Some(cap) = RE_SENTENCE_CONSTRAINT.captures(request_text) {
@@ -204,22 +266,69 @@ pub fn verify_structural_constraints(request_text: &str, response_text: &str) ->
         }
     }
 
-    // 2. Word count constraint check
-    if let Some(cap) = RE_WORD_CONSTRAINT.captures(request_text) {
-        if let Some(target_str) = cap.get(1) {
-            if let Some(max_words) = word_to_number(target_str.as_str()) {
-                let actual_words = response_text.split_whitespace().count();
-                if actual_words > max_words {
+    // 2. Word count constraint check (exact vs upper bound)
+    if let Some(cap) = RE_EXACT_WORD_CONSTRAINT.captures(request_text) {
+        let mode = cap[1].to_lowercase();
+        if let Some(target_words) = word_to_number(&cap[2]) {
+            let actual_words = response_text.split_whitespace().count();
+            if mode == "exactly" {
+                if actual_words != target_words {
                     findings.push(format!(
-                        "[CONSTRAINT ERROR]: Requested constraint of at most {} words, but response contains {} words. (CONSTRAINT_SATISFIED: FALSE)",
-                        max_words, actual_words
+                        "[CONSTRAINT ERROR]: Requested exactly {} words, but response contains {} words. (CONSTRAINT_SATISFIED: FALSE)",
+                        target_words, actual_words
+                    ));
+                } else {
+                    findings.push(format!(
+                        "[CONSTRAINT VERIFIED]: Response contains exactly {} words. (CONSTRAINT_SATISFIED: TRUE)",
+                        target_words
                     ));
                 }
+            } else if actual_words > target_words {
+                findings.push(format!(
+                    "[CONSTRAINT ERROR]: Requested constraint of at most {} words, but response contains {} words. (CONSTRAINT_SATISFIED: FALSE)",
+                    target_words, actual_words
+                ));
             }
         }
     }
 
+    // 3. Trailing newline / whitespace prohibition
+    if (req_lower.contains("no trailing newline") || req_lower.contains("no trailing whitespace"))
+        && (response_text.ends_with('\n')
+            || response_text.ends_with('\r')
+            || response_text.ends_with(' '))
+    {
+        findings.push(
+            "[CONSTRAINT ERROR]: Response contains a prohibited trailing newline or whitespace. (CONSTRAINT_SATISFIED: FALSE)"
+                .to_string(),
+        );
+    }
+
+    // 4. JSON array vs object structural check
+    if req_lower.contains("json array") && response_text.trim_start().starts_with('{') {
+        findings.push(
+            "[CONSTRAINT ERROR]: Requested a JSON array, but response is a JSON object. (CONSTRAINT_SATISFIED: FALSE)"
+                .to_string(),
+        );
+    } else if req_lower.contains("json object") && response_text.trim_start().starts_with('[') {
+        findings.push(
+            "[CONSTRAINT ERROR]: Requested a JSON object, but response is a JSON array. (CONSTRAINT_SATISFIED: FALSE)"
+                .to_string(),
+        );
+    }
+
     findings
+}
+
+/// Parses plain-text Request/Response pairs and verifies structural constraints.
+pub fn verify_plain_text_request_response(text: &str) -> Vec<String> {
+    if text.len() > 2500 || (!text.contains("Response:") && !text.contains("Answer:")) {
+        return Vec::new();
+    }
+    if let Some(cap) = RE_PLAIN_REQ_RESP.captures(text) {
+        return verify_structural_constraints(cap[1].trim(), cap[2].trim());
+    }
+    Vec::new()
 }
 
 #[cfg(test)]

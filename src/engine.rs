@@ -220,7 +220,7 @@ impl ZevEngine {
                 ));
             }
             serde_json::Value::String(s) => std::borrow::Cow::Borrowed(s.as_str()),
-            other => std::borrow::Cow::Owned(serde_json::to_string(other)?),
+            other => std::borrow::Cow::Owned(crate::preprocessor::format_json_value(other)),
         };
 
         if state_borrowed.len() > crate::types::MAX_STATE_BYTES {
@@ -438,13 +438,20 @@ impl ZevEngine {
         // Counterfactual Shadow Inversion Probing: Detect and penalize spurious lexical attractors
         // Gated to relevant families (policy, trap, adversarial, judge_hard) to maintain sub-100µs median latency
         let effective_logits = if candidates.len() >= 2
-            && (family == "policy" || family == "trap" || family == "adversarial" || family == "judge_hard" || family == "ambiguous")
+            && (family == "policy"
+                || family == "trap"
+                || family == "adversarial"
+                || family == "judge_hard"
+                || family == "ambiguous")
             && !preprocessed_state.trim().is_empty()
+            && preprocessed_state.len() <= 2000
         {
-            let shadow_state = crate::counterfactual::generate_counterfactual_shadow(preprocessed_state);
+            let shadow_state =
+                crate::counterfactual::generate_counterfactual_shadow(preprocessed_state);
             if shadow_state != preprocessed_state {
                 let shadow_ctx = PremiseContext::new(&shadow_state);
-                let shadow_logits = compute_order_invariant_logits_with_context(&shadow_ctx, &candidates);
+                let shadow_logits =
+                    compute_order_invariant_logits_with_context(&shadow_ctx, &candidates);
                 let cf_res = crate::counterfactual::evaluate_counterfactual_divergence(
                     &logits,
                     &shadow_logits,
@@ -452,13 +459,18 @@ impl ZevEngine {
                 );
                 cf_res.calibrated_logits
             } else {
-                logits.clone()
+                logits
             }
         } else {
-            logits.clone()
+            logits
         };
 
-        let mut answer = decode_decision(final_question, &candidates, &effective_logits, effective_temp)?;
+        let mut answer =
+            decode_decision(final_question, &candidates, &effective_logits, effective_temp)?;
+
+        if fallback_mode.is_empty() || fallback_mode == "none" {
+            return Ok(answer);
+        }
 
         // Two-System Speculative Gating with Normalized Shannon Entropy & TimesFM Logit Variance Spread
         let num_cands = candidates.len().max(2) as f64;
@@ -505,24 +517,29 @@ impl ZevEngine {
             } else {
                 preprocessed_state
             };
-            let mut verifier = crate::clm::HybridVerifier::default();
+            let head = crate::clm::ContrastiveHead::new(crate::clm::HeadConfig::default());
             let state_emb = crate::clm::embed_text(query_context, 512);
             let mut clm_logits = Vec::with_capacity(candidates.len());
-            for cand in &candidates {
-                let text = if cand.description.is_empty() {
-                    cand.id.clone()
+            for (idx, cand) in candidates.iter().enumerate() {
+                let score = if cand.description.is_empty() {
+                    let action_emb = crate::clm::embed_text(&cand.id, 512);
+                    head.score(&state_emb, &action_emb)
                 } else {
-                    format!("{} {}", cand.id, cand.description)
+                    let mut text =
+                        String::with_capacity(cand.id.len() + 1 + cand.description.len());
+                    text.push_str(&cand.id);
+                    text.push(' ');
+                    text.push_str(&cand.description);
+                    let action_emb = crate::clm::embed_text(&text, 512);
+                    head.score(&state_emb, &action_emb)
                 };
-                let action_emb = crate::clm::embed_text(&text, 512);
-                verifier.register_action_embedding(&cand.id, &action_emb);
-                let score = verifier.head.score(&state_emb, &action_emb);
-                clm_logits.push(score);
+                let base_l = effective_logits.get(idx).copied().unwrap_or(0.0);
+                clm_logits.push(0.75 * base_l + 0.25 * score);
             }
 
             if is_poe {
                 // Bayesian Product of Experts: 0.60 * L_simd + 0.40 * L_clm
-                let poe_logits: Vec<f64> = logits
+                let poe_logits: Vec<f64> = effective_logits
                     .iter()
                     .zip(clm_logits.iter())
                     .map(|(&l_s, &l_c)| 0.60 * l_s + 0.40 * l_c)

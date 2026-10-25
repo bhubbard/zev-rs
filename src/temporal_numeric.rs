@@ -147,11 +147,96 @@ static RE_TEXT_DATE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("valid text date regex")
 });
 
+#[inline]
+fn has_at_least_two_four_digit_numbers(text: &str) -> bool {
+    let mut count = 0usize;
+    let mut run = 0usize;
+    for &b in text.as_bytes() {
+        if b.is_ascii_digit() {
+            run += 1;
+            if run == 4 {
+                count += 1;
+                if count >= 2 {
+                    return true;
+                }
+            }
+        } else {
+            run = 0;
+        }
+    }
+    false
+}
+
 /// Evaluates whether elapsed durations between dates mentioned in text exceed or satisfy stated policy windows.
 /// Returns descriptive findings for warranty, return, grace period, and SLA questions.
 pub fn resolve_temporal_duration_constraints(text: &str) -> Vec<String> {
-    let mut policies = Vec::new();
+    if !has_at_least_two_four_digit_numbers(text) {
+        return Vec::new();
+    }
 
+    // Fast pre-check for duration policy keywords before running RE_DURATION_POLICY
+    let bytes = text.as_bytes();
+    let has_policy_keyword = bytes.len() >= 10
+        && (bytes.windows(6).any(|w| {
+            w.eq_ignore_ascii_case(b"within")
+                || w.eq_ignore_ascii_case(b"window")
+                || w.eq_ignore_ascii_case(b"period")
+                || w.eq_ignore_ascii_case(b"policy")
+                || w.eq_ignore_ascii_case(b"return")
+                || w.eq_ignore_ascii_case(b"up to ")
+                || w.eq_ignore_ascii_case(b"limit ")
+                || w.eq_ignore_ascii_case(b"valid ")
+                || w.eq_ignore_ascii_case(b"has a ")
+                || w.eq_ignore_ascii_case(b"trial ")
+        }) || bytes.windows(8).any(|w| {
+            w.eq_ignore_ascii_case(b"at most ")
+                || w.eq_ignore_ascii_case(b"warranty")
+                || w.eq_ignore_ascii_case(b"deadline")
+                || w.eq_ignore_ascii_case(b"no more ")
+        }));
+    if !has_policy_keyword {
+        return Vec::new();
+    }
+
+    let mut findings = Vec::new();
+
+    // Extract all unique dates first — if fewer than 2 dates exist, skip RE_DURATION_POLICY entirely
+    let mut found_dates: Vec<(String, NaiveDate)> = Vec::new();
+    if text.contains('-') {
+        for cap in RE_ISO_DATE.captures_iter(text) {
+            let raw = cap.get(0).unwrap().as_str();
+            if let Ok(d) = NaiveDate::parse_from_str(raw, "%Y-%m-%d") {
+                if !found_dates.iter().any(|(r, _)| *r == raw) {
+                    found_dates.push((raw.to_string(), d));
+                }
+            }
+        }
+    }
+
+    const MONTHS: [&str; 12] = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ];
+    if MONTHS.iter().any(|&m| text.contains(m)) {
+        for cap in RE_TEXT_DATE.captures_iter(text) {
+            let raw = cap.get(0).unwrap().as_str();
+            let month_str = &cap[1];
+            let day_str = &cap[2];
+            let year_str = &cap[3];
+            let date_str = format!("{month_str} {day_str}, {year_str}");
+            if let Ok(d) = NaiveDate::parse_from_str(&date_str, "%B %d, %Y") {
+                if !found_dates.iter().any(|(r, _)| *r == raw) {
+                    found_dates.push((raw.to_string(), d));
+                }
+            }
+        }
+    }
+
+    if found_dates.len() < 2 {
+        return findings;
+    }
+
+    let mut policies = Vec::new();
     for cap in RE_DURATION_POLICY.captures_iter(text) {
         let (num_str, unit_str) = if let (Some(n), Some(u)) = (cap.get(1), cap.get(2)) {
             (n.as_str(), u.as_str())
@@ -169,47 +254,23 @@ pub fn resolve_temporal_duration_constraints(text: &str) -> Vec<String> {
                 "year" => num * 365,
                 _ => continue,
             };
-            policies.push((days, format!("{} {}", num, unit_str)));
+            let label = format!("{} {}", num, unit_str);
+            if !policies.iter().any(|&(d, _)| d == days) {
+                policies.push((days, label));
+            }
         }
     }
 
     if policies.is_empty() {
-        return Vec::new();
-    }
-
-    // Extract all unique dates
-    let mut found_dates: Vec<(String, NaiveDate)> = Vec::new();
-    for cap in RE_ISO_DATE.captures_iter(text) {
-        let raw = cap.get(0).unwrap().as_str();
-        if let Ok(d) = NaiveDate::parse_from_str(raw, "%Y-%m-%d") {
-            if !found_dates.iter().any(|(r, _)| *r == raw) {
-                found_dates.push((raw.to_string(), d));
-            }
-        }
-    }
-
-    for cap in RE_TEXT_DATE.captures_iter(text) {
-        let raw = cap.get(0).unwrap().as_str();
-        let month_str = &cap[1];
-        let day_str = &cap[2];
-        let year_str = &cap[3];
-        let date_str = format!("{month_str} {day_str}, {year_str}");
-        if let Ok(d) = NaiveDate::parse_from_str(&date_str, "%B %d, %Y") {
-            if !found_dates.iter().any(|(r, _)| *r == raw) {
-                found_dates.push((raw.to_string(), d));
-            }
-        }
-    }
-
-    if found_dates.len() < 2 {
-        return Vec::new();
+        return findings;
     }
 
     found_dates.sort_by_key(|&(_, d)| d);
 
-    let mut findings = Vec::new();
+    let max_span = if found_dates.len() <= 4 { found_dates.len() } else { 2 };
     for i in 0..found_dates.len() {
-        for j in (i + 1)..found_dates.len() {
+        let end_j = (i + max_span).min(found_dates.len());
+        for j in (i + 1)..end_j {
             let (raw_i, date_i) = &found_dates[i];
             let (raw_j, date_j) = &found_dates[j];
             let elapsed = (*date_j - *date_i).num_days();
@@ -230,7 +291,16 @@ pub fn resolve_temporal_duration_constraints(text: &str) -> Vec<String> {
                         raw_i, raw_j, elapsed, policy_name
                     ));
                 }
+                if findings.len() >= 8 {
+                    break;
+                }
             }
+            if findings.len() >= 8 {
+                break;
+            }
+        }
+        if findings.len() >= 8 {
+            break;
         }
     }
 
