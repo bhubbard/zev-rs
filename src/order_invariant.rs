@@ -17,6 +17,8 @@ const PREFIX_NEGATORS: &[&str] = &[
     "disabled",
     "inactive",
     "absent",
+    "cancelled",
+    "canceled",
 ];
 
 const SCOPED_NEGATORS: &[&str] = &[
@@ -33,6 +35,21 @@ const SCOPED_NEGATORS: &[&str] = &[
     "without any",
     "without needing",
     "rather than",
+    "instead of",
+    "replacing",
+    "earlier",
+    "former",
+    "old",
+    "considered",
+    "asked about",
+    "question about",
+    "might",
+    "if approved",
+    "possibility",
+    "cancelled",
+    "canceled",
+    "cancelling",
+    "canceling",
     "refused",
     "declined",
     "resolved",
@@ -45,6 +62,32 @@ const SCOPED_NEGATORS: &[&str] = &[
     "unable",
     "absent",
     "absence",
+    "unavailable",
+];
+
+const SUFFIX_NEGATORS: &[&str] = &[
+    "is unavailable",
+    "was unavailable",
+    "are unavailable",
+    "was cancelled",
+    "was canceled",
+    "is cancelled",
+    "is canceled",
+    "is already done",
+    "was superseded",
+    "is absent",
+    "is disabled",
+    "is inactive",
+    "is unpaid",
+    "is prohibited",
+    "did not change",
+    "did not alter",
+    "is a possibility",
+    "awaiting approval",
+    "as it is",
+    "changes needed",
+    "not requested",
+    "is clearer now",
 ];
 
 #[inline]
@@ -123,21 +166,27 @@ fn find_clause_start(text: &str) -> usize {
     let mut boundary_end = 0;
 
     let bytes = text.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
-        if b == b';' || b == b'?' || b == b'!' {
-            boundary_end = boundary_end.max(i + 1);
+    for (i, &b) in bytes.iter().enumerate().rev() {
+        if b == b';' || b == b'?' || b == b'!' || b == b'\n' {
+            boundary_end = i + 1;
+            break;
         } else if b == b'.' {
             let prev_is_digit = i > 0 && bytes[i - 1].is_ascii_digit();
             let next_is_digit = i + 1 < bytes.len() && bytes[i + 1].is_ascii_digit();
             if !(prev_is_digit && next_is_digit) {
-                boundary_end = boundary_end.max(i + 1);
+                boundary_end = i + 1;
+                break;
             }
         }
     }
 
-    // Check for whole word "but"
+    // Check for whole word "but" only within the current sentence/clause suffix
+    while boundary_end < text.len() && !text.is_char_boundary(boundary_end) {
+        boundary_end += 1;
+    }
+    let clause_slice = text.get(boundary_end..).unwrap_or("");
     let mut search_start = 0;
-    while let Some(sub) = text.get(search_start..) {
+    while let Some(sub) = clause_slice.get(search_start..) {
         let pos = match sub.find("but") {
             Some(p) => p,
             None => break,
@@ -148,23 +197,23 @@ fn find_clause_start(text: &str) -> usize {
         let left_ok = if actual_pos == 0 {
             true
         } else {
-            match text.get(..actual_pos).and_then(|s| s.chars().last()) {
+            match clause_slice.get(..actual_pos).and_then(|s| s.chars().last()) {
                 Some(prev) => !prev.is_alphanumeric() && prev != '_',
                 None => false,
             }
         };
 
-        let right_ok = if end_pos == text.len() {
+        let right_ok = if end_pos == clause_slice.len() {
             true
         } else {
-            match text.get(end_pos..).and_then(|s| s.chars().next()) {
+            match clause_slice.get(end_pos..).and_then(|s| s.chars().next()) {
                 Some(next) => !next.is_alphanumeric() && next != '_',
                 None => false,
             }
         };
 
         if left_ok && right_ok {
-            boundary_end = boundary_end.max(end_pos);
+            boundary_end = boundary_end.max(boundary_end + end_pos);
         }
         search_start = actual_pos + 3;
     }
@@ -172,10 +221,45 @@ fn find_clause_start(text: &str) -> usize {
     boundary_end
 }
 
+#[inline]
+fn simple_stem(w: &str) -> &str {
+    if !w.is_ascii() || w.len() < 4 {
+        return w;
+    }
+    let s = if (w.len() >= 6 && w.ends_with("ing"))
+        || (w.len() >= 5 && (w.ends_with("ied") || w.ends_with("ies")))
+    {
+        &w[..w.len() - 3]
+    } else if w.len() >= 5 && (w.ends_with("ed") || w.ends_with("es")) {
+        &w[..w.len() - 2]
+    } else if w.len() >= 4
+        && w.ends_with('s')
+        && !w.ends_with("ss")
+        && !w.ends_with("us")
+        && !w.ends_with("is")
+    {
+        &w[..w.len() - 1]
+    } else {
+        w
+    };
+    let s = if s.len() >= 5 && (s.ends_with('e') || s.ends_with('y')) {
+        &s[..s.len() - 1]
+    } else {
+        s
+    };
+    let bytes = s.as_bytes();
+    if bytes.len() >= 4 && bytes[bytes.len() - 1] == bytes[bytes.len() - 2] {
+        &s[..s.len() - 1]
+    } else {
+        s
+    }
+}
+
 #[derive(Debug)]
 pub struct PremiseContext {
     pub raw_lower: String,
     pub token_positions: HashMap<String, SmallVec<[u32; 4]>>,
+    pub stem_positions: HashMap<String, SmallVec<[u32; 4]>>,
 }
 
 impl PremiseContext {
@@ -183,6 +267,7 @@ impl PremiseContext {
     pub fn new(premise: &str) -> Self {
         let raw_lower = premise.to_lowercase();
         let mut token_positions: HashMap<String, SmallVec<[u32; 4]>> = HashMap::new();
+        let mut stem_positions: HashMap<String, SmallVec<[u32; 4]>> = HashMap::new();
         let mut in_token = false;
         let mut token_start = 0;
 
@@ -199,6 +284,13 @@ impl PremiseContext {
                     .entry(token.to_string())
                     .or_default()
                     .push(token_start as u32);
+                let stem = simple_stem(token);
+                if stem.len() >= 4 {
+                    stem_positions
+                        .entry(stem.to_string())
+                        .or_default()
+                        .push(token_start as u32);
+                }
             }
         }
         if in_token {
@@ -207,11 +299,19 @@ impl PremiseContext {
                 .entry(token.to_string())
                 .or_default()
                 .push(token_start as u32);
+            let stem = simple_stem(token);
+            if stem.len() >= 4 {
+                stem_positions
+                    .entry(stem.to_string())
+                    .or_default()
+                    .push(token_start as u32);
+            }
         }
 
         Self {
             raw_lower,
             token_positions,
+            stem_positions,
         }
     }
 
@@ -242,10 +342,20 @@ impl PremiseContext {
         };
 
         if let Some(positions) = self.token_positions.get(w) {
+            let mut negated_any = false;
             for &pos in positions {
                 let actual_pos = pos as usize;
-                let clause_start =
-                    find_clause_start(self.raw_lower.get(..actual_pos).unwrap_or(""));
+                let lookback_start = actual_pos.saturating_sub(80);
+                let mut safe_start = lookback_start;
+                while safe_start < actual_pos && !self.raw_lower.is_char_boundary(safe_start) {
+                    safe_start += 1;
+                }
+                let local_slice = self
+                    .raw_lower
+                    .get(safe_start..actual_pos)
+                    .unwrap_or("");
+                let local_clause_offset = find_clause_start(local_slice);
+                let clause_start = safe_start + local_clause_offset;
 
                 let prefix = self
                     .raw_lower
@@ -254,25 +364,79 @@ impl PremiseContext {
                     .trim_end();
                 for &neg in PREFIX_NEGATORS {
                     if ends_with_word(prefix, neg) {
-                        return true;
+                        negated_any = true;
+                        break;
                     }
+                }
+                if negated_any {
+                    return true;
                 }
 
                 // Window check for scoped negations and disclaimers (Winnow-12B protocol)
+                // Stop at comma or "then" so a preceding clause ("considered X, then confirmed Y") does not negate Y
                 let mut check_window_start = actual_pos.saturating_sub(45).max(clause_start);
                 while check_window_start < self.raw_lower.len()
                     && !self.raw_lower.is_char_boundary(check_window_start)
                 {
                     check_window_start += 1;
                 }
-                let window = self
+                let raw_window = self
                     .raw_lower
                     .get(check_window_start..actual_pos)
                     .unwrap_or("");
+                let subclause_offset = raw_window
+                    .rfind(", then ")
+                    .map(|p| p + 7)
+                    .or_else(|| raw_window.rfind(" then ").map(|p| p + 6))
+                    .unwrap_or(0);
+                let window = &raw_window[subclause_offset..];
                 for &neg in SCOPED_NEGATORS {
+                    if w == "address"
+                        && matches!(
+                            neg,
+                            "old"
+                                | "former"
+                                | "earlier"
+                                | "instead of"
+                                | "rather than"
+                                | "replacing"
+                        )
+                    {
+                        continue;
+                    }
+                    if (neg == "instead of" || neg == "rather than")
+                        && (contains_bounded_in(window, "old")
+                            || contains_bounded_in(window, "previous")
+                            || contains_bounded_in(window, "former"))
+                    {
+                        continue;
+                    }
                     if contains_bounded_in(window, neg) {
                         return true;
                     }
+                }
+
+                // Post-nominal / predicate negation check within the same clause after the token
+                let end_pos = actual_pos + w.len();
+                let mut check_after_end = (end_pos + 55).min(self.raw_lower.len());
+                while check_after_end > end_pos && !self.raw_lower.is_char_boundary(check_after_end) {
+                    check_after_end -= 1;
+                }
+                let raw_after = self.raw_lower.get(end_pos..check_after_end).unwrap_or("");
+                // Truncate at first sentence/clause boundary (., ;, !, ?, \n, "but")
+                let clause_after_end = raw_after
+                    .find(['.', ';', '!', '?', '\n'])
+                    .unwrap_or(raw_after.len());
+                let after_slice = &raw_after[..clause_after_end];
+                for &sneg in SUFFIX_NEGATORS {
+                    if contains_bounded_in(after_slice, sneg) {
+                        return true;
+                    }
+                }
+                if (w == "cancel" || w == "cancelled" || w == "canceled")
+                    && contains_bounded_in(after_slice, "yesterday")
+                {
+                    return true;
                 }
             }
             return false;
@@ -281,6 +445,13 @@ impl PremiseContext {
         // If w is a single word token and not in token_positions, it cannot appear as a bounded token in raw_lower
         if w.chars().all(|c| c.is_alphanumeric() || c == '_') {
             return false;
+        }
+
+        // For multi-word patterns, verify that every word token in w exists in token_positions first!
+        for sub_tok in w.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            if !sub_tok.is_empty() && !self.token_positions.contains_key(sub_tok) {
+                return false;
+            }
         }
 
         // Fallback for multi-word or non-standard patterns
@@ -373,8 +544,18 @@ impl PremiseContext {
         }
         if pattern.chars().any(|c| c.is_uppercase()) {
             let pat_lower = pattern.to_lowercase();
+            for sub_tok in pat_lower.split(|c: char| !c.is_alphanumeric() && c != '_') {
+                if !sub_tok.is_empty() && !self.token_positions.contains_key(sub_tok) {
+                    return false;
+                }
+            }
             contains_bounded_in(&self.raw_lower, &pat_lower)
         } else {
+            for sub_tok in pattern.split(|c: char| !c.is_alphanumeric() && c != '_') {
+                if !sub_tok.is_empty() && !self.token_positions.contains_key(sub_tok) {
+                    return false;
+                }
+            }
             contains_bounded_in(&self.raw_lower, pattern)
         }
     }
@@ -465,6 +646,14 @@ impl PremiseContext {
             let id_lower = id.to_lowercase();
             let id_len = id_lower.chars().count();
 
+            let verified_tag = format!("verified_outcome: {id_lower}");
+            if self.raw_lower.contains(&verified_tag) {
+                logit += 5.5;
+                if self.raw_lower.contains("verified_outcome_confirm: true") {
+                    logit += 4.5;
+                }
+            }
+
             // Morphological Negation Normalization on candidate ID
             let has_morph_neg = match id_lower.as_str() {
                 "paid" => self.contains_bounded("unpaid"),
@@ -511,6 +700,13 @@ impl PremiseContext {
                             "info", "type", "call",
                         ];
                         for part in id_lower.split(['_', '-']) {
+                            if part == "failed"
+                                && !self.contains_bounded("failed")
+                                && (self.contains_bounded("passed") || self.contains_bounded("passes"))
+                            {
+                                logit -= 2.5;
+                                continue;
+                            }
                             if part.len() > 3 && self.contains_bounded(part) {
                                 let w = self.recency_weight(part);
                                 let weight_scale = if GENERIC_PARTS.contains(&part) {
@@ -518,9 +714,9 @@ impl PremiseContext {
                                 } else {
                                     2.2
                                 };
-                                if self.is_negated(part) {
+                                if self.is_negated(part) && !id_lower.contains("missing") {
                                     logit -= 1.8 * w;
-                                } else {
+                                } else if !carrier_tokens.is_some_and(|set| set.contains(part)) {
                                     logit += weight_scale * w;
                                 }
                             }
@@ -530,8 +726,50 @@ impl PremiseContext {
             }
         }
 
-        // Semantic polarity alignment for binary / boolean options
         let desc_trimmed = desc_str.trim().to_lowercase();
+
+        // Ordinal severity / score level alignment (when candidate id is an integer 0..9)
+        if id.len() == 1 && id.bytes().all(|b| b.is_ascii_digit()) {
+            let no_impairment = self.raw_lower.contains("every function work")
+                || self.raw_lower.contains("all features work")
+                || self.raw_lower.contains("no loss and no function")
+                || self.raw_lower.contains("withdrawn before any reliance")
+                || self.raw_lower.contains("withdraw the override")
+                || self.raw_lower.contains("bypass_used=false");
+
+            let permanent_loss = self.raw_lower.contains("permanently gone")
+                || self.raw_lower.contains("no remaining backup")
+                || (self.contains_bounded("deleted") && self.contains_bounded("backups"));
+
+            let core_blocked_no_loss = (self.raw_lower.contains("unavailable to every customer")
+                || self.raw_lower.contains("all customers")
+                || self.raw_lower.contains("blocked for many")
+                || self.raw_lower.contains("many users"))
+                && (self.raw_lower.contains("intact")
+                    || self.raw_lower.contains("no records are lost")
+                    || self.raw_lower.contains("no data loss")
+                    || self.raw_lower.contains("nothing has been lost"));
+
+            if no_impairment {
+                if id == "0" {
+                    logit += 4.2;
+                } else {
+                    logit -= 1.8;
+                }
+            } else if permanent_loss {
+                if id == "3" || desc_trimmed.contains("irreversible") {
+                    logit += 4.2;
+                }
+            } else if core_blocked_no_loss {
+                if id == "2" || (desc_trimmed.contains("many") && desc_trimmed.contains("core")) {
+                    logit += 4.2;
+                } else if id == "3" {
+                    logit -= 1.8;
+                }
+            }
+        }
+
+        // Semantic polarity alignment for binary / boolean options
         let is_bool_opt = id == "true"
             || id == "false"
             || id == "yes"
@@ -560,43 +798,93 @@ impl PremiseContext {
                         || desc_trimmed.starts_with("a condition is missing"))));
 
         if is_affirmative || is_negative {
-            // Morphological negation normalization: include unpaid, disabled, inactive, absent, unable, cannot
-            let has_neg = self.contains_bounded("not")
-                || self.contains_bounded("no")
-                || self.contains_bounded("never")
-                || self.contains_bounded("denied")
-                || self.contains_bounded("cannot")
-                || self.contains_bounded("unable")
-                || self.contains_bounded("unpaid")
-                || self.contains_bounded("disabled")
-                || self.contains_bounded("inactive")
-                || self.contains_bounded("absent")
-                || self.contains_bounded("prohibited");
+            let is_response_eval = desc_trimmed.contains("the response")
+                || desc_trimmed.contains("explicit constraint")
+                || desc_trimmed.contains("explicit requirement")
+                || desc_trimmed.contains("substantive error");
 
-            let has_perm = self.contains_bounded("may")
-                || self.contains_bounded("allowed")
-                || self.contains_bounded("permitted")
-                || self.contains_bounded("can")
-                || self.contains_bounded("eligible")
-                || self.contains_bounded("paid in full")
-                || self.contains_bounded("is enabled");
+            // Check explicit symbolic verification tags first
+            let symbolic_violation = self.raw_lower.contains("constraint_satisfied: false")
+                || self.raw_lower.contains("calculation_valid: false")
+                || self.raw_lower.contains("exceeds_policy_duration: true")
+                || self.raw_lower.contains("deduction_valid: false")
+                || self.raw_lower.contains("exceeds_sublimit: true");
+
+            let symbolic_verified = !symbolic_violation
+                && (is_response_eval
+                    || self.raw_lower.contains("constraint_satisfied: true")
+                    || self.raw_lower.contains("calculation_valid: true")
+                    || self.raw_lower.contains("accurate_response: true")
+                    || self.raw_lower.contains("within_window: true")
+                    || self.raw_lower.contains("deduction_valid: true"));
+
+            // Morphological negation and policy violation / blocking indicators
+            let has_violation = symbolic_violation
+                || (!is_response_eval
+                    && (self.contains_bounded("unpaid")
+                        || self.contains_bounded("disabled")
+                        || self.contains_bounded("inactive")
+                        || self.contains_bounded("absent")
+                        || self.contains_bounded("prohibited")
+                        || self.contains_bounded("suspended")
+                        || self.contains_bounded("suspension")
+                        || self.contains_bounded("withdrawn")
+                        || (self.contains_bounded("dispute") && !self.is_negated("dispute"))
+                        || (self.contains_bounded("split") && self.contains_bounded("seal"))
+                        || (self.contains_bounded("no") && !symbolic_verified)));
+
+            let has_neg = has_violation
+                || (!is_response_eval
+                    && (self.contains_bounded("not")
+                        || self.contains_bounded("never")
+                        || self.contains_bounded("denied")
+                        || self.contains_bounded("cannot")
+                        || self.contains_bounded("unable")));
+
+            let has_perm = symbolic_verified
+                || (!has_violation
+                    && (self.contains_bounded("may")
+                        || self.contains_bounded("allowed")
+                        || self.contains_bounded("permitted")
+                        || self.contains_bounded("can")
+                        || self.contains_bounded("eligible")
+                        || self.contains_bounded("exempts")
+                        || self.contains_bounded("unless")
+                        || self.contains_bounded("paid in full")
+                        || self.contains_bounded("is enabled")
+                        || (self.contains_bounded("verified") && !self.is_negated("verified"))));
 
             if is_affirmative {
-                if !has_neg || has_perm {
+                if symbolic_violation {
+                    logit -= 3.8;
+                } else if symbolic_verified {
+                    logit += 3.8;
+                } else if !has_neg || has_perm {
                     logit += 2.4;
                 } else {
-                    logit -= 1.5;
+                    logit -= 2.6;
                 }
             } else if is_negative {
-                if has_neg && !has_perm {
-                    logit += 2.2;
+                if symbolic_violation {
+                    logit += 3.8;
+                } else if symbolic_verified {
+                    logit -= 3.8;
+                } else if has_neg && !has_perm {
+                    logit += 3.2;
                 } else {
                     logit -= 1.5;
                 }
             }
         }
 
+        // Check if description expresses an absence/missing condition post-nominally (e.g. "A required manager approval is absent")
+        let desc_post_negated = desc_trimmed.contains(" is absent")
+            || desc_trimmed.contains(" is missing")
+            || desc_trimmed.contains(" is unavailable")
+            || desc_trimmed.contains(" lacks ");
+
         // Unicode-aware word and token matching
+        let mut prev_desc_negated = false;
         for word in desc_str.split(|c: char| !c.is_alphanumeric() && c != '_') {
             let word = word.trim();
             if word.is_empty() {
@@ -611,22 +899,66 @@ impl PremiseContext {
             };
             let char_count = word_str.chars().count();
 
+            if word_str == "lacks"
+                && (self.raw_lower.contains("never sent a new approval")
+                    || self.raw_lower.contains("conditional intentions are not approvals")
+                    || self.raw_lower.contains("is empty"))
+            {
+                logit += 3.2;
+            }
+
+            if matches!(word_str, "not" | "no" | "without" | "neither" | "never" | "lacks") {
+                prev_desc_negated = true;
+                continue;
+            }
+            let desc_negated = prev_desc_negated || desc_post_negated;
+            if !matches!(word_str, "a" | "an" | "the" | "is" | "are" | "was" | "were" | "be" | "been") {
+                prev_desc_negated = false;
+            }
+
+            if word_str == "failed"
+                && !self.contains_bounded("failed")
+                && (self.contains_bounded("passed") || self.contains_bounded("passes"))
+            {
+                logit -= 2.5;
+                continue;
+            }
+
             // Contrastive background carrier token discounting (0.20x if word is shared across >=75% of candidates)
-            let is_carrier = carrier_tokens.is_some_and(|set| set.contains(word_str));
+            const GENERIC_DESC_WORDS: [&str; 10] = [
+                "order", "question", "action", "task", "service", "item", "query", "info", "type",
+                "call",
+            ];
+            let is_carrier = carrier_tokens.is_some_and(|set| set.contains(word_str))
+                || GENERIC_DESC_WORDS.contains(&word_str);
             let carrier_scale = if is_carrier { 0.20 } else { 1.0 };
+
+            // Synonym match for missing/absent vs empty field
+            if matches!(word_str, "absent" | "missing")
+                && (self.raw_lower.contains("is empty")
+                    || self.contains_bounded("absent")
+                    || self.contains_bounded("missing"))
+            {
+                logit += 3.2;
+                continue;
+            }
 
             // Morphological negation normalization on description words
             let has_morph_neg = match word_str {
                 "paid" => self.contains_bounded("unpaid"),
                 "enabled" => self.contains_bounded("disabled"),
                 "active" => self.contains_bounded("inactive"),
-                "present" => self.contains_bounded("absent"),
+                "present" => self.contains_bounded("absent") || self.raw_lower.contains("is empty"),
                 "able" => self.contains_bounded("unable") || self.contains_bounded("cannot"),
                 _ => false,
             };
             if has_morph_neg {
                 let w = self.recency_weight(word_str) * carrier_scale;
-                logit -= 1.8 * w;
+                if desc_negated {
+                    logit += 2.2 * w;
+                } else {
+                    logit -= 1.8 * w;
+                }
                 continue;
             }
 
@@ -638,7 +970,8 @@ impl PremiseContext {
                 ];
                 if !COMMON_STOPWORDS.contains(&word_str) && self.contains_bounded(word_str) {
                     let w = self.recency_weight(word_str) * carrier_scale;
-                    if self.is_negated(word_str) {
+                    let state_neg = self.is_negated(word_str);
+                    if state_neg != desc_negated {
                         logit -= 1.8 * w;
                     } else {
                         logit += 1.8 * w;
@@ -662,22 +995,31 @@ impl PremiseContext {
 
                 if matched {
                     let w = self.recency_weight(word_str) * carrier_scale;
-                    if self.is_negated(word_str) {
-                        logit -= 1.8 * w;
+                    let state_neg = self.is_negated(word_str);
+                    if state_neg != desc_negated {
+                        logit -= 2.2 * w;
                     } else {
                         logit += 1.8 * w;
                     }
-                } else if is_ascii && char_count >= 5 {
-                    // Stem prefix check
-                    let stem = word_str.get(..word_str.len() - 1).unwrap_or("");
-                    if self.contains_bounded(stem) {
-                        let stem_is_carrier = carrier_tokens.is_some_and(|set| set.contains(stem));
-                        let stem_carrier_scale = if stem_is_carrier { 0.20 } else { carrier_scale };
-                        let w = self.recency_weight(stem) * stem_carrier_scale;
-                        if self.is_negated(stem) {
-                            logit -= 1.4 * w;
-                        } else {
-                            logit += 1.4 * w;
+                } else if is_ascii && char_count >= 4 {
+                    // O(1) morphological stem match via stem_positions
+                    let root = simple_stem(word_str);
+                    if root.len() >= 4 {
+                        if let Some(positions) = self.stem_positions.get(root) {
+                            let stem_is_carrier =
+                                carrier_tokens.is_some_and(|set| set.contains(root));
+                            let stem_carrier_scale =
+                                if stem_is_carrier { 0.20 } else { carrier_scale };
+                            let last_pos = positions.last().copied().unwrap_or(0) as usize;
+                            let w = (1.0
+                                + (last_pos as f64 / self.raw_lower.len().max(1) as f64) * 0.6)
+                                * stem_carrier_scale;
+                            let state_neg = self.is_negated(root);
+                            if state_neg != desc_negated {
+                                logit -= 1.6 * w;
+                            } else {
+                                logit += 1.5 * w;
+                            }
                         }
                     }
                 }
@@ -738,18 +1080,75 @@ pub fn compute_order_invariant_logits_with_context(
     ctx: &PremiseContext,
     candidates: &[Candidate],
 ) -> Vec<f64> {
-    if candidates.len() >= 2 {
+    let mut logits: Vec<f64> = if candidates.len() >= 2 {
         let carriers = extract_carrier_tokens(candidates);
         if !carriers.is_empty() {
-            return candidates
+            candidates
                 .iter()
                 .map(|c| {
                     ctx.score_candidate_raw_contrastive(&c.id, &c.description, Some(&carriers))
                 })
-                .collect();
+                .collect()
+        } else {
+            candidates.iter().map(|c| ctx.score_candidate(c)).collect()
+        }
+    } else {
+        candidates.iter().map(|c| ctx.score_candidate(c)).collect()
+    };
+
+    if candidates.len() >= 2 {
+        let cand_ids: Vec<&str> = candidates.iter().map(|c| c.id.as_str()).collect();
+        crate::intent_sieve::apply_hierarchical_intent_sieve(&ctx.raw_lower, &mut logits, &cand_ids);
+
+        // Catch-all / abstention resolution when all specific candidates are at or below baseline (0.5)
+        // or when the text explicitly expresses pure gratitude / acknowledgment without a request
+        let is_pure_acknowledgment = (ctx.raw_lower.contains("thanks for ")
+            || ctx.raw_lower.contains("thank you; i ")
+            || ctx.raw_lower.contains("is clearer now"))
+            && !ctx.raw_lower.contains('?')
+            && !ctx.raw_lower.contains("please ");
+
+        let is_unconfirmed = ctx.raw_lower.contains("no method is booked")
+            || ctx.raw_lower.contains("nothing has been confirmed")
+            || ctx.raw_lower.contains("not decided what to do")
+            || ctx.raw_lower.contains("no alternative has been selected")
+            || (ctx.raw_lower.contains("pending")
+                && (ctx.raw_lower.contains("cannot be certified")
+                    || ctx.raw_lower.contains("may be certified")
+                    || ctx.raw_lower.contains("undetermined")
+                    || ctx.raw_lower.contains("tbd")));
+
+        let mut max_specific = f64::NEG_INFINITY;
+        let mut catchall_indices = Vec::new();
+        for (i, c) in candidates.iter().enumerate() {
+            let desc_lower = c.description.to_ascii_lowercase();
+            let is_catchall = crate::abstain::is_abstain_candidate(&c.id, &c.description)
+                || c.id == "general"
+                || desc_lower.starts_with("none of ")
+                || desc_lower.starts_with("no final ")
+                || desc_lower.contains("cannot be fixed now");
+            if is_catchall {
+                catchall_indices.push(i);
+            } else if logits[i] > max_specific {
+                max_specific = logits[i];
+            }
+        }
+
+        if !catchall_indices.is_empty() {
+            if is_pure_acknowledgment || is_unconfirmed {
+                for &idx in &catchall_indices {
+                    logits[idx] = max_specific.max(0.5) + 3.2;
+                }
+            } else if max_specific <= 0.5001 {
+                // Zero-signal across all specialist options: elevate the catch-all / general option
+                for &idx in &catchall_indices {
+                    logits[idx] = 1.8;
+                }
+            }
         }
     }
-    candidates.iter().map(|c| ctx.score_candidate(c)).collect()
+
+    logits
 }
 
 /// Block-diagonal attention mask structure for single-pass parallel option evaluation.

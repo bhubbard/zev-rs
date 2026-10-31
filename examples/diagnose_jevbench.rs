@@ -67,7 +67,7 @@ fn load_jevbench() -> Vec<JevBenchItem> {
         let path = format!("datasets/jevbench/{fname}");
         if let Ok(file) = File::open(&path) {
             let reader = BufReader::new(file);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 if !line.trim().is_empty() {
                     if let Ok(item) = serde_json::from_str::<JevBenchItem>(&line) {
                         items.push(item);

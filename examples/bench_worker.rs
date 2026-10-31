@@ -100,7 +100,7 @@ fn load_jevbench_231() -> Vec<JevBenchItem> {
             let path = std::path::Path::new(path_str);
             if let Ok(file) = File::open(path) {
                 let reader = BufReader::new(file);
-                for line_res in reader.lines().flatten() {
+                for line_res in reader.lines().map_while(Result::ok) {
                     let trimmed = line_res.trim();
                     if !trimmed.is_empty() {
                         if let Ok(item) = serde_json::from_str::<JevBenchItem>(trimmed) {

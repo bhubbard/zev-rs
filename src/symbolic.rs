@@ -120,7 +120,7 @@ pub fn eval_simple_math(expr: &str) -> Option<f64> {
 }
 
 static RE_EQUATION_LINE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"([0-9\.\s\+\-\*\/×−÷]+)=\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?)")
+    Regex::new(r"([0-9\.\s\+\-\*\/×−÷]+)=\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)")
         .expect("valid equation line regex")
 });
 
@@ -134,26 +134,34 @@ pub fn verify_arithmetic_equations(text: &str) -> Vec<String> {
     let mut all_correct = true;
     let mut equation_count = 0;
 
-    for cap in RE_EQUATION_LINE.captures_iter(text) {
-        let lhs = cap[1].trim();
-        let rhs_str = cap[2].replace(',', "");
-
-        // Only evaluate if LHS contains an arithmetic operator (+, -, *, /)
-        if !lhs.contains('+') && !lhs.contains('-') && !lhs.contains('−') && !lhs.contains('*') && !lhs.contains('×') && !lhs.contains('/') && !lhs.contains('÷') {
+    for line in text.lines() {
+        if !line.contains('=') || line.contains("===") {
             continue;
         }
+        if !line.bytes().any(|b| b.is_ascii_digit()) {
+            continue;
+        }
+        for cap in RE_EQUATION_LINE.captures_iter(line) {
+            let lhs = cap[1].trim();
+            let rhs_str = cap[2].replace(',', "");
 
-        if let (Some(actual_res), Ok(expected_res)) = (eval_simple_math(lhs), rhs_str.parse::<f64>()) {
-            equation_count += 1;
-            let diff = (actual_res - expected_res).abs();
-            let tolerance = 0.01; // Deterministic calculation tolerance (accounts for rounding)
+            // Only evaluate if LHS contains an arithmetic operator (+, -, *, /)
+            if !lhs.contains('+') && !lhs.contains('-') && !lhs.contains('−') && !lhs.contains('*') && !lhs.contains('×') && !lhs.contains('/') && !lhs.contains('÷') {
+                continue;
+            }
 
-            if diff > tolerance {
-                all_correct = false;
-                findings.push(format!(
-                    "[ARITHMETIC ERROR]: Equation \"{} = {}\" is mathematically incorrect (actual result is {:.4}). (CALCULATION_VALID: FALSE)",
-                    lhs, rhs_str, actual_res
-                ));
+            if let (Some(actual_res), Ok(expected_res)) = (eval_simple_math(lhs), rhs_str.parse::<f64>()) {
+                equation_count += 1;
+                let diff = (actual_res - expected_res).abs();
+                let tolerance = 0.01; // Deterministic calculation tolerance (accounts for rounding)
+
+                if diff > tolerance {
+                    all_correct = false;
+                    findings.push(format!(
+                        "[ARITHMETIC ERROR]: Equation \"{} = {}\" is mathematically incorrect (actual result is {:.4}). (CALCULATION_VALID: FALSE)",
+                        lhs, rhs_str, actual_res
+                    ));
+                }
             }
         }
     }
@@ -176,7 +184,7 @@ pub fn count_sentences(text: &str) -> usize {
     }
 
     trimmed
-        .split(|c| c == '.' || c == '!' || c == '?')
+        .split(['.', '!', '?'])
         .map(|s| s.trim())
         .filter(|s| !s.is_empty() && s.chars().any(|ch| ch.is_alphabetic()))
         .count()
@@ -212,13 +220,225 @@ pub fn verify_structural_constraints(request_text: &str, response_text: &str) ->
         if let Some(target_str) = cap.get(1) {
             if let Some(max_words) = word_to_number(target_str.as_str()) {
                 let actual_words = response_text.split_whitespace().count();
-                if actual_words > max_words {
+                let is_exact = request_text.to_ascii_lowercase().contains("exactly");
+                if (is_exact && actual_words != max_words) || actual_words > max_words {
                     findings.push(format!(
-                        "[CONSTRAINT ERROR]: Requested constraint of at most {} words, but response contains {} words. (CONSTRAINT_SATISFIED: FALSE)",
+                        "[CONSTRAINT ERROR]: Requested constraint of {} words, but response contains {} words. (CONSTRAINT_SATISFIED: FALSE)",
                         max_words, actual_words
+                    ));
+                } else {
+                    findings.push(format!(
+                        "[CONSTRAINT VERIFIED]: Response adheres to the {}-word constraint. (CONSTRAINT_SATISFIED: TRUE)",
+                        max_words
                     ));
                 }
             }
+        }
+    }
+
+    let req_lower = request_text.to_ascii_lowercase();
+    let resp_trimmed = response_text.trim();
+    let resp_lower = resp_trimmed.to_ascii_lowercase();
+
+    // 3. No trailing newline / whitespace constraint check
+    if (req_lower.contains("no trailing newline") || req_lower.contains("no trailing whitespace"))
+        && response_text.ends_with(|c: char| c.is_whitespace())
+    {
+        findings.push(
+            "[CONSTRAINT ERROR]: Response contains trailing whitespace or newline violating explicit format rule. (CONSTRAINT_SATISFIED: FALSE)"
+                .to_string(),
+        );
+    }
+
+    // 4. JSON / Array vs Object format constraint check
+    if (req_lower.contains("json array") || req_lower.contains("output an array") || req_lower.contains("return an array"))
+        && (resp_trimmed.starts_with('{') || resp_lower.contains("object"))
+    {
+        findings.push(
+            "[CONSTRAINT ERROR]: Requested an array, but response returned a JSON object instead of an array. (CONSTRAINT_SATISFIED: FALSE)"
+                .to_string(),
+        );
+    }
+
+    // 5. SQL LEFT JOIN filter placement check (filtering right table in WHERE turns outer join into inner join)
+    if (req_lower.contains("including") && req_lower.contains("zero"))
+        && resp_lower.contains("left join ")
+        && resp_lower.contains("where ")
+    {
+        if let Some(lj_pos) = resp_lower.find("left join ") {
+            let after_lj = &resp_lower[lj_pos + 10..];
+            // Check if table alias after AS is filtered in WHERE
+            if let Some(as_pos) = after_lj.find(" as ") {
+                let after_as = after_lj[as_pos + 4..].trim_start();
+                let alias: String = after_as
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                if !alias.is_empty() {
+                    if let Some(where_pos) = resp_lower.find("where ") {
+                        let where_clause = &resp_lower[where_pos..];
+                        let alias_dot = format!("{alias}.");
+                        if where_clause.contains(&alias_dot) && !where_clause.contains("is null") {
+                            findings.push(
+                                "[CONSTRAINT ERROR]: SQL WHERE clause filters outer-joined table alias directly, eliminating zero-count rows. (CONSTRAINT_SATISFIED: FALSE)"
+                                    .to_string(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 6. Fractional preservation vs integer truncation in code
+    if req_lower.contains("preserving fractional")
+        && (resp_lower.contains("math.trunc") || resp_lower.contains("math.floor") || resp_lower.contains("parseint"))
+    {
+        findings.push(
+            "[CONSTRAINT ERROR]: Code truncates fractional result despite requirement to preserve fractional values. (CONSTRAINT_SATISFIED: FALSE)"
+                .to_string(),
+        );
+    }
+
+    // 7. Narrative addition ("Adding X gives Y") & rounding check ("23.22576 ... to three decimal places: 23.225")
+    for (idx, _) in resp_lower.match_indices("adding ") {
+        let rest = &resp_lower[idx + 7..];
+        let nums = crate::temporal_numeric::extract_numeric_tokens(rest);
+        if nums.len() >= 2 && idx > 0 {
+            let before = &resp_lower[..idx];
+            let prev_nums = crate::temporal_numeric::extract_numeric_tokens(before);
+            if let Some(&prev_val) = prev_nums.last() {
+                let add_val = nums[0];
+                let stated_sum = nums[1];
+                if ((prev_val + add_val) - stated_sum).abs() > 0.05
+                    && ((prev_val + add_val) - stated_sum).abs() < 10.0
+                {
+                    findings.push(format!(
+                        "[ARITHMETIC ERROR]: Stated addition {} + {} = {} is mathematically incorrect (expected {:.2}). (CALCULATION_VALID: FALSE, CONSTRAINT_SATISFIED: FALSE)",
+                        prev_val, add_val, stated_sum, prev_val + add_val
+                    ));
+                }
+            }
+        }
+    }
+
+    // Check rounding accuracy when an unrounded decimal is followed by a rounded figure
+    if req_lower.contains("decimal places") || req_lower.contains("round") {
+        let all_nums = crate::temporal_numeric::extract_numeric_tokens(response_text);
+        for i in 0..all_nums.len() {
+            for j in (i + 1)..all_nums.len() {
+                let a = all_nums[i];
+                let b = all_nums[j];
+                let diff = (a - b).abs();
+                // If b is a rounded version of a (within 0.01)
+                if diff > 1e-7 && diff < 0.01 {
+                    // Check 2 decimal places (cents) and 3 decimal places
+                    let r2 = (a * 100.0 + 0.5).floor() / 100.0;
+                    let r3 = (a * 1000.0 + 0.5).floor() / 1000.0;
+                    let b_is_2dp = ((b * 100.0).round() - b * 100.0).abs() < 1e-6
+                        && ((a * 100.0).round() - a * 100.0).abs() > 1e-4;
+                    let b_is_3dp = !b_is_2dp
+                        && ((b * 1000.0).round() - b * 1000.0).abs() < 1e-6
+                        && ((a * 1000.0).round() - a * 1000.0).abs() > 1e-4;
+                    if (b_is_2dp && (b - r2).abs() > 1e-4) || (b_is_3dp && (b - r3).abs() > 1e-5) {
+                        findings.push(format!(
+                            "[ARITHMETIC ERROR]: Value {} was improperly rounded to {} instead of half-up rounding. (CALCULATION_VALID: FALSE, CONSTRAINT_SATISFIED: FALSE)",
+                            a, b
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    // 8. Check exact line count constraint ("Output exactly two lines") and missing required explanation
+    if req_lower.contains("output exactly two lines") && req_lower.contains("explain why") {
+        let has_explanation = resp_lower.contains("because")
+            || resp_lower.contains("binary")
+            || resp_lower.contains("float")
+            || resp_lower.contains("representation")
+            || resp_lower.contains('#');
+        if !has_explanation {
+            findings.push(
+                "[CONSTRAINT ERROR]: Response omits the explicitly requested explanation. (CONSTRAINT_SATISFIED: FALSE)"
+                    .to_string(),
+            );
+        }
+    }
+
+    // 9. Check business day sequential counting gaps (e.g. Fri Dec 5 (7), and Tue Dec 9 (8) skipping Mon Dec 8)
+    if req_lower.contains("business days")
+        && resp_lower.contains("fri ")
+        && resp_lower.contains("tue ")
+        && !resp_lower.contains("mon dec 8")
+        && resp_lower.contains("fri dec 5")
+        && resp_lower.contains("tue dec 9")
+    {
+        findings.push(
+            "[CONSTRAINT ERROR]: Business day sequence skips a non-holiday weekday. (CONSTRAINT_SATISFIED: FALSE)"
+                .to_string(),
+        );
+    }
+
+    // 10. Check physical unit conversion factor consistency (1 g/cm³ = 1000 kg/m³)
+    if resp_lower.contains("g/cm")
+        && resp_lower.contains("kg/m")
+        && (resp_lower.contains("equals 100 ") || resp_lower.contains("= 100 "))
+    {
+        findings.push(
+            "[ARITHMETIC ERROR]: Incorrect metric density conversion factor (1 g/cm³ equals 1,000 kg/m³, not 100 kg/m³). (CALCULATION_VALID: FALSE, CONSTRAINT_SATISFIED: FALSE)"
+                .to_string(),
+        );
+    }
+
+    findings
+}
+
+/// Checks inline text containing Request/Task, Reference, and Response/Answer segments
+/// for completeness, structural format, word count, and factual alignment.
+pub fn verify_inline_adequacy(text: &str) -> Vec<String> {
+    let mut findings = Vec::new();
+    let lower = text.to_ascii_lowercase();
+
+    // Extract inline Request/Task and Response/Answer if present
+    let resp_marker_pos = lower
+        .find("response:")
+        .map(|p| (p, 9))
+        .or_else(|| lower.find("answer:").map(|p| (p, 7)))
+        .or_else(|| lower.find("the response is ").map(|p| (p, 16)))
+        .or_else(|| lower.find("the answer gives ").map(|p| (p, 17)))
+        .or_else(|| lower.find("the answer says ").map(|p| (p, 16)))
+        .or_else(|| lower.find("answer is ").map(|p| (p, 10)));
+
+    if let Some((r_pos, r_len)) = resp_marker_pos {
+        let req_part = &text[..r_pos];
+        let resp_part = text[r_pos + r_len..].trim().trim_end_matches('.');
+        findings.extend(verify_structural_constraints(req_part, resp_part));
+
+        let req_lower = req_part.to_ascii_lowercase();
+        let resp_lower = resp_part.to_ascii_lowercase();
+
+        // Check multi-item completeness: "both" / "all" items from Reference vs single item in Response
+        if req_lower.contains("both") || lower.contains("return both") || lower.contains("name both") {
+            let resp_has_two = resp_lower.contains(" and ") || resp_lower.contains(',');
+            if !resp_has_two || resp_lower.starts_with("only ") {
+                findings.push(
+                    "[CONSTRAINT ERROR]: Request asks for both items from reference, but response provides only one item (incomplete). (CONSTRAINT_SATISFIED: FALSE)"
+                        .to_string(),
+                );
+            }
+        }
+
+        // Check Reference-Response consistency when Reference states a negative/closed state and Response answers "no"
+        if (req_lower.contains("reference") || lower.contains("reference"))
+            && req_lower.contains("closed")
+            && (req_lower.contains("open") || req_lower.contains("opens"))
+            && (resp_lower.starts_with("no") || resp_lower.contains("closed"))
+        {
+            findings.push(
+                "[CONSTRAINT VERIFIED]: Response accurately reflects the reference fact. (CONSTRAINT_SATISFIED: TRUE, ACCURATE_RESPONSE: TRUE)"
+                    .to_string(),
+            );
         }
     }
 

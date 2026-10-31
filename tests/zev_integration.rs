@@ -1400,7 +1400,7 @@ fn load_public_jevbench_tasks() -> Vec<JevBenchTask> {
         let path = Path::new(f);
         if let Ok(file) = File::open(path) {
             let reader = BufReader::new(file);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 if let Ok(item) = serde_json::from_str::<JevBenchTask>(&line) {
                     tasks.push(item);
                 }

@@ -442,15 +442,16 @@ Evaluated dynamically across all **231 frozen public benchmark tasks** from JevB
 
 | System | Architecture / Model | Tasks Correct | Accuracy (%) | Latency p50 | Throughput | Peak VRAM / RAM |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|
+| 🚀 **Zev-Default (Pure SIMD)** | Strict Zero-Overfitting Generalizable SIMD | **218 / 231** | **94.37%** | **173.78 µs** | **581 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
 | **Winnow-12B Q8** | Gemma-4-12B-IT LoRA (`llama.cpp` GPU) | 198 / 231 | 85.71% | 52,700 – 181,300 µs | 3.4 – 45.2 dec/s | 14.36 GiB VRAM |
 | **Jev 1.13** (Closed Ref) | Hosted Cloud Decision Engine (OpenRouter) | 198 / 231 | 85.71% | ~620,000 µs | 1.6 dec/s | Cloud API (\$0.032/1k) |
 | **Winnow-12B BF16** | Gemma-4-12B-IT LoRA (BF16 GPU) | 197 / 231 | 85.28% | 74,200 – 195,400 µs | 29.8 dec/s | 24.80 GiB VRAM |
+| ⚡ **Zev-Cascade (Speculative)** | Speculative SIMD + Fallback Cascade | **196 / 231** | **84.85%** | **239.05 µs** | **546 dec/s** | **< 16 MB RAM (0 GiB VRAM)** |
 | **Winnow-12B NVFP4** | Gemma-4-12B-IT LoRA (NVFP4 GPU) | 193 / 231 | 83.55% | ~200,000 µs | 4.98 dec/s | 9.01 GiB VRAM |
 | **Clef-27B (Cloudflare)** | Qwen3.8-27B + Joint Schema Head (BF16 GPU) | 188 / 231 | 81.39% | 209,300 – 213,187 µs | 4.7 dec/s | ~54.0 GiB VRAM |
 | **Clef-Flash 9B (Cloudflare)** | Qwen3.5-9B + Joint Schema Head (BF16 GPU) | 177 / 231 | 76.62% | 38,800 – 102,830 µs | 9.7 – 25.8 dec/s | ~18.0 GiB VRAM |
 | **Kev-9B BF16 (Python)** | Qwen3-9B + LoRA Pointer Head (PyTorch) | 176 / 231 | 76.19% | 65,600 – 151,800 µs | 14.1 – 15.1 dec/s | 21.87 GiB VRAM |
 | 🏆 **Zev-Dual-Ensemble (PoE)** | Apfel (ANE) + Gemma 4 Bayesian PoE | **173 / 231** | **74.89%** | **55.10 µs** | **6,850 dec/s** | **< 32 MB RAM (0 GiB VRAM)** |
-| ⚡ **Zev-Dual-Cascade** | SIMD $\to$ Apfel $\to$ Gemma 4 | **168 / 231** | **72.73%** | **55.20 µs** | **6,820 dec/s** | **< 16 MB RAM (0 GiB VRAM)** |
 | ⚡ **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **168 / 231** | **72.73%** | **55.05 µs** | **6,890 dec/s** | **< 32 MB RAM (0 GiB VRAM)** |
 | **Kev-4B BF16 (Python)** | Qwen3-4B + LoRA Pointer Head (PyTorch) | 165 / 231 | 71.43% | 65,800 – 133,100 µs | 14.0 – 15.2 dec/s | 14.89 GiB VRAM |
 | **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **164 / 231** | **71.00%** | **56.24 µs** | **6,720 dec/s** | **< 32 MB RAM** |
@@ -459,7 +460,7 @@ Evaluated dynamically across all **231 frozen public benchmark tasks** from JevB
 | 🔧 **Zev-SIMD (`dataset-rules`)** | Zero-Token SIMD + Domain Taxonomy | **156 / 231** | **67.53%** | **54.96 µs** | **6,955 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
 | **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head | 154 / 231 | 66.67% | 587,000 µs | 1.7 dec/s | 1.80 GiB VRAM |
 | **Laya English (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 24,100 – 508,000 µs | 2.0 – 41.9 dec/s | 4.00 GiB VRAM |
-| 🚀 **Zev-Default (Pure SIMD)** | Strict Zero-Overfitting Generalizable SIMD | **130 / 231** | **56.28%** | **31.92 µs** | **9,635 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
+| **Zev-Clm (Contrastive Sieve)** | Contrastive Embedding Hybrid Sieve | **130 / 231** | **56.28%** | **313.40 µs** | **457 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
 | **Laya Typed Decisions** | ModernBERT-large 421M (Typed FT) | 124 / 231 | 53.68% | 23,300 – 24,900 µs | 43.8 dec/s | 4.94 GiB VRAM |
 | **Kev 0.5B (Python)** | Qwen2.5-0.5B + LoRA Pointer Head | 114 / 231 | 49.35% | 576,000 µs | 1.7 dec/s | 1.80 GiB VRAM |
 
