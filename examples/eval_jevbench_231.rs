@@ -253,6 +253,10 @@ fn main() {
 
     println!("\nTotal JevBench Tasks Loaded: {}\n", all_tasks.len());
 
+    // Warmup LazyLock regexes and CPU caches prior to timing
+    std::env::set_var("ZEV_FALLBACK", "none");
+    let _ = evaluate_items("Warmup", &all_tasks, &engine, |eng, req| eng.evaluate(req));
+
     // 1. Zev-Default (Pure SIMD)
     std::env::set_var("ZEV_FALLBACK", "none");
     let (simd_res, family_stats) = evaluate_items(

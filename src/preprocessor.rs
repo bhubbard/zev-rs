@@ -399,6 +399,13 @@ static RE_UNTRUSTED_PAYLOAD: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Masks untrusted attachments, OCR text layers, and embedded prompt injection payloads.
 pub fn mask_untrusted_payload<'a>(text: &'a str) -> Cow<'a, str> {
+    let bytes = text.as_bytes();
+    let has_trigger = bytes
+        .windows(7)
+        .any(|w| w.eq_ignore_ascii_case(b"preview") || w.eq_ignore_ascii_case(b"embedde") || w.eq_ignore_ascii_case(b"attachm") || w.eq_ignore_ascii_case(b"white-o"));
+    if !has_trigger {
+        return Cow::Borrowed(text);
+    }
     if RE_UNTRUSTED_PAYLOAD.is_match(text) {
         let replaced = RE_UNTRUSTED_PAYLOAD.replace_all(text, "$1[UNTRUSTED_CONTENT_FILTERED]");
         Cow::Owned(replaced.into_owned())

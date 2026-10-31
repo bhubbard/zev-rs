@@ -3,25 +3,34 @@
 All notable changes to `zev-rs` are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.11] - 2026-10-01
+## [0.3.11] - 2026-10-07
 
-### 🚀 vLLM Structured Diffusion, Exact Candidate Logprob Slicing & Edge Deployment
-- **vLLM Structured Diffusion Client (`diffusion_read_only`)**:
-  - Implemented single-read prefill-only execution (`diffusion_max_steps: 1`, `diffusion_read_only: true`, `diffusion_pinned`, `diffusion_seed_canvas`) inspired by vLLM PR #57250.
-  - Achieves ultra-fast single-pass classification without full autoregressive generation.
-- **Exact Candidate Logprob Slicing (`parse_gemma_logprobs_decision`)**:
-  - Reconstructs calibrated decision distributions directly from token logprobs without truncation on large candidate spaces.
-  - Maps bracketed candidate tokens to option IDs and decodes full probability distributions.
-- **Adaptive $H_1$ Shannon Entropy Speculative Gating**:
-  - Added option-count scaled Shannon entropy fallback boundary $\tau_{\text{entropy}} = \operatorname{clamp}(0.40 \cdot \ln(N), 0.12, 0.50)$.
-  - Triggers fast multi-model consensus fallback when decision entropy indicates high ambiguity.
-- **Vendored JevBench 231 Dataset**:
-  - Vendored the official 231 frozen tasks from `fstandhartinger/jevbench` into `datasets/jevbench/` (`easy.jsonl`, `original.jsonl`, `hard.jsonl`) for reproducible, offline benchmarking.
-- **Cloudflare Edge Worker Deployment (`wasm-worker/`)**:
-  - Deployed `zev-decision-worker` to Cloudflare Workers with microsecond in-isolate execution time (<100µs) and 1ms startup.
-  - Supports `/evaluate`, `/v1/system_one`, and `/bench` endpoints with full TypeSafe wire protocol compatibility.
-- **Multi-Method Empirical Evaluation**:
-  - Verified across 6 execution paradigms on JevBench (231 items, up to 68.4% accuracy), Decision Index (1,391 items, up to 50.75% PoE accuracy), and TypeSafe WorkflowEvals (80 items, up to 62.5% accuracy).
+### 🧠 Symbolic Reasoning, Relational Table Graphs, Policy DAGs & Benchmark Hygiene
+- **Finite-State Policy DAG & Counterfactual Shadow Probing (`src/policy_dag.rs`, `src/counterfactual.rs`)**:
+  - Added bitset Warshall transitive closure (`PolicyDag`) to resolve multi-hop conditional implications (`if/when/requires`) and inhibitory exceptions (`unless/except`) in sub-microsecond time.
+  - Added counterfactual shadow state inversion (`generate_counterfactual_shadow`, `evaluate_counterfactual_divergence`) using symmetric KL divergence to penalize spurious lexical attractors on policy, trap, and adversarial questions.
+- **Generic Markdown Table Resolver & 2-Hop Joins (`src/table_graph.rs`)**:
+  - Deterministic relational parser for pipe-delimited Markdown/ASCII tables with 1-hop entity extraction and 2-hop transitive joins across tables.
+  - Added policy hierarchy endorsement/override resolution (`resolve_policy_hierarchy`) and monetary sublimit cap verification (`resolve_monetary_constraints`).
+- **Multi-Term Symbolic Arithmetic & Structural Constraint Verifier (`src/symbolic.rs`)**:
+  - Added two-pass operator-precedence arithmetic evaluation (`verify_arithmetic_equations`) and structural sentence/word-count constraint checking (`verify_structural_constraints`).
+- **TimesFM-Inspired Series Guardrails & Temporal Duration Constraints (`src/series_guardrails.rs`, `src/temporal_numeric.rs`)**:
+  - Added `<4 µs` pre-flight series sanity checks, Welford online running statistics, and Reversible Instance Normalization (`RevIN`).
+  - Added consecutive-step `ThresholdRule` evaluation and temporal policy duration/window constraint resolution (`resolve_temporal_duration_constraints`).
+- **Strict Benchmark Hygiene & Anti-Overfitting CI Guard (`tests/anti_overfitting_guard.rs`)**:
+  - Removed all dataset-specific prompt memorization and gated `concept_knowledge` behind the off-by-default `dataset-rules` Cargo feature flag.
+  - Added automated AST/source-scanning CI guardrails enforcing zero benchmark data leakage in `src/`.
+- **XXH3 SIMD `DecisionCache`, Fast Hashing & Server Extensions (`src/decision_cache.rs`, `src/fast_hash.rs`, `src/server.rs`)**:
+  - Integrated XXH3-64/128 deterministic request caching into `/v1/decisions` and `/v1/systemone` with `x-cache: HIT/MISS` headers.
+  - Added Cactus archive (`.cact`) zero-copy parser & Fast Walsh-Hadamard Transform (`src/cact.rs`), speculative `TeaCache` (`src/teacache.rs`), token `StopSequenceMatcher` (`src/stop_matcher.rs`), and Jaro-Winkler / Soundex phonetic matching (`src/fuzzy_match.rs`).
+- **Native macOS Foundation Models (`/usr/bin/fm`) Integration (`src/fm.rs`)**:
+  - Added first-class support for macOS 27.2+ `/usr/bin/fm` (`system` on-device `AFM 3 Core Advanced` and `pcc` Apple Private Cloud Compute) via both `fm serve` HTTP (`POST /v1/chat/completions` with `json_schema` `response_format`) and zero-daemon `fm respond --greedy --no-stream --schema <file>`.
+  - Added `--backend fm` and `--backend fm-pcc` CLI flags, `"model": "fm"` / `"fm-pcc"` request routing, and automatic `/usr/bin/fm` fallback when compiled without `--features neural`.
+- **vLLM Structured Diffusion, Exact Candidate Logprob Slicing & Edge Deployment**:
+  - Implemented single-read prefill-only execution (`diffusion_read_only`) inspired by vLLM PR #57250 and exact candidate logprob slicing (`parse_gemma_logprobs_decision`) in `src/gemma.rs`.
+  - Added option-count scaled Shannon entropy speculative gating ($\tau_{\text{entropy}}$) and logit variance flatline detection, cascading into `CLM`, Cloudflare `Clef` (`src/clef.rs`), and `Gemma`.
+  - Vendored the 231 frozen tasks from `fstandhartinger/jevbench` (`datasets/jevbench/`) and added the live Cloudflare Workers benchmark harness (`examples/bench_worker.rs`) and `wasm-worker/`.
+  - Updated `hf-space/Dockerfile` to `rust:latest` and included `examples/` for reproducible container builds.
 
 ---
 

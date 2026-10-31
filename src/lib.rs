@@ -14,6 +14,7 @@ pub mod decoding;
 pub mod engine;
 pub mod error;
 pub mod fast_hash;
+pub mod fm;
 pub mod fuzzy_match;
 pub mod gemma;
 #[cfg(not(target_arch = "wasm32"))]
@@ -86,6 +87,10 @@ pub use engine::{
 pub use error::{Result, ZevError};
 pub use fast_hash::{
     hash_state_fast, hash_tokens_fast, xxh3_128, xxh3_64, Xxh3BuildHasher, Xxh3Hasher,
+};
+pub use fm::{
+    build_fm_decision_schema, evaluate_fm, evaluate_fm_with_config, is_fm_available, FmConfig,
+    DEFAULT_FM_BIN, DEFAULT_FM_ENDPOINT, FM_PCC_MODEL, FM_SYSTEM_MODEL,
 };
 pub use fuzzy_match::{fuzzy_option_match, jaro_winkler_similarity, phonetic_match, soundex_code};
 #[cfg(not(target_arch = "wasm32"))]

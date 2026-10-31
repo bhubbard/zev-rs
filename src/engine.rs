@@ -270,6 +270,14 @@ impl ZevEngine {
             let m_lower = m.to_lowercase();
             if m_lower.contains("gemma") {
                 "gemma".to_string()
+            } else if m_lower.contains("fm-pcc") || m_lower == "pcc" {
+                "fm-pcc".to_string()
+            } else if m_lower == "fm"
+                || m_lower == "zev-fm"
+                || m_lower.contains("afm")
+                || m_lower.contains("foundation")
+            {
+                "fm".to_string()
             } else if m_lower.contains("apfel") || m_lower.contains("neural") {
                 "apfel".to_string()
             } else if m_lower.contains("clm") {
@@ -584,6 +592,22 @@ impl ZevEngine {
                 {
                     answer = gemma_ans;
                 }
+            } else if fallback_mode == "fm" {
+                if let Ok(fm_ans) =
+                    crate::fm::evaluate_fm(preprocessed_state, final_question, &candidates)
+                {
+                    answer = fm_ans;
+                }
+            } else if fallback_mode == "fm-pcc" {
+                let pcc_cfg = crate::fm::FmConfig::pcc();
+                if let Ok(fm_ans) = crate::fm::evaluate_fm_with_config(
+                    preprocessed_state,
+                    final_question,
+                    &candidates,
+                    &pcc_cfg,
+                ) {
+                    answer = fm_ans;
+                }
             }
             #[cfg(feature = "neural")]
             if fallback_mode == "apfel" || fallback_mode == "neural" {
@@ -600,6 +624,16 @@ impl ZevEngine {
                 #[cfg(not(target_os = "macos"))]
                 {
                     // Graceful fallback on non-macOS environments (e.g. Linux RTX 6000 pod)
+                }
+            }
+            #[cfg(not(feature = "neural"))]
+            if (fallback_mode == "apfel" || fallback_mode == "neural")
+                && crate::fm::is_fm_available()
+            {
+                if let Ok(fm_ans) =
+                    crate::fm::evaluate_fm(preprocessed_state, final_question, &candidates)
+                {
+                    answer = fm_ans;
                 }
             }
             #[cfg(feature = "mlx")]

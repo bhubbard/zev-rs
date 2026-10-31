@@ -55,7 +55,7 @@ zev doctor
 
 # View or update persistent configuration (~/.config/zev/config.json)
 zev config show
-zev config set method dual-ensemble   # Global #1 accuracy (74.89%, recommended)
+zev config set method dual-ensemble   # Highest accuracy mode (74.89%, recommended)
 zev config set method simd            # Universal pure SIMD (< 8 MB RAM, runs anywhere)
 ```
 
@@ -101,7 +101,7 @@ curl -X POST http://127.0.0.1:8080/v1/decisions \
 Add to `Cargo.toml`:
 ```toml
 [dependencies]
-zev-rs = "0.3.9"
+zev-rs = "0.3.11"
 ```
 
 In your code:
@@ -147,7 +147,13 @@ Zev provides full support for the Hugging Face ecosystem:
 | **Dynamic Shortlisting** | [NandhaKishorM/laya](https://github.com/NandhaKishorM/laya) | Scales to schemas with hundreds of options using SIMD token-set cosine shortlisting to prune large taxonomies down to the top slots in microseconds. |
 | **Temporal Fact Grounding** | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) | Automatically injects factual ISO reference dates so relative expressions ("yesterday", "3 days ago") are evaluated without date confusion. |
 | **Negation & Resolution Scope** | *Zev Original* | Inverts negated symptoms ("no fever", "without outage") and applies recency position weighting to recognize incident resolutions ("rolled back and resolved"). |
-| **Multi-Wire Compatibility** | [TypeSafe Jev](https://typesafe.ai) & [Together AI Tev1](https://github.com/togethercomputer/tev1) | Supports native `ZevRequest`, drop-in TypeSafe `/v1/systemone`, and Together AI `/v1/tev1` & `zev tev1` formats. |
+| **Finite-State Policy DAG & Counterfactual Probing** | *Zev Original* (`policy_dag.rs`, `counterfactual.rs`) | Compiles unstructured conditional policies (`IF ... THEN`, `REQUIRES`, `UNLESS`) into a directed acyclic graph and performs shadow negation/clause-ablation probing (`counterfactual_robustness`) in microseconds. |
+| **Relational Markdown Table Graph & 2-Hop Joins** | *Zev Original* (`table_graph.rs`) | Parses Markdown tables, hierarchical policy priority sections (`Priority 1 > Priority 2`), and monetary budget/spend constraints with 2-hop cross-table entity joins. |
+| **Symbolic Arithmetic & Series Guardrails** | *Zev Original* (`symbolic.rs`, `series_guardrails.rs`, `temporal_numeric.rs`) | Evaluates inline arithmetic equations, mathematical comparison operators (`>=`, `<=`, `%`), temporal duration windows (`within N days`), and structural/JSON format guardrails with zero weights. |
+| **XXH3 `DecisionCache` & Cloudflare WASM Edge Worker** | *Zev Original* (`decision_cache.rs`, `fast_hash.rs`, `wasm-worker/`) | Sub-microsecond (`~185 ns`) lock-free XXH3 content-addressed decision cache (`x-cache: HIT`) and zero-cold-start Cloudflare Workers WASM isolate (`~87 µs` edge roundtrip). |
+| **Native macOS `/usr/bin/fm` (`AFM 3 Core Advanced` & `pcc`)** | *Zev Original* (`fm.rs`) | First-class support for macOS 27.2+ `/usr/bin/fm` Foundation Models (`system` on-device `AFM 3 Core Advanced` and `pcc` Apple Private Cloud Compute) with grammar-constrained `--schema` JSON decoding and `fm serve` HTTP auto-detection. |
+| **vLLM Structured Diffusion & $H_1$ Entropy Gating** | *Zev Original* (`gemma.rs`, `clef.rs`, `cact.rs`, `teacache.rs`) | Single-step structured diffusion with `logprobs` token distribution extraction, $H_1$ first-token Shannon entropy gating, CACT dynamic layer routing, TeaCache residual reuse, and Cloudflare Clef fallback. |
+| **Multi-Wire & MCP Compatibility** | [TypeSafe Jev](https://typesafe.ai), [Together AI Tev1](https://github.com/togethercomputer/tev1) & MCP | Supports native `ZevRequest`, TypeSafe `/v1/systemone`, Together AI `/v1/tev1`, DLQ triage (`/v1/dlq/triage`), and Model Context Protocol (`zev mcp`) over JSON-RPC 2.0 stdio. |
 
 ---
 
@@ -182,9 +188,9 @@ flowchart TD
 | Your Goal / Scenario | Recommended Mode | Median Latency ($p_{50}$) | Task Throughput | JevBench Accuracy (231 Public) | What It Does |
 | :--- | :--- | :---: | :---: | :---: | :--- |
 | ⚡ **Production Web APIs & High-Volume Routing** | **`Zev-Load-Balanced`** *(Recommended)* | **55.05 µs** | **6,890 dec/s** | **72.73%** | Alternates sub-threshold traffic across ANE and CPU/GPU so neither queue throttles. Includes automatic bidirectional failover! |
-| 🎯 **Life-or-Death Accuracy (Legal / Medical / Compliance)** | **`Zev-Dual-Ensemble`** | **55.10 µs** | **6,850 dec/s** | **74.89%** | Runs Apple Intelligence & Gemma 4 in parallel with Bayesian Product of Experts (PoE). **#1 Worldwide** (Eclipses Winnow-12B at 74.43%)! |
+| 🎯 **Life-or-Death Accuracy (Legal / Medical / Compliance)** | **`Zev-Dual-Ensemble`** | **55.10 µs** | **6,850 dec/s** | **74.89%** | Runs Apple Intelligence & Gemma 4 in parallel with Bayesian Product of Experts (PoE) — approaches 9B–12B GPU models at 0 GiB VRAM. |
 | 🛡️ **Tiered Edge Nodes / Graceful Degradation** | **`Zev-Dual-Cascade`** | **55.20 µs** | **6,820 dec/s** | **72.73%** | Tiers compute sequentially: SIMD ($>0.85$) $\to$ ANE ($>0.75$) $\to$ Gemma 4. Most conservative memory footprint (< 16 MB). |
-| ☁️ **Standard Cloud VPS / Docker / Non-Apple CPU** | **`Zev-Default`** *(Pure SIMD)* | **54.96 µs** | **6,955 dec/s** | **67.53%** | Pure CPU Neon/AVX. Zero model weights, zero PyTorch, runs on any $5/mo Linux server. |
+| ☁️ **Standard Cloud VPS / Docker / Non-Apple CPU** | **`Zev-Default`** *(Pure SIMD)* | **31.92 µs** | **9,635 dec/s** | **56.28% (strict) / 67.53% (`dataset-rules`)** | Pure CPU Neon/AVX. Zero model weights, zero PyTorch, zero dataset overfitting by default (`tests/anti_overfitting_guard.rs`). |
 
 ---
 
@@ -203,13 +209,26 @@ cargo run --release --bin zev -- route \
 cargo run --release --bin zev -- serve --port 8080
 ```
 
-### Example 2: On-Device Apple Intelligence (`apfel-rs`)
+### Example 2: On-Device Apple Intelligence (`/usr/bin/fm` & `apfel-rs`)
 
-Add `zev-rs` with the `neural` feature to your `Cargo.toml`:
+On macOS 27.2+, Zev natively integrates with Apple's built-in `/usr/bin/fm` Foundation Models CLI & HTTP server (`system` for on-device **AFM 3 Core Advanced**, or `pcc` for **Apple Private Cloud Compute**) with zero extra Cargo feature flags required:
+
+```bash
+# Route via on-device macOS Foundation Models (AFM 3 Core Advanced) with grammar-constrained JSON schema decoding:
+cargo run --release --bin zev -- route \
+  --backend fm --min-confidence 0.99 \
+  --state "Patient presents with severe McBurney point tenderness, positive Rovsing sign, low fever, and no diarrhea." \
+  --routes '{"acute_appendicitis": "RLQ focal peritonitis, McBurney tenderness", "gastroenteritis": "Diffuse cramping with profuse diarrhea"}'
+
+# Or route via Apple Private Cloud Compute (pcc) or persistent `fm serve --port 1976`:
+cargo run --release --bin zev -- route --backend fm-pcc --min-confidence 0.99 ...
+```
+
+You can also link directly against Apple's FoundationModels framework in Rust via `apfel-rs` with the `neural` feature in `Cargo.toml`:
 
 ```toml
 [dependencies]
-zev-rs = { version = "0.1", features = ["neural"] }
+zev-rs = { version = "0.3.11", features = ["neural"] }
 ```
 
 In your Rust code:
@@ -287,7 +306,7 @@ let response = engine.evaluate_recommended(&request, &backend)?;
 ```
 
 #### 2. Maximum-Accuracy Consensus Ensemble (Mission-Critical / Compliance)
-Runs Apfel (ANE) and Gemma 4 in parallel, performing Bayesian log-linear Product of Experts (PoE) with contrastive carrier discounting to reach **74.89% accuracy** (eclipsing Winnow-12B at 74.43% for #1 on the global leaderboard):
+Runs Apfel (ANE) and Gemma 4 in parallel, performing Bayesian log-linear Product of Experts (PoE) with contrastive carrier discounting to reach **74.89% accuracy** on JevBench 231 (surpassing `Kev-4B BF16` at 71.43% and approaching `Kev-9B BF16` at 76.19% without requiring a discrete GPU):
 
 ```mermaid
 flowchart TD
@@ -301,7 +320,7 @@ flowchart TD
     ANE --> Fusion["Bayesian Product of Experts (PoE)\n(Log-linear confidence-weighted consensus)"]
     Gemma --> Fusion
     
-    Fusion --> Winner["🏆 Consensus Winner: 74.89% Accuracy\n(#1 Globally: Eclipses Winnow-12B & Cygnet)"]
+    Fusion --> Winner["🏆 Consensus Winner: 74.89% Accuracy\n(Surpasses Kev-4B BF16 at 0 GiB VRAM)"]
 ```
 
 ```rust
@@ -373,68 +392,99 @@ curl -X POST http://127.0.0.1:8080/v1/tev1 \
   }'
 ```
 
-### Example 5: Semantic Codebase Search (`zev grep`)
+### Example 5: Semantic Codebase Search (`zev grep`), MCP Server (`zev mcp`) & Batch Pipelines (`zev batch`)
 
-Zev includes a high-speed semantic codebase search engine inspired by `jevgrep`'s 3-stage discovery architecture. It navigates source trees with `.gitignore` awareness, extracts language declarations (functions, structs, classes, routes) across Rust, TypeScript, Python, and Go, and evaluates declaration relevance in microseconds:
+Zev includes a high-speed semantic codebase search engine inspired by `jevgrep`'s 3-stage discovery architecture, a native Model Context Protocol (`MCP`) JSON-RPC 2.0 server over stdio, and a streaming JSONL batch pipeline:
 
 ```bash
-# Semantic search over code declarations in human-readable ANSI format:
+# 1. Semantic search over code declarations in human-readable ANSI format:
 zev grep "order invariant logits" src
 
-# Output structured JSON for LLM agents or scripting:
+# 2. Output structured JSON for LLM agents or scripting:
 zev grep "router endpoints" src --json --limit 5
+
+# 3. Start the Model Context Protocol (MCP) stdio server for Claude Desktop / Cursor / Windsurf:
+zev mcp
+
+# 4. High-throughput streaming JSONL batch pipeline (route, filter, or score):
+cat tickets.jsonl | zev batch --file - --mode route \
+  --routes '{"billing": "Invoices & refunds", "infra": "Outages & 500 errors"}'
 ```
 
 ---
 
 ## Adversarial Audit & Methodological Disclosure
 
-In the spirit of rigorous open-source benchmarking, an adversarial integrity audit was performed on Zev's evaluation suites to eliminate benchmark conflation and ensure total reproducibility:
+In the spirit of rigorous open-source benchmarking, an adversarial integrity audit and automated anti-overfitting gate (`tests/anti_overfitting_guard.rs`) were established on Zev's evaluation suites to eliminate benchmark conflation and ensure total reproducibility:
 
-1. **Two Distinct Benchmark Suites**:
+1. **Strict Zero-Overfitting Generalizable Baseline vs. Domain-Enriched & Neural Modes**:
    - **JevBench Public Frozen Hard Reasoning Suite (231 tasks)**: Sourced directly from `datasets/jevbench_public/` (`easy.jsonl`, `original.jsonl`, `hard.jsonl` from upstream `fstandhartinger/jevbench`). Evaluates genuine multi-sentence reasoning, legal/temporal policy constraints, ambiguous routing, and adversarial traps.
-     - **Live Dynamic Runner**: `cargo run --release --example eval_jevbench_231` (100% dynamic at runtime with zero hardcoded values).
-     - **Pure SIMD Baseline**: **156 / 231 (67.53%)** at **54.96 µs** ($p_{50}$), **6,955 decisions/sec**, with 0 tokens and < 8 MB RAM.
-     - **Dual Speculative Ensemble (PoE)**: Up to **173 / 231 (74.89%)** when sub-threshold low-confidence questions fall back to local neural experts (Apple Intelligence / Gemma 4).
+     - **Live Dynamic Runner**: `cargo run --release --example eval_jevbench_231` (100% dynamic at runtime with zero hardcoded benchmark strings, verified by `cargo test --test anti_overfitting_guard`).
+     - **Zero-Overfitting Pure SIMD Baseline (`default` features)**: **130 / 231 (56.28%)** at **31.92 µs** ($p_{50}$), **9,635 decisions/sec**, ECE = 22.09%, with 0 tokens, 0 model weights, and < 8 MB RAM. Achieves **100.0%** on `fact` (12/12), `routing_hard` (5/5), and `tool_selection` (12/12), **79.2%** on `extraction` (19/24), and **66.7%** on `ordinal` (8/12), `policy` (8/12), and `tradeoff` (4/6).
+     - **Domain-Enriched SIMD (`--features dataset-rules`)**: **156 / 231 (67.53%)** at **54.96 µs** ($p_{50}$), **6,955 decisions/sec**, when optional domain concept expansion (`src/concept_knowledge.rs`) is enabled.
+     - **Dual Speculative Ensemble (PoE)**: Up to **173 / 231 (74.89%)** when sub-threshold low-confidence questions fall back to local neural experts (Apple Intelligence / Gemma 4 / Cloudflare Clef).
    - **Zev Synthetic Scale Suite (1,200 tasks)**: Located in `datasets/zev_benchmarks/zev_benchmarks.jsonl` (generated via combinatorial expansion).
      - **Purpose**: Stress-testing SIMD lexical extraction throughput, high-volume pipeline stability, and token filtering at scale (>34,000 ops/s).
      - **Accuracy**: 99.00% (SIMD) to 99.33% (Apfel/PoE) on synthetic templates.
 
 2. **Latency Reporting Integrity**:
-   - Microbenchmark latencies (13 µs – 25 µs) measure isolated single-request hot-cache SIMD execution loops.
-   - Live multi-task JSON ingestion, parsing, and dispatch across the 231 frozen tasks measures **54.96 µs** median latency ($p_{50}$), which remains **9,243× faster** than PyTorch ModernBERT (`laya` @ 508 ms) and **10,750× faster** than Qwen LoRA (`kev` @ 591 ms).
+   - Microbenchmark latencies (13 µs – 25 µs) measure isolated single-request hot-cache SIMD execution loops (`~185 ns` on `DecisionCache` XXH3 hits).
+   - Live multi-task JSON ingestion, parsing, Policy DAG compilation, and dispatch across the 231 frozen tasks measures **31.92 µs** median latency ($p_{50}$) in pure generalizable SIMD mode (**54.96 µs** with `dataset-rules`), which is **15,914× faster** than PyTorch ModernBERT (`laya` @ 508 ms) and **18,515× faster** than Qwen LoRA (`kev` @ 591 ms).
 
-3. **Gemma Fail-Fast Circuit Breaker**:
-   - Outbound HTTP neural endpoints now feature a cached 30ms TCP probe to prevent latency degradation if local LLM servers are offline.
+3. **Gemma Fail-Fast Circuit Breaker & vLLM Diffusion**:
+   - Outbound HTTP neural endpoints feature a cached 30ms TCP probe to prevent latency degradation if local LLM servers are offline, and support single-step structured diffusion with $H_1$ first-token entropy gating.
 
 ---
 
-## JevBench Benchmark: Zev vs. Original Python Projects (231 Frozen Public Tasks)
+## JevBench Benchmark: Zev vs. Reference GPU & Python Models (231 Frozen Public Tasks)
 
-Evaluated dynamically across all **231 frozen public benchmark tasks** from JevBench (`datasets/jevbench_public/`) against the original reference Python projects ([`NandhaKishorM/laya`](https://github.com/NandhaKishorM/laya), [`jaredpalmer/kev`](https://github.com/jaredpalmer/kev)):
+Evaluated dynamically across all **231 frozen public benchmark tasks** from JevBench (`datasets/jevbench_public/`) alongside published 231-item public subset evaluations from [`EldanRing/Winnow-12B`](https://huggingface.co/EldanRing/Winnow-12B/blob/main/docs/BENCHMARKS.md), [`Cloudflare/clef`](https://huggingface.co/Cloudflare/clef), [`Cloudflare/clef-flash`](https://huggingface.co/Cloudflare/clef-flash), [`NandhaKishorM/laya`](https://github.com/NandhaKishorM/laya), and [`jaredpalmer/kev`](https://github.com/jaredpalmer/kev):
 
-| System | Architecture / Model | Tasks Correct | Accuracy (%) | Latency p50 | Throughput | Cost / 1k Dec |
+| System | Architecture / Model | Tasks Correct | Accuracy (%) | Latency p50 | Throughput | Peak VRAM / RAM |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|
-| 🏆 **Zev-Dual-Ensemble (PoE)** | Apfel (ANE) + Gemma 4 Bayesian PoE | **173 / 231** | **74.89%** | **55.10 µs** | **6,850 dec/s** | **$0.0000** |
-| **Winnow-12B Q8** | 12B Decoder-Only (16 GB VRAM) | 172 / 231 | 74.43% | 340,000 µs | 2.9 dec/s | $0.0280 |
-| ⚡ **Zev-Dual-Cascade** | SIMD $\to$ Apfel $\to$ Gemma 4 | **168 / 231** | **72.73%** | **55.20 µs** | **6,820 dec/s** | **$0.0000** |
-| ⚡ **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **168 / 231** | **72.73%** | **55.05 µs** | **6,890 dec/s** | **$0.0000** |
-| **djev (Maisa 26B)** | Maisa 26B Reasoning Cluster | 167 / 231 | 72.33% | 1,280,000 µs | 0.8 dec/s | $0.0490 |
-| **Jev 1.13.0** (Closed Ref) | Cloud Decision Engine | 166 / 231 | 72.00% | 620,000 µs | 1.6 dec/s | $0.0320 |
-| **Kev 8B (Python)** | Qwen3-8B + LoRA Pointer Head | 165 / 231 | 71.43% | 591,000 µs | 1.7 dec/s | $0.0300 |
-| **Cygnet** (#1 Benchmark Heaven) | Gemma 4-31B Instruct | 164 / 231 | 71.09% | 230,000 µs | 4.3 dec/s | $0.0280 |
-| **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **164 / 231** | **71.00%** | **56.24 µs** | **6,720 dec/s** | **$0.0000** |
-| **Zev-Apfel** | Pure Rust SIMD + Apple Intelligence | **163 / 231** | **70.56%** | **55.00 µs** | **6,900 dec/s** | **$0.0000** |
-| 🚀 **Zev-Default (Pure SIMD)** | Zero-Token Pure Rust SIMD | **156 / 231** | **67.53%** | **54.96 µs** | **6,955 dec/s** | **$0.0000** |
-| **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | 158 / 231 | 68.40% | 7,800 µs | 128 dec/s | **$0.0000** |
-| **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head | 154 / 231 | 66.67% | 587,000 µs | 1.7 dec/s | $0.0250 |
-| **Kev 4B (Python)** | Qwen3-4B + LoRA Pointer Head | 153 / 231 | 66.23% | 586,000 µs | 1.7 dec/s | $0.0270 |
-| **Laya (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 508,000 µs | 2.0 dec/s | $0.0180 |
+| **Winnow-12B Q8** | Gemma-4-12B-IT LoRA (`llama.cpp` GPU) | 198 / 231 | 85.71% | 52,700 – 181,300 µs | 3.4 – 45.2 dec/s | 14.36 GiB VRAM |
+| **Jev 1.13** (Closed Ref) | Hosted Cloud Decision Engine (OpenRouter) | 198 / 231 | 85.71% | ~620,000 µs | 1.6 dec/s | Cloud API (\$0.032/1k) |
+| **Winnow-12B BF16** | Gemma-4-12B-IT LoRA (BF16 GPU) | 197 / 231 | 85.28% | 74,200 – 195,400 µs | 29.8 dec/s | 24.80 GiB VRAM |
+| **Winnow-12B NVFP4** | Gemma-4-12B-IT LoRA (NVFP4 GPU) | 193 / 231 | 83.55% | ~200,000 µs | 4.98 dec/s | 9.01 GiB VRAM |
+| **Clef-27B (Cloudflare)** | Qwen3.8-27B + Joint Schema Head (BF16 GPU) | 188 / 231 | 81.39% | 209,300 – 213,187 µs | 4.7 dec/s | ~54.0 GiB VRAM |
+| **Clef-Flash 9B (Cloudflare)** | Qwen3.5-9B + Joint Schema Head (BF16 GPU) | 177 / 231 | 76.62% | 38,800 – 102,830 µs | 9.7 – 25.8 dec/s | ~18.0 GiB VRAM |
+| **Kev-9B BF16 (Python)** | Qwen3-9B + LoRA Pointer Head (PyTorch) | 176 / 231 | 76.19% | 65,600 – 151,800 µs | 14.1 – 15.1 dec/s | 21.87 GiB VRAM |
+| 🏆 **Zev-Dual-Ensemble (PoE)** | Apfel (ANE) + Gemma 4 Bayesian PoE | **173 / 231** | **74.89%** | **55.10 µs** | **6,850 dec/s** | **< 32 MB RAM (0 GiB VRAM)** |
+| ⚡ **Zev-Dual-Cascade** | SIMD $\to$ Apfel $\to$ Gemma 4 | **168 / 231** | **72.73%** | **55.20 µs** | **6,820 dec/s** | **< 16 MB RAM (0 GiB VRAM)** |
+| ⚡ **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **168 / 231** | **72.73%** | **55.05 µs** | **6,890 dec/s** | **< 32 MB RAM (0 GiB VRAM)** |
+| **Kev-4B BF16 (Python)** | Qwen3-4B + LoRA Pointer Head (PyTorch) | 165 / 231 | 71.43% | 65,800 – 133,100 µs | 14.0 – 15.2 dec/s | 14.89 GiB VRAM |
+| **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **164 / 231** | **71.00%** | **56.24 µs** | **6,720 dec/s** | **< 32 MB RAM** |
+| **Zev-Apfel** | Pure Rust SIMD + Apple Intelligence | **163 / 231** | **70.56%** | **55.00 µs** | **6,900 dec/s** | **< 16 MB RAM (Mac ANE)** |
+| **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | 158 / 231 | 68.40% | 7,800 µs | 128 dec/s | **< 64 MB RAM** |
+| 🔧 **Zev-SIMD (`dataset-rules`)** | Zero-Token SIMD + Domain Taxonomy | **156 / 231** | **67.53%** | **54.96 µs** | **6,955 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
+| **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head | 154 / 231 | 66.67% | 587,000 µs | 1.7 dec/s | 1.80 GiB VRAM |
+| **Laya English (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 24,100 – 508,000 µs | 2.0 – 41.9 dec/s | 4.00 GiB VRAM |
+| 🚀 **Zev-Default (Pure SIMD)** | Strict Zero-Overfitting Generalizable SIMD | **130 / 231** | **56.28%** | **31.92 µs** | **9,635 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
+| **Laya Typed Decisions** | ModernBERT-large 421M (Typed FT) | 124 / 231 | 53.68% | 23,300 – 24,900 µs | 43.8 dec/s | 4.94 GiB VRAM |
+| **Kev 0.5B (Python)** | Qwen2.5-0.5B + LoRA Pointer Head | 114 / 231 | 49.35% | 576,000 µs | 1.7 dec/s | 1.80 GiB VRAM |
 
-### Head-to-Head Highlights:
-- **vs. Laya (ModernBERT-large 421M)**: Zev wins **51 tasks to 26** (+9.1% accuracy margin) while running **9,243× faster** on pure Rust CPU without requiring a GPU or PyTorch runtime.
-- **vs. Kev (Qwen2.5 / Qwen3)**: Zev beats Kev 0.5B, 0.6B, and 4B models, and comes within 5 tasks of the massive 8B parameter model at **10,750× faster** latency.
-- **Clean Sweep on Intent & Extraction**: Perfect **24/24 (100.0%)** on intent classification and **23/24 (95.8%)** on extraction.
+### JevBench v1.6.1 & Cloudflare Decision Index v0.2.1 Multi-Axis Comparison:
+
+Comparing official full-board metrics from [Benchmark Heaven JevBench v1.6.1](https://benchmarkheaven.com/jev-models/v1.6.1) and the [Cloudflare Decision Index v0.2.1](https://huggingface.co/Cloudflare/clef) against Zev's CPU/ANE tiers:
+
+| Model / Engine | Backbone / Weights | JevBench v1.6.1 Capability | JevBench Calibration | Decision Index (BFCL / BANKING77) | Raw Latency $p_{50}$ ($p_{95}$) | Cost / 1,000 Decisions |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|
+| **Jev 1.13.0** (TypeSafe AI) | Closed Cloud API | 77.13 | 90.63 | 95.8% / 79.7% | 239.1 – 524.1 ms (536.0 ms) | \$0.0323 |
+| **Clef-27B** (`Cloudflare/clef`) | Qwen3.8-27B + Joint Schema Head | 75.33 | 91.58 | 98.5% / **94.2%** | 209.3 – 213.2 ms (238.6 ms) | \$0.2492 |
+| **Winnow-12B Q8** (`EldanRing`) | Gemma-4-12B-IT LoRA (Q8_0) | 71.25 | 82.96 | — | 116.9 ms | \$0.0281 |
+| **Clef-Flash 9B** (`Cloudflare/clef-flash`) | Qwen3.5-9B + Joint Schema Head | 63.82 | 85.46 | **98.8%** / 90.9% | 38.8 – 102.8 ms (122.4 ms) | \$0.0593 |
+| **Kev-9B** (`jaredpalmer/kev`) | Qwen3.5-9B + Pointer Head | ~58.0 | 82.40 | 94.5% / 84.8% | 51.4 – 65.6 ms (187.9 ms) | \$0.0300 |
+| **Laya** (`NandhaKishorM/laya`) | ModernBERT-large 421M | ~45.0 | 58.90 | 38.1% / 14.3% | 5.8 – 24.1 ms (222.5 ms) | \$0.0180 |
+| 🏆 **Zev-Dual-Ensemble (PoE)** | Rust SIMD + Apfel (ANE) / Gemma 4 | **74.89%** *(231 Pub)* | **ECE 6.8%** | **100% Tool Selection** | **0.055 ms** (`55.1 µs`) | **\$0.0000 (Local)** |
+| 🚀 **Zev-Default (Pure SIMD)** | Zero-Weight Rust SIMD + Policy DAG | **56.28%** *(231 Pub)* | **ECE 22.1%** | **100% Tool Selection** | **0.032 ms** (`31.9 µs`) | **\$0.0000 (Local)** |
+
+> **Native Cloudflare Clef Integration (`src/clef.rs`)**: Zev includes a built-in `CloudflareClefProvider` supporting both `@cf/typesafe/clef` / `Cloudflare/clef` (27B) and `@cf/typesafe/clef-flash` / `Cloudflare/clef-flash` (9B) as a speculative fallback (`ZEV_FALLBACK=clef` or `ZEV_FALLBACK=clef-flash`)—resolving ~88% of traffic locally in **31.9 µs** at **\$0.00** and escalating only ambiguous tail queries to Cloudflare Clef.
+
+### Architectural Tradeoffs & Head-to-Head Highlights:
+- **Heavy 9B–27B GPU Models vs. Microsecond CPU/Edge Reflex**: Fine-tuned GPU decision models (`Winnow-12B Q8` at 85.71% / 14.36 GiB VRAM, `Clef-27B` at 81.39% / ~54 GiB VRAM, `Clef-Flash 9B` at 76.62% / ~18 GiB VRAM) and hosted cloud APIs (`Jev 1.13` at 85.71%) achieve the highest raw accuracy on multi-hop reasoning, while `Zev` operates in a **0-VRAM, microsecond CPU/edge tier** (`31.92 µs` $p_{50}$, `< 8 MB RAM`)—resolving unambiguous traffic **750× to 19,000× faster** and optionally cascading only low-confidence queries to local neural backends, `Cloudflare/clef` (`src/clef.rs`), or `Entrant::Winnow` (`src/kev/entrant.rs`).
+- **Strict Zero-Overfitting Pure SIMD (`Zev-Default`)**: With zero model weights, zero neural network layers, and zero dataset-specific rules (enforced by `tests/anti_overfitting_guard.rs`), pure algorithmic Rust SIMD + Policy DAG + Table Graph resolves **130 / 231 (56.28%)** of JevBench in **31.92 µs** ($p_{50}$)—beating `Laya Typed Decisions` (53.68%, 4.94 GiB VRAM) and `Kev 0.5B` (49.35%) while coming within 5 tasks of `Laya English` (58.44%, 4.00 GiB VRAM).
+- **With Speculative Neural Fallback (`Zev-Apfel` / `Zev-Gemma4` / `Zev-Dual-Ensemble`)**: Escalating low-confidence ambiguous queries reaches **70.56% to 74.89%**, surpassing `Kev-4B BF16` (71.43%, 14.89 GiB VRAM) and coming within 3–4 tasks of `Kev-9B BF16` (76.19%, 21.87 GiB VRAM) and `Clef-Flash 9B` (76.62%, ~18 GiB VRAM).
+- **100% Clean Sweep on Structured Families**: Pure SIMD achieves **12/12 (100.0%)** on `fact`, **5/5 (100.0%)** on `routing_hard`, **12/12 (100.0%)** on `tool_selection`, and **19/24 (79.17%)** on `extraction`.
 
 ---
 
@@ -596,15 +646,18 @@ cargo llvm-cov --lcov --output-path lcov.info
 |---|:---:|---|
 | `tev1.rs` | **99.5%** | Together AI Tev1 prompt parsing and wire evaluation |
 | `preprocessor.rs` | **98.6%** | Negation scoping, recency weighting & temporal fact injection |
-| `shortlist.rs` | **97.3%** | Token-set SIMD pruning for 100+ option schemas |
-| `server.rs` | **96.8%** | REST HTTP API (`/v1/decisions`, `/v1/tev1`, `/v1/models`) |
+| `policy_dag.rs` & `counterfactual.rs` | **97.8%** | Finite-state Policy DAG compiler & shadow negation/clause-ablation probing |
+| `table_graph.rs` & `symbolic.rs` | **97.5%** | Markdown table 2-hop joins, priority hierarchy & arithmetic equation verifier |
+| `shortlist.rs` & `fuzzy_match.rs` | **97.3%** | Token-set SIMD pruning & Bitap/Jaro-Winkler typo-tolerant matching |
+| `server.rs` & `decision_cache.rs` | **96.8%** | REST HTTP API (`/v1/decisions`, `/v1/tev1`, `/v1/dlq/triage`) & XXH3 cache |
 | `calibration.rs` | **96.8%** | Numerically stable softmax scaling & ECE minimization |
+| `series_guardrails.rs` & `temporal_numeric.rs` | **95.4%** | JSON/format validation, numeric operators (`>=`, `<=`) & temporal duration rules |
 | `decoding.rs` | **94.7%** | Calibrated concentration, moment statistics & guardrails |
-| `bin/zev.rs` | **91.4%** | CLI entry points (`decide`, `route`, `gate`, `tev1`, `systemone`) |
+| `bin/zev.rs`, `mcp.rs` & `grep.rs` | **92.1%** | CLI entry points (`decide`, `route`, `gate`, `tev1`, `systemone`, `mcp`, `grep`, `batch`) |
 | `types.rs` | **89.3%** | Wire types, question schemas, input validation guardrails |
 | `order_invariant.rs` | **85.4%** | Canonical option permutations & marginal logit integration |
 | `engine.rs` | **83.5%** | Multi-task question scoring, shortlisting & fast-path dispatch |
-| **Total** | **92.4%** | **Comprehensive end-to-end engine coverage (115/119 functions, 96.5%)** |
+| **Total** | **93.2%** | **Comprehensive end-to-end engine coverage** |
 
 ---
 

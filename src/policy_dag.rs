@@ -128,38 +128,69 @@ impl PolicyDag {
 pub fn build_policy_dag_from_text(text: &str) -> PolicyDag {
     let mut dag = PolicyDag::new();
 
-    // 1. If-Then rules: Condition -> Consequence
-    for cap in RE_IF_THEN.captures_iter(text) {
-        if let (Some(cond_m), Some(cons_m)) = (cap.get(1), cap.get(2)) {
-            if let (Some(u), Some(v)) = (
-                dag.get_or_create_node(cond_m.as_str()),
-                dag.get_or_create_node(cons_m.as_str()),
-            ) {
-                dag.add_implication(u, v);
+    for clause in text.split(['\n', '.', ';']) {
+        let trimmed = clause.trim();
+        if trimmed.len() < 12 || trimmed.len() > 240 {
+            continue;
+        }
+        let lower = trimmed.to_ascii_lowercase();
+
+        let has_if = lower.contains("if ")
+            || lower.contains("when ")
+            || lower.contains("where ")
+            || lower.contains("provided ")
+            || lower.contains("in the event ");
+        let has_req = lower.contains("requires ")
+            || lower.contains("subject to ")
+            || lower.contains("depends on ")
+            || lower.contains("conditional upon ");
+        let has_exc = lower.contains("unless ")
+            || lower.contains("except ")
+            || lower.contains("excluding ");
+
+        if !has_if && !has_req && !has_exc {
+            continue;
+        }
+
+        // 1. If-Then rules: Condition -> Consequence
+        if has_if {
+            for cap in RE_IF_THEN.captures_iter(trimmed) {
+                if let (Some(cond_m), Some(cons_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(u), Some(v)) = (
+                        dag.get_or_create_node(cond_m.as_str()),
+                        dag.get_or_create_node(cons_m.as_str()),
+                    ) {
+                        dag.add_implication(u, v);
+                    }
+                }
             }
         }
-    }
 
-    // 2. Requires rules: Consequence requires Condition => Condition enables Consequence
-    for cap in RE_REQUIRES.captures_iter(text) {
-        if let (Some(cons_m), Some(cond_m)) = (cap.get(1), cap.get(2)) {
-            if let (Some(v), Some(u)) = (
-                dag.get_or_create_node(cons_m.as_str()),
-                dag.get_or_create_node(cond_m.as_str()),
-            ) {
-                dag.add_implication(u, v);
+        // 2. Requires rules: Consequence requires Condition => Condition enables Consequence
+        if has_req {
+            for cap in RE_REQUIRES.captures_iter(trimmed) {
+                if let (Some(cons_m), Some(cond_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(v), Some(u)) = (
+                        dag.get_or_create_node(cons_m.as_str()),
+                        dag.get_or_create_node(cond_m.as_str()),
+                    ) {
+                        dag.add_implication(u, v);
+                    }
+                }
             }
         }
-    }
 
-    // 3. Unless / Exception rules: Exception blocks Action
-    for cap in RE_UNLESS_EXCEPTION.captures_iter(text) {
-        if let (Some(action_m), Some(exc_m)) = (cap.get(1), cap.get(2)) {
-            if let (Some(action_idx), Some(exc_idx)) = (
-                dag.get_or_create_node(action_m.as_str()),
-                dag.get_or_create_node(exc_m.as_str()),
-            ) {
-                dag.add_inhibition(exc_idx, action_idx);
+        // 3. Unless / Exception rules: Exception blocks Action
+        if has_exc {
+            for cap in RE_UNLESS_EXCEPTION.captures_iter(trimmed) {
+                if let (Some(action_m), Some(exc_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(action_idx), Some(exc_idx)) = (
+                        dag.get_or_create_node(action_m.as_str()),
+                        dag.get_or_create_node(exc_m.as_str()),
+                    ) {
+                        dag.add_inhibition(exc_idx, action_idx);
+                    }
+                }
             }
         }
     }

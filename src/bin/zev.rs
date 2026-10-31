@@ -98,7 +98,7 @@ enum Commands {
         #[arg(short, long)]
         distribution: bool,
 
-        /// Speculative fallback backend ("mlx", "gemma", "apfel", "clm", "none")
+        /// Speculative fallback backend ("fm", "fm-pcc", "mlx", "gemma", "apfel", "clm", "none")
         #[arg(short, long)]
         backend: Option<String>,
 
@@ -490,8 +490,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }) => {
             if let Some(b) = backend {
                 if (b == "apfel" || b == "neural") && !cfg!(feature = "neural") {
+                    if zev::is_fm_available() {
+                        // Seamlessly route via macOS native /usr/bin/fm (AFM 3 Core Advanced)
+                    } else {
+                        eprintln!(
+                            "Warning: fallback backend '{}' requested, but zev was compiled without '--features neural' and /usr/bin/fm is unavailable. Reverting to default SIMD heuristics.",
+                            b
+                        );
+                    }
+                } else if (b == "fm" || b == "fm-pcc" || b == "afm" || b == "afm3")
+                    && !zev::is_fm_available()
+                {
                     eprintln!(
-                        "Warning: fallback backend '{}' requested, but zev was compiled without '--features neural'. Reverting to default SIMD heuristics.",
+                        "Warning: fallback backend '{}' requested, but /usr/bin/fm is not available on this host. Reverting to default SIMD heuristics.",
                         b
                     );
                 } else if b == "mlx" && !cfg!(feature = "mlx") {
@@ -505,6 +516,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::env::set_var("ZEV_FALLBACK", "mlx");
                 #[cfg(all(target_os = "macos", not(feature = "mlx"), feature = "neural"))]
                 std::env::set_var("ZEV_FALLBACK", "apfel");
+                #[cfg(all(target_os = "macos", not(feature = "mlx"), not(feature = "neural")))]
+                {
+                    if zev::is_fm_available() {
+                        std::env::set_var("ZEV_FALLBACK", "fm");
+                    } else {
+                        std::env::set_var("ZEV_FALLBACK", "gemma");
+                    }
+                }
                 #[cfg(not(target_os = "macos"))]
                 std::env::set_var("ZEV_FALLBACK", "gemma");
             }

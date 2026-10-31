@@ -25,8 +25,8 @@
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZEV — Ultra-Fast Decision Engine | 13.4µs Latency, 74.89% JevBench Accuracy (#1 Worldwide)</title>
-  <meta name="description" content="Zev is an ultra-fast zero-token LLM decision engine in pure Rust. Evaluates classification, routing, and scoring schemas in 13.4 microseconds with 74.89% accuracy on JevBench (#1 worldwide, eclipsing Winnow-12B), 0% order bias, and zero GPU requirement.">
+  <title>ZEV — Ultra-Fast Decision Engine | 13.4µs Latency, 74.89% JevBench Accuracy</title>
+  <meta name="description" content="Zev is an ultra-fast zero-token LLM decision engine in pure Rust. Evaluates classification, routing, and scoring schemas in 13.4 microseconds with up to 74.89% accuracy on JevBench (surpassing Kev-4B BF16 at 0 GiB VRAM), 0% order bias, and zero GPU requirement.">
   <meta name="keywords" content="Zev, decision model, zero-token, LLM decision engine, system 1 AI, order-invariance, calibrated softmax, JevBench, Winnow-12B, Cygnet, Gemma 4, Apple Intelligence, Rust AI">
   <meta name="author" content="Brandon Hubbard">
   <link rel="canonical" href="https://bhubbard.github.io/zev-rs/">
@@ -36,13 +36,13 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://bhubbard.github.io/zev-rs/">
   <meta property="og:title" content="ZEV — Ultra-Fast Zero-Token Decision Engine (13.4 µs, 74.89% Accuracy)">
-  <meta property="og:description" content="Evaluates classifications and routing decisions in 13.4 microseconds with 74.89% accuracy on JevBench. #1 globally, eclipses Winnow-12B, 25,000× faster than cloud LLMs at $0.00 cost.">
+  <meta property="og:description" content="Evaluates classifications and routing decisions in 13.4 microseconds with up to 74.89% accuracy on JevBench. Surpasses Kev-4B BF16 at 0 GiB VRAM, 25,000× faster than cloud LLMs at $0.00 cost.">
   <meta property="og:site_name" content="ZEV by Brandon Hubbard">
 
   <!-- Twitter Cards -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="ZEV — 13.4 µs Zero-Token Decision Engine (74.89% Accuracy)">
-  <meta name="twitter:description" content="13.4 µs decisions, 74.89% JevBench accuracy (#1 worldwide), 0.0% order flip rate. 74,300+ dec/s on your laptop.">
+  <meta name="twitter:description" content="13.4 µs decisions, up to 74.89% JevBench accuracy, 0.0% order flip rate. 74,300+ dec/s on your laptop.">
 
   <!-- Structured Data (JSON-LD) for Technical SEO -->
   <script type="application/ld+json">
@@ -1431,7 +1431,7 @@
   <!-- Top metadata bar -->
   <aside class="top-bar" aria-label="Build Status">
     <div>// REPOSITORY: <span class="meta-tag">GITHUB.COM/BHUBBARD/ZEV-RS</span></div>
-    <div>VERSION <span class="meta-tag">0.3.7</span> &bull; CRATES.IO &bull; MIT LICENSE</div>
+    <div>VERSION <span class="meta-tag">0.3.11</span> &bull; CRATES.IO &bull; MIT LICENSE</div>
   </aside>
 
   <!-- Main header -->
@@ -1533,7 +1533,7 @@
         <a href="https://code.brandonhubbard.com/" class="subnav-crumb">Code</a>
         <span class="subnav-sep">&gt;</span>
         <span class="subnav-current">zev-rs</span>
-        <span class="subnav-badge">CRATE v0.1.0</span>
+        <span class="subnav-badge">CRATE v0.3.11</span>
       </div>
 
       <nav class="subnav-menu">
@@ -1549,8 +1549,8 @@
   <main>
     <section id="overview" class="hero">
       <div class="hero-inner">
-        <div class="kicker">ZERO-TOKEN SYSTEM 1 DECISION ENGINE // v0.3.7</div>
-        <h1>Stop paying cloud GPUs for simple decisions.<br><span style="color: var(--electric-cyan);">13.4 µs latency. 74.89% accuracy (#1 Worldwide). $0.00 bills.</span></h1>
+        <div class="kicker">ZERO-TOKEN SYSTEM 1 DECISION ENGINE // v0.3.11</div>
+        <h1>Stop paying cloud GPUs for simple decisions.<br><span style="color: var(--electric-cyan);">13.4 µs latency. Up to 74.89% accuracy. $0.00 bills.</span></h1>
         <p class="lead">
           Traditional LLMs waste 500+ milliseconds generating tokens one by one just to categorize a ticket or route an API call. <strong>Zev resolves decisions in 13.4 microseconds on your CPU or Apple Silicon</strong> with calibrated probabilities, mathematical order-invariance, and automatic neural speculative failover.
         </p>
@@ -1584,7 +1584,7 @@
           </div>
           <div class="metric-cell">
             <div class="metric-val" style="color: var(--signal-emerald);">74.89 <span>%</span></div>
-            <div class="metric-label">JevBench Accuracy (#1 Worldwide)</div>
+            <div class="metric-label">JevBench Accuracy (Dual PoE)</div>
           </div>
           <div class="metric-cell">
             <div class="metric-val">74,346</div>
@@ -1694,7 +1694,7 @@
             <div><span class="lbl">Best For:</span> <span class="val">Legal, Medical, Compliance Audit</span></div>
           </div>
           <p style="font-size: 13px; color: var(--steel);">
-            Takes #1 globally: eclipses Winnow-12B (74.43%), djev (72.33%), and Jev 1.13.0 (72.00%) at $0.00 cost per 1,000 decisions.
+            Surpasses Kev-4B BF16 (71.43%, 14.9 GiB VRAM) and approaches Kev-9B BF16 (76.19%, 21.9 GiB VRAM) at $0.00 cost per 1,000 decisions.
           </p>
         </div>
 
@@ -1725,18 +1725,39 @@
             <span class="config-tag" style="color: var(--steel);">MODE 4 // ZERO-TOKEN HARDWARE REFLEX</span>
             <h3 class="config-title">Zev-Default (Pure SIMD)</h3>
             <p style="color: #999; font-size: 14px;">
-              Zero model weights, zero PyTorch, pure CPU Neon/AVX2. Permutation-invariant token index with calibrated temperature scaling.
+              Zero model weights, zero PyTorch, pure CPU Neon/AVX2. Permutation-invariant token index, Policy DAG compiler, and Markdown Table 2-hop graph.
             </p>
           </div>
           <div class="config-specs">
-            <div><span class="lbl">Latency (p50):</span> <span class="val">13.32 µs</span></div>
+            <div><span class="lbl">Latency (p50):</span> <span class="val">31.92 µs (live) / 13.3 µs (hot)</span></div>
             <div><span class="lbl">Throughput:</span> <span class="val">75,078 dec/s</span></div>
-            <div><span class="lbl">JevBench Accuracy:</span> <span class="val">69.70% (161/231)</span></div>
-            <div><span class="lbl">Hardware Target:</span> <span class="val">Pure CPU (Any x86/ARM)</span></div>
-            <div><span class="lbl">Best For:</span> <span class="val">Cloud VPS, Linux Containers, Docker</span></div>
+            <div><span class="lbl">JevBench Accuracy:</span> <span class="val">56.28% (strict) / 67.53% (rules)</span></div>
+            <div><span class="lbl">Hardware Target:</span> <span class="val">Pure CPU / WASM Edge</span></div>
+            <div><span class="lbl">Best For:</span> <span class="val">Cloud VPS, Linux Containers, Workers</span></div>
           </div>
           <p style="font-size: 13px; color: var(--steel);">
-            Requires zero GPU acceleration or external model weights. Runs inside minimal Docker containers on standard $5/month cloud instances.
+            Strict zero-overfitting generalizable baseline enforced by <code>tests/anti_overfitting_guard.rs</code>. Runs inside minimal Docker containers or Cloudflare Workers WASM isolates.
+          </p>
+        </div>
+
+        <!-- Zev-FM (macOS AFM 3 Core Advanced) -->
+        <div class="config-card">
+          <div class="config-header">
+            <span class="config-tag" style="color: var(--signal-emerald);">MODE 5 // MACOS NATIVE FOUNDATION MODELS</span>
+            <h3 class="config-title">Zev-FM (AFM 3 Core Advanced &amp; PCC)</h3>
+            <p style="color: #999; font-size: 14px;">
+              First-class integration with macOS 27.2+ <code>/usr/bin/fm</code> (<code>system</code> on-device AFM 3 Core Advanced &amp; <code>pcc</code> Apple Private Cloud Compute) using grammar-constrained JSON schema decoding.
+            </p>
+          </div>
+          <div class="config-specs">
+            <div><span class="lbl">Latency (p50):</span> <span class="val" style="color: var(--signal-emerald);">13.5 µs (fast path)</span></div>
+            <div><span class="lbl">Tail Escalation:</span> <span class="val"><code>fm serve</code> HTTP / <code>fm respond --schema</code></span></div>
+            <div><span class="lbl">Models:</span> <span class="val" style="color: var(--electric-cyan); font-weight: 700;"><code>system</code> (AFM 3) &amp; <code>pcc</code></span></div>
+            <div><span class="lbl">Hardware Target:</span> <span class="val">Apple Neural Engine / PCC</span></div>
+            <div><span class="lbl">Best For:</span> <span class="val">Zero-Setup macOS 27.2+ Deployment</span></div>
+          </div>
+          <p style="font-size: 13px; color: var(--steel);">
+            Requires zero extra feature flags or model downloads on macOS 27.2+. Supports both persistent <code>fm serve --port 1976</code> and zero-daemon <code>/usr/bin/fm respond</code>.
           </p>
         </div>
       </div>
@@ -1757,7 +1778,7 @@
           <div style="padding: 16px; border: 1px solid rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.03);">
             <div style="font-size: 18px; margin-bottom: 6px;">🎯 <strong>Legal / Medical / Compliance</strong></div>
             <div style="color: var(--signal-emerald); font-family: var(--font-mono); font-size: 13px; margin-bottom: 8px;">Zev-Dual-Ensemble (PoE)</div>
-            <div style="font-size: 13px; color: #ccc;">74.89% accuracy (#1 overall). Fuses Apfel and Gemma 4 with Bayesian Product of Experts.</div>
+            <div style="font-size: 13px; color: #ccc;">74.89% accuracy. Fuses Apfel and Gemma 4 with Bayesian Product of Experts.</div>
           </div>
           <div style="padding: 16px; border: 1px solid rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.03);">
             <div style="font-size: 18px; margin-bottom: 6px;">🛡️ <strong>Edge & Battery Powered</strong></div>
@@ -1813,18 +1834,46 @@
           </div>
           <div class="bar-group">
             <div class="bar-row">
+              <span class="bar-label">Winnow-12B Q8 (14.4G GPU)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 85.71%;">85.71%</div>
+              </div>
+              <span class="bar-val">198 / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Jev 1.13 (Hosted API)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 85.71%;">85.71%</div>
+              </div>
+              <span class="bar-val">198 / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Clef-27B (Cloudflare 54G)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 81.39%;">81.39%</div>
+              </div>
+              <span class="bar-val">188 / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Clef-Flash 9B (Cloudflare)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 76.62%;">76.62%</div>
+              </div>
+              <span class="bar-val">177 / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Kev-9B BF16 (21.9G GPU)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 76.19%;">76.19%</div>
+              </div>
+              <span class="bar-val">176 / 231</span>
+            </div>
+            <div class="bar-row">
               <span class="bar-label">Zev-Dual-Ensemble (PoE) 🏆</span>
               <div class="bar-track">
                 <div class="bar-fill bar-fill-zev" style="width: 74.89%; background: var(--signal-emerald); font-weight: 700;">74.89%</div>
               </div>
               <span class="bar-val"><strong>173</strong> / 231</span>
-            </div>
-            <div class="bar-row">
-              <span class="bar-label">Winnow-12B Q8</span>
-              <div class="bar-track">
-                <div class="bar-fill bar-fill-competitor" style="width: 74.43%;">74.43%</div>
-              </div>
-              <span class="bar-val">172 / 231</span>
             </div>
             <div class="bar-row">
               <span class="bar-label">Zev-Dual-Cascade ⚡</span>
@@ -1841,32 +1890,11 @@
               <span class="bar-val"><strong>168</strong> / 231</span>
             </div>
             <div class="bar-row">
-              <span class="bar-label">djev (Maisa 26B)</span>
-              <div class="bar-track">
-                <div class="bar-fill bar-fill-competitor" style="width: 72.33%;">72.33%</div>
-              </div>
-              <span class="bar-val">167 / 231</span>
-            </div>
-            <div class="bar-row">
-              <span class="bar-label">Jev 1.13.0 (Closed API)</span>
-              <div class="bar-track">
-                <div class="bar-fill bar-fill-competitor" style="width: 72.00%;">72.00%</div>
-              </div>
-              <span class="bar-val">166 / 231</span>
-            </div>
-            <div class="bar-row">
-              <span class="bar-label">Kev 8B (Qwen3)</span>
+              <span class="bar-label">Kev-4B BF16 (14.9G GPU)</span>
               <div class="bar-track">
                 <div class="bar-fill bar-fill-competitor" style="width: 71.43%;">71.43%</div>
               </div>
               <span class="bar-val">165 / 231</span>
-            </div>
-            <div class="bar-row">
-              <span class="bar-label">Cygnet (Gemma 4-31B)</span>
-              <div class="bar-track">
-                <div class="bar-fill bar-fill-competitor" style="width: 71.09%;">71.09%</div>
-              </div>
-              <span class="bar-val">164 / 231</span>
             </div>
             <div class="bar-row">
               <span class="bar-label">Zev-Gemma4</span>
@@ -1883,18 +1911,32 @@
               <span class="bar-val"><strong>163</strong> / 231</span>
             </div>
             <div class="bar-row">
-              <span class="bar-label">Zev-Default (SIMD)</span>
+              <span class="bar-label">Zev-SIMD (dataset-rules)</span>
               <div class="bar-track">
-                <div class="bar-fill bar-fill-zev-subtle" style="width: 69.70%;">69.70%</div>
+                <div class="bar-fill bar-fill-zev-subtle" style="width: 67.53%;">67.53%</div>
               </div>
-              <span class="bar-val"><strong>161</strong> / 231</span>
+              <span class="bar-val"><strong>156</strong> / 231</span>
             </div>
             <div class="bar-row">
-              <span class="bar-label">Laya (ModernBERT)</span>
+              <span class="bar-label">Laya English (4.0G GPU)</span>
               <div class="bar-track">
                 <div class="bar-fill bar-fill-competitor" style="width: 58.44%; background: var(--precision-crimson); color: #fff;">58.44%</div>
               </div>
               <span class="bar-val">135 / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Zev-Default (Strict SIMD)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-zev-subtle" style="width: 56.28%;">56.28%</div>
+              </div>
+              <span class="bar-val"><strong>130</strong> / 231</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Laya Typed (4.9G GPU)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 53.68%; background: var(--precision-crimson); color: #fff;">53.68%</div>
+              </div>
+              <span class="bar-val">124 / 231</span>
             </div>
           </div>
         </div>
@@ -1933,6 +1975,20 @@
                 <div class="bar-fill" style="width: 12%; background: var(--amber-gold); color: #000;">7.8ms</div>
               </div>
               <span class="bar-val">7.80 ms</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Clef-Flash 9B (Cloudflare)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 24%; background: var(--precision-crimson); color: #fff;">38.8 ms</div>
+              </div>
+              <span class="bar-val">38.8 ms</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Clef-27B (Cloudflare)</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-competitor" style="width: 50%; background: var(--precision-crimson); color: #fff;">209 ms</div>
+              </div>
+              <span class="bar-val">209.3 ms</span>
             </div>
             <div class="bar-row">
               <span class="bar-label">Cygnet (GPU Pod)</span>
@@ -1977,11 +2033,11 @@
           To uphold engineering integrity and prevent benchmark conflation, Zev's evaluation datasets are strictly separated into two distinct suites:
         </p>
         <ul style="font-size: 13.5px; line-height: 1.6; color: #ccc; margin-left: 20px; margin-bottom: 12px;">
-          <li><strong>JevBench Public Frozen Hard Reasoning Suite (231 tasks)</strong>: Sourced directly from upstream <code>fstandhartinger/jevbench</code>. Evaluated 100% dynamically at runtime via <code>cargo run --release --example eval_jevbench_231</code> with zero hardcoded values. Pure SIMD reflex achieves <strong>156 / 231 (67.53%)</strong> at <strong>54.96 µs</strong> median latency (p50), scaling up to <strong>74.89%</strong> with dual local neural ensemble (ANE + Gemma).</li>
+          <li><strong>JevBench Public Frozen Hard Reasoning Suite (231 tasks)</strong>: Sourced directly from upstream <code>fstandhartinger/jevbench</code>. Evaluated 100% dynamically at runtime via <code>cargo run --release --example eval_jevbench_231</code> with zero hardcoded benchmark strings (enforced by <code>tests/anti_overfitting_guard.rs</code>). Strict zero-overfitting Pure SIMD achieves <strong>130 / 231 (56.28%)</strong> at <strong>31.92 µs</strong> median latency (p50); domain-enriched SIMD (<code>--features dataset-rules</code>) achieves <strong>156 / 231 (67.53%)</strong> at <strong>54.96 µs</strong>; and speculative dual local neural ensemble (ANE + Gemma 4) scales up to <strong>173 / 231 (74.89%)</strong>.</li>
           <li><strong>Zev Synthetic Scale Suite (1,200 tasks)</strong>: High-volume programmatic permutations designed to stress-test zero-token SIMD keyword extraction throughput and memory stability under load (&gt;34,000 ops/s).</li>
         </ul>
         <p style="font-size: 13px; color: var(--text-dim); margin: 0;">
-          <em>Notice: Microbenchmark latencies (13 µs – 25 µs) measure isolated SIMD cache loops. Live multi-task JSON deserialization and decision evaluation across the 231 JevBench suite runs at <strong>54.96 µs</strong> median latency, still &gt;9,200× faster than PyTorch models.</em>
+          <em>Notice: Microbenchmark latencies (13 µs – 25 µs) measure isolated SIMD cache loops (~185 ns on XXH3 DecisionCache hits). Live multi-task JSON deserialization, Policy DAG compilation, and decision evaluation across the 231 JevBench suite runs at <strong>31.92 µs</strong> median latency in strict Pure SIMD mode (54.96 µs with dataset-rules), &gt;15,900× faster than PyTorch models.</em>
         </p>
       </div>
 
@@ -1999,82 +2055,109 @@
             </tr>
           </thead>
           <tbody>
-            <tr class="highlight" style="background: rgba(16, 185, 129, 0.08);">
-              <td><strong>Zev-Dual-Ensemble (PoE) 🏆</strong></td>
-              <td>Consensus PoE Fusion (Apfel ANE + Gemma 4)</td>
-              <td class="mono" style="color: var(--signal-emerald); font-weight: 700;">74.89%</td>
-              <td class="mono"><strong>55.10 µs</strong></td>
-              <td class="mono"><strong>6,850 dec/s</strong></td>
-              <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
-              <td>&lt; 32 MB (Mac ANE/CPU)</td>
-            </tr>
             <tr style="background: rgba(244, 63, 94, 0.04);">
               <td><strong>Winnow-12B Q8</strong></td>
-              <td>Quantized 12B Decoder-Only (Cloud GPU)</td>
-              <td class="mono">74.43%</td>
-              <td class="mono">340,000 µs (340 ms)</td>
-              <td class="mono">2.9 dec/s</td>
+              <td>Gemma-4-12B-IT LoRA (<code>llama.cpp</code> GPU)</td>
+              <td class="mono">85.71% (198/231)</td>
+              <td class="mono">52,700 – 181,300 µs</td>
+              <td class="mono">3.4 – 45.2 dec/s</td>
               <td class="mono" style="color: var(--precision-crimson);">$0.028000</td>
-              <td>16 GB VRAM (GPU Pod)</td>
-            </tr>
-            <tr class="highlight" style="background: rgba(59, 130, 246, 0.08);">
-              <td><strong>Zev-Dual-Cascade ⚡</strong></td>
-              <td>Three-Tier Cascade (SIMD → ANE → Gemma 4)</td>
-              <td class="mono" style="color: var(--electric-cyan); font-weight: 700;">72.73%</td>
-              <td class="mono"><strong>55.20 µs</strong></td>
-              <td class="mono"><strong>6,820 dec/s</strong></td>
-              <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
-              <td>&lt; 16 MB (Mac ANE/CPU)</td>
-            </tr>
-            <tr class="highlight" style="background: rgba(59, 130, 246, 0.08);">
-              <td><strong>Zev-Load-Balanced ⚡</strong></td>
-              <td>Alternating Balancer (ANE ↔ CPU/GPU + Failover)</td>
-              <td class="mono" style="color: var(--electric-cyan); font-weight: 700;">72.73%</td>
-              <td class="mono"><strong>55.05 µs</strong></td>
-              <td class="mono"><strong>6,890 dec/s</strong></td>
-              <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
-              <td>&lt; 32 MB (Mac ANE/CPU)</td>
+              <td>14.36 GiB VRAM (GPU)</td>
             </tr>
             <tr>
-              <td><strong>djev (Maisa 26B)</strong></td>
-              <td>Maisa 26B Reasoning Cluster</td>
-              <td class="mono">72.33%</td>
-              <td class="mono">1,280,000 µs (1.28 s)</td>
-              <td class="mono">0.8 dec/s</td>
-              <td class="mono" style="color: var(--precision-crimson);">$0.049000</td>
-              <td>32 GB VRAM (GPU Pod)</td>
-            </tr>
-            <tr>
-              <td><strong>Jev 1.13.0</strong> (Closed Reference)</td>
-              <td>TypeSafe Closed Cloud API Cluster</td>
-              <td class="mono">72.00%</td>
+              <td><strong>Jev 1.13</strong> (Closed Reference)</td>
+              <td>TypeSafe Closed Cloud API (OpenRouter)</td>
+              <td class="mono">85.71% (198/231)</td>
               <td class="mono">620,000 µs (620 ms)</td>
               <td class="mono">1.6 dec/s</td>
               <td class="mono" style="color: var(--precision-crimson);">$0.032000</td>
               <td>Cloud API Cluster</td>
             </tr>
+            <tr style="background: rgba(244, 63, 94, 0.04);">
+              <td><strong>Winnow-12B BF16</strong></td>
+              <td>Gemma-4-12B-IT LoRA (BF16 GPU)</td>
+              <td class="mono">85.28% (197/231)</td>
+              <td class="mono">74,200 – 195,400 µs</td>
+              <td class="mono">29.8 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.035000</td>
+              <td>24.80 GiB VRAM (GPU)</td>
+            </tr>
             <tr>
-              <td><strong>Kev 8B</strong> (Python)</td>
-              <td>Qwen3-8B + LoRA Pointer Head (PyTorch)</td>
-              <td class="mono">71.43%</td>
-              <td class="mono">591,000 µs (591 ms)</td>
-              <td class="mono">1.7 dec/s</td>
-              <td class="mono" style="color: var(--precision-crimson);">$0.030000</td>
-              <td>16 GB VRAM (PyTorch)</td>
+              <td><strong>Winnow-12B NVFP4</strong></td>
+              <td>Gemma-4-12B-IT LoRA (NVFP4 GPU)</td>
+              <td class="mono">83.55% (193/231)</td>
+              <td class="mono">~200,000 µs (200 ms)</td>
+              <td class="mono">4.98 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.020000</td>
+              <td>9.01 GiB VRAM (GPU)</td>
             </tr>
             <tr style="background: rgba(244, 63, 94, 0.04);">
-              <td><strong>Cygnet</strong> (#1 Benchmark Heaven)</td>
-              <td>Gemma 4-31B Instruct (Heavy LLM)</td>
-              <td class="mono">71.09%</td>
-              <td class="mono">230,000 µs (230 ms)</td>
-              <td class="mono">4.3 dec/s</td>
-              <td class="mono" style="color: var(--precision-crimson);">$0.028000</td>
-              <td>24 GB VRAM (Cloud GPU Pod)</td>
+              <td><strong>Clef-27B (Cloudflare)</strong></td>
+              <td>Qwen3.8-27B + Joint Schema Head (BF16 GPU)</td>
+              <td class="mono">81.39% (188/231)</td>
+              <td class="mono">209,300 – 213,187 µs</td>
+              <td class="mono">4.7 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.249227</td>
+              <td>~54.0 GiB VRAM (H200 GPU)</td>
+            </tr>
+            <tr>
+              <td><strong>Clef-Flash 9B (Cloudflare)</strong></td>
+              <td>Qwen3.5-9B + Joint Schema Head (BF16 GPU)</td>
+              <td class="mono">76.62% (177/231)</td>
+              <td class="mono">38,800 – 102,830 µs</td>
+              <td class="mono">9.7 – 25.8 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.059340</td>
+              <td>~18.0 GiB VRAM (GPU)</td>
+            </tr>
+            <tr>
+              <td><strong>Kev-9B BF16</strong> (Python)</td>
+              <td>Qwen3-9B + LoRA Pointer Head (PyTorch)</td>
+              <td class="mono">76.19% (176/231)</td>
+              <td class="mono">65,600 – 151,800 µs</td>
+              <td class="mono">14.1 – 15.1 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.030000</td>
+              <td>21.87 GiB VRAM (PyTorch)</td>
+            </tr>
+            <tr class="highlight" style="background: rgba(16, 185, 129, 0.08);">
+              <td><strong>Zev-Dual-Ensemble (PoE) 🏆</strong></td>
+              <td>Consensus PoE Fusion (Apfel ANE + Gemma 4)</td>
+              <td class="mono" style="color: var(--signal-emerald); font-weight: 700;">74.89% (173/231)</td>
+              <td class="mono"><strong>55.10 µs</strong></td>
+              <td class="mono"><strong>6,850 dec/s</strong></td>
+              <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
+              <td>&lt; 32 MB (0 GiB VRAM, Mac ANE/CPU)</td>
+            </tr>
+            <tr class="highlight" style="background: rgba(59, 130, 246, 0.08);">
+              <td><strong>Zev-Dual-Cascade ⚡</strong></td>
+              <td>Three-Tier Cascade (SIMD → ANE → Gemma 4)</td>
+              <td class="mono" style="color: var(--electric-cyan); font-weight: 700;">72.73% (168/231)</td>
+              <td class="mono"><strong>55.20 µs</strong></td>
+              <td class="mono"><strong>6,820 dec/s</strong></td>
+              <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
+              <td>&lt; 16 MB (0 GiB VRAM, Mac ANE/CPU)</td>
+            </tr>
+            <tr class="highlight" style="background: rgba(59, 130, 246, 0.08);">
+              <td><strong>Zev-Load-Balanced ⚡</strong></td>
+              <td>Alternating Balancer (ANE ↔ CPU/GPU + Failover)</td>
+              <td class="mono" style="color: var(--electric-cyan); font-weight: 700;">72.73% (168/231)</td>
+              <td class="mono"><strong>55.05 µs</strong></td>
+              <td class="mono"><strong>6,890 dec/s</strong></td>
+              <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
+              <td>&lt; 32 MB (0 GiB VRAM, Mac ANE/CPU)</td>
+            </tr>
+            <tr>
+              <td><strong>Kev-4B BF16</strong> (Python)</td>
+              <td>Qwen3-4B + LoRA Pointer Head (PyTorch)</td>
+              <td class="mono">71.43% (165/231)</td>
+              <td class="mono">65,800 – 133,100 µs</td>
+              <td class="mono">14.0 – 15.2 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.027000</td>
+              <td>14.89 GiB VRAM (PyTorch)</td>
             </tr>
             <tr>
               <td><strong>Zev-Gemma4</strong></td>
               <td>SIMD + Distilled Gemma 4 Head</td>
-              <td class="mono">71.00%</td>
+              <td class="mono">71.00% (164/231)</td>
               <td class="mono"><strong>56.24 µs</strong></td>
               <td class="mono"><strong>6,720 dec/s</strong></td>
               <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
@@ -2083,29 +2166,47 @@
             <tr>
               <td><strong>Zev-Apfel</strong></td>
               <td>Apple Intelligence FoundationModels (ANE)</td>
-              <td class="mono">70.56%</td>
+              <td class="mono">70.56% (163/231)</td>
               <td class="mono"><strong>55.00 µs</strong></td>
               <td class="mono"><strong>6,900 dec/s</strong></td>
               <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
               <td>&lt; 16 MB (Mac ANE)</td>
             </tr>
             <tr>
-              <td><strong>Zev-Default</strong></td>
-              <td>Zero-Token Pure Rust SIMD Reflex</td>
-              <td class="mono">67.53%</td>
+              <td><strong>Zev-SIMD (<code>dataset-rules</code>)</strong></td>
+              <td>Zero-Token SIMD + Domain Taxonomy</td>
+              <td class="mono">67.53% (156/231)</td>
               <td class="mono"><strong>54.96 µs</strong></td>
               <td class="mono"><strong>6,955 dec/s</strong></td>
               <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
               <td>&lt; 8 MB (Pure CPU)</td>
             </tr>
             <tr>
-              <td><strong>Laya</strong> (Python)</td>
+              <td><strong>Laya English</strong> (Python)</td>
               <td>ModernBERT-large 421M (PyTorch)</td>
-              <td class="mono">58.44%</td>
-              <td class="mono">508,000 µs (508 ms)</td>
-              <td class="mono">2.0 dec/s</td>
+              <td class="mono">58.44% (135/231)</td>
+              <td class="mono">24,100 – 508,000 µs</td>
+              <td class="mono">2.0 – 41.9 dec/s</td>
               <td class="mono" style="color: var(--precision-crimson);">$0.018000</td>
-              <td>2 GB VRAM (PyTorch)</td>
+              <td>4.00 GiB VRAM (PyTorch)</td>
+            </tr>
+            <tr>
+              <td><strong>Zev-Default (Strict Pure SIMD)</strong></td>
+              <td>Strict Zero-Overfitting Generalizable SIMD</td>
+              <td class="mono">56.28% (130/231)</td>
+              <td class="mono"><strong>31.92 µs</strong></td>
+              <td class="mono"><strong>9,635 dec/s</strong></td>
+              <td class="mono" style="color: var(--signal-emerald);">$0.000000</td>
+              <td>&lt; 8 MB (Pure CPU / WASM)</td>
+            </tr>
+            <tr>
+              <td><strong>Laya Typed Decisions</strong> (Python)</td>
+              <td>ModernBERT-large 421M (Typed FT)</td>
+              <td class="mono">53.68% (124/231)</td>
+              <td class="mono">23,300 – 24,900 µs</td>
+              <td class="mono">43.8 dec/s</td>
+              <td class="mono" style="color: var(--precision-crimson);">$0.018000</td>
+              <td>4.94 GiB VRAM (PyTorch)</td>
             </tr>
           </tbody>
         </table>
@@ -2128,14 +2229,14 @@
 
       <div class="table-wrapper">
         <table>
-          <thead>
+            <thead>
             <tr>
               <th scope="col">Task Family</th>
               <th scope="col">Items</th>
-              <th scope="col">Zev-Default</th>
+              <th scope="col">Zev-Default (Strict SIMD)</th>
+              <th scope="col">Zev-SIMD (dataset-rules)</th>
               <th scope="col">Zev-Apfel</th>
               <th scope="col">Zev-Candle</th>
-              <th scope="col">Zev-CLM</th>
               <th scope="col">Laya (Python)</th>
               <th scope="col">Kev 0.6B</th>
               <th scope="col">Winner</th>
@@ -2145,7 +2246,7 @@
             <tr class="highlight">
               <td><strong>intent</strong></td>
               <td class="mono">24</td>
-              <td class="mono"><strong>24 (100.0%)</strong></td>
+              <td class="mono">15 (62.5%)</td>
               <td class="mono"><strong>24 (100.0%)</strong></td>
               <td class="mono"><strong>24 (100.0%)</strong></td>
               <td class="mono"><strong>24 (100.0%)</strong></td>
@@ -2156,7 +2257,7 @@
             <tr class="highlight">
               <td><strong>extraction</strong></td>
               <td class="mono">24</td>
-              <td class="mono"><strong>23 (95.8%)</strong></td>
+              <td class="mono"><strong>19 (79.2%)</strong></td>
               <td class="mono"><strong>23 (95.8%)</strong></td>
               <td class="mono"><strong>23 (95.8%)</strong></td>
               <td class="mono"><strong>23 (95.8%)</strong></td>
@@ -2178,7 +2279,7 @@
             <tr class="highlight">
               <td><strong>ordinal</strong></td>
               <td class="mono">12</td>
-              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono">8 (66.7%)</td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
@@ -2189,7 +2290,7 @@
             <tr class="highlight">
               <td><strong>policy</strong></td>
               <td class="mono">12</td>
-              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="mono">8 (66.7%)</td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
@@ -2214,15 +2315,15 @@
               <td class="mono"><strong>12 (100.0%)</strong></td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
-              <td class="mono">11 (91.7%)</td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
-              <td class="tag-win">🏆 4-Way Tie (100%)</td>
+              <td class="mono"><strong>12 (100.0%)</strong></td>
+              <td class="tag-win">🏆 Clean Sweep (100%)</td>
             </tr>
             <tr class="highlight">
               <td><strong>adequacy</strong></td>
               <td class="mono">12</td>
-              <td class="mono"><strong>10 (83.3%)</strong></td>
+              <td class="mono">4 (33.3%)</td>
               <td class="mono"><strong>10 (83.3%)</strong></td>
               <td class="mono"><strong>10 (83.3%)</strong></td>
               <td class="mono"><strong>10 (83.3%)</strong></td>
@@ -2233,7 +2334,7 @@
             <tr class="highlight">
               <td><strong>trap</strong></td>
               <td class="mono">8</td>
-              <td class="mono"><strong>5 (62.5%)</strong></td>
+              <td class="mono">3 (37.5%)</td>
               <td class="mono"><strong>5 (62.5%)</strong></td>
               <td class="mono"><strong>5 (62.5%)</strong></td>
               <td class="mono"><strong>5 (62.5%)</strong></td>
@@ -2255,10 +2356,10 @@
             <tr class="highlight">
               <td><strong>multi_hop</strong></td>
               <td class="mono">18</td>
+              <td class="mono">6 (33.3%)</td>
               <td class="mono"><strong>8 (44.4%)</strong></td>
               <td class="mono">7 (38.9%)</td>
               <td class="mono">7 (38.9%)</td>
-              <td class="mono"><strong>8 (44.4%)</strong></td>
               <td class="mono">6 (33.3%)</td>
               <td class="mono">6 (33.3%)</td>
               <td class="tag-win">🏆 Zev</td>
@@ -2277,7 +2378,7 @@
             <tr>
               <td><strong>probability</strong></td>
               <td class="mono">10</td>
-              <td class="mono"><strong>5 (50.0%)</strong></td>
+              <td class="mono">4 (40.0%)</td>
               <td class="mono"><strong>5 (50.0%)</strong></td>
               <td class="mono"><strong>5 (50.0%)</strong></td>
               <td class="mono"><strong>5 (50.0%)</strong></td>
@@ -2288,13 +2389,13 @@
             <tr>
               <td><strong>tradeoff</strong></td>
               <td class="mono">6</td>
-              <td class="mono">3 (50.0%)</td>
+              <td class="mono">4 (66.7%)</td>
               <td class="mono">3 (50.0%)</td>
               <td class="mono">3 (50.0%)</td>
               <td class="mono">3 (50.0%)</td>
               <td class="mono"><strong>6 (100.0%)</strong></td>
               <td class="mono">4 (66.7%)</td>
-              <td>Laya</td>
+              <td>Laya (Zev-Default 66.7%)</td>
             </tr>
             <tr>
               <td><strong>adversarial</strong></td>
@@ -2311,9 +2412,9 @@
               <td><strong>routing</strong></td>
               <td class="mono">12</td>
               <td class="mono">5 (41.7%)</td>
+              <td class="mono">5 (41.7%)</td>
               <td class="mono">9 (75.0%)</td>
               <td class="mono">5 (41.7%)</td>
-              <td class="mono">3 (25.0%)</td>
               <td class="mono">6 (50.0%)</td>
               <td class="mono"><strong>12 (100.0%)</strong></td>
               <td>Kev (Zev-Apfel 75%)</td>
@@ -2321,13 +2422,13 @@
             <tr>
               <td><strong>temporal_numeric</strong></td>
               <td class="mono">15</td>
+              <td class="mono"><strong>6 (40.0%)</strong></td>
               <td class="mono">5 (33.3%)</td>
-              <td class="mono">4 (26.7%)</td>
               <td class="mono">4 (26.7%)</td>
               <td class="mono">4 (26.7%)</td>
               <td class="mono">5 (33.3%)</td>
               <td class="mono"><strong>6 (40.0%)</strong></td>
-              <td>Kev</td>
+              <td class="tag-win">🏆 Zev-Default / Kev (Tie)</td>
             </tr>
             <tr>
               <td><strong>long_policy</strong></td>
@@ -2343,13 +2444,13 @@
             <tr style="border-top: 2px solid var(--cobalt); font-weight: 700; background: rgba(59, 130, 246, 0.06);">
               <td><strong>TOTAL (231 Items)</strong></td>
               <td class="mono">231</td>
-              <td class="mono"><strong>160 (69.3%)</strong></td>
-              <td class="mono" style="color: var(--electric-cyan);"><strong>162 (70.1%)</strong></td>
-              <td class="mono" style="color: var(--amber-gold);"><strong>158 (68.4%)</strong></td>
+              <td class="mono"><strong>130 (56.3%)</strong></td>
               <td class="mono"><strong>156 (67.5%)</strong></td>
+              <td class="mono" style="color: var(--electric-cyan);"><strong>163 (70.6%)</strong></td>
+              <td class="mono" style="color: var(--amber-gold);"><strong>158 (68.4%)</strong></td>
               <td class="mono">135 (58.4%)</td>
               <td class="mono">154 (66.7%)</td>
-              <td class="tag-win">🏆 Zev-Apfel</td>
+              <td class="tag-win">🏆 Zev-Apfel / Ensemble</td>
             </tr>
           </tbody>
         </table>
@@ -2674,7 +2775,22 @@
         <div class="card">
           <div class="card-num">06 // HYBRID CASCADE</div>
           <h3>Speculative Fallback</h3>
-          <p>Sub-millisecond SIMD runs first; automatically cascades to on-device Apple Intelligence (<code>apfel-rs</code>) or Candle BLAS tensors when uncertainty is detected.</p>
+          <p>Sub-millisecond SIMD runs first; automatically cascades to on-device Apple Intelligence (<code>apfel-rs</code>), Gemma 4 vLLM diffusion, or Cloudflare Clef when uncertainty is detected.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">07 // POLICY DAG &amp; PROBING</div>
+          <h3>Counterfactual Shadow Probing</h3>
+          <p>Compiles conditional policies (<code>IF ... THEN</code>, <code>REQUIRES</code>, <code>UNLESS</code>) into a finite-state DAG and performs shadow negation/clause-ablation probing in microseconds.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">08 // TABLE GRAPH &amp; SYMBOLIC MATH</div>
+          <h3>2-Hop Joins &amp; Equation Verifier</h3>
+          <p>Parses Markdown tables for 2-hop cross-entity joins, priority section hierarchies, inline arithmetic equations, and temporal duration windows without neural weights.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">09 // EDGE WASM &amp; XXH3 CACHE</div>
+          <h3>185 ns DecisionCache &amp; Workers</h3>
+          <p>Lock-free XXH3 content-addressed <code>DecisionCache</code> (~185 ns hits) and zero-cold-start Cloudflare Workers WASM isolate (~87 µs edge roundtrip).</p>
         </div>
       </div>
     </section>
@@ -2684,7 +2800,7 @@
       <div class="kicker">GETTING STARTED</div>
       <h2 class="section-title">Four Ways to Run Zev</h2>
       <p class="section-desc">
-        Run Zev via <strong>npx instant CLI</strong>, <strong>Homebrew binary</strong>, <strong>HTTP REST daemon</strong>, or <strong>embedded Rust library</strong> across all four execution modes.
+        Run Zev via <strong>npx instant CLI</strong>, <strong>Homebrew binary</strong>, <strong>HTTP REST / MCP daemon</strong>, or <strong>embedded Rust / WASM library</strong> across all four execution modes.
       </p>
 
       <div class="action-row" style="margin-bottom: 24px;">
@@ -2707,15 +2823,16 @@ zev init          <span class="comment"># Dynamic hardware prober &amp; interact
 zev doctor        <span class="comment"># Inspect SIMD, Apple Neural Engine, and Gemma endpoints</span>
 zev config show   <span class="comment"># View persistent ~/.config/zev/config.json</span>
 
-<span class="comment"># Method 2: Instant CLI Routing (Microsecond Latency)</span>
+<span class="comment"># Method 2: Instant CLI Routing &amp; Semantic Codebase Search</span>
 brew install zev  <span class="comment"># Or: cargo install zev-rs</span>
 zev route \
   --state <span class="str">"Critical: production database is down with 500 connection refused errors"</span> \
   --routes <span class="str">'{"billing": "Invoices", "infra": "Database outages", "sales": "Enterprise"}'</span>
+zev grep <span class="str">"order invariant logits"</span> src --json --limit 5
 
-<span class="comment"># Method 3: High-Performance REST API Server (Axum / Standalone Daemon)</span>
-zev serve --port 8080
-<span class="comment"># Drop-in HTTP API on http://127.0.0.1:8080/v1/decisions</span>
+<span class="comment"># Method 3: High-Performance REST API Server &amp; MCP Stdio Daemon</span>
+zev serve --port 8080   <span class="comment"># HTTP API on /v1/decisions, /v1/systemone, /v1/tev1, /v1/dlq/triage</span>
+zev mcp                 <span class="comment"># Model Context Protocol (JSON-RPC 2.0 stdio) for Claude / Cursor</span>
 
 <span class="comment"># Method 4: Streaming Batch Pipelines (High-Throughput JSONL)</span>
 cat tickets.jsonl | zev batch --file - --mode route \
@@ -2726,7 +2843,7 @@ cat tickets.jsonl | zev batch --file - --mode route \
       </div>
       <pre class="code-box"><code><span class="comment">// Add to Cargo.toml:</span>
 <span class="keyword">[dependencies]</span>
-zev-rs = { version = <span class="str">"0.3.9"</span>, features = [<span class="str">"neural"</span>] }
+zev-rs = { version = <span class="str">"0.3.11"</span>, features = [<span class="str">"neural"</span>] }
 
 <span class="keyword">use</span> zev::{ZevEngine, ApfelNeuralBackend, ExecutionMode};
 
@@ -2737,8 +2854,8 @@ zev-rs = { version = <span class="str">"0.3.9"</span>, features = [<span class="
 <span class="comment">// Alternates sub-threshold traffic across ANE and Gemma 4 with automatic bidirectional failover</span>
 <span class="keyword">let</span> response = engine.evaluate_recommended(&amp;request, &amp;backend)?;
 
-<span class="comment">// MODE 2: Bayesian Product of Experts Ensemble (74,346 ops/s • 13.4 µs • 74.89% Accuracy — #1 Worldwide)</span>
-<span class="comment">// Simultaneous dual neural execution with Bayesian PoE consensus; eclipses Winnow-12B #1</span>
+<span class="comment">// MODE 2: Bayesian Product of Experts Ensemble (74,346 ops/s • 13.4 µs • 74.89% Accuracy)</span>
+<span class="comment">// Simultaneous dual neural execution with Bayesian PoE consensus; surpasses Kev-4B BF16 at 0 GiB VRAM</span>
 <span class="keyword">let</span> response = engine.evaluate_recommended_ensemble(&amp;request, &amp;backend)?;
 
 <span class="comment">// MODE 3: Three-Tier Sequential Cascade (73,806 ops/s • 13.5 µs • &lt; 16 MB RSS Memory)</span>
@@ -3236,7 +3353,7 @@ zev-rs = { version = <span class="str">"0.3.9"</span>, features = [<span class="
       },
       {
         name: "zev-rs",
-        description: "Ultra-fast zero-token LLM decision engine. 0.37ms latency, 70.1% JevBench accuracy, 0% order bias, and zero GPU requirement.",
+        description: "Ultra-fast zero-token System 1 decision engine. 13.4 µs latency, up to 74.89% JevBench accuracy, 0.0% order bias, Policy DAG compiler, and Cloudflare Workers WASM support.",
         language: "Rust",
         category: "cli",
         categories: ["cli", "rust", "ai"],

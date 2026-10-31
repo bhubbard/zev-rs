@@ -199,15 +199,22 @@ fn main() {
     );
     println!();
 
-    println!("2. JEVBENCH ACCURACY VS. UPSTREAM PYTHON MODELS (231 Frozen Tasks)");
+    println!("2. JEVBENCH ACCURACY VS. UPSTREAM PYTHON & GPU MODELS (231 Frozen Tasks)");
     println!("──────────────────────────────────────────────────────────────────────────────");
-    println!("• Zev-Default (Pure Rust SIMD):           170/231 (73.59%) — 0.271 ms p50");
-    println!("• Zev-PoE (Product of Experts):           169/231 (73.16%) — 0.310 ms p50");
-    println!("• Zev-Apfel (SIMD + Apple Intelligence):  170/231 (73.59%) — 0.469 ms p50");
-    println!("• Kev 8B (Python PyTorch Qwen3):          165/231 (71.43%) — 591.0 ms p50");
+    println!("• Winnow-12B Q8 (Gemma-4-12B LoRA, 14.4G): 198/231 (85.71%) — 52.7–181.3 ms");
+    println!("• Jev 1.13 (Hosted Cloud API):            198/231 (85.71%) — ~620.0 ms");
+    println!("• Clef-27B (Cloudflare Qwen3.8-27B):      188/231 (81.39%) — 209.3–213.2 ms");
+    println!("• Clef-Flash 9B (Cloudflare Qwen3.5-9B):  177/231 (76.62%) — 38.8–102.8 ms");
+    println!("• Kev-9B BF16 (Qwen3-9B PyTorch, 21.9G):  176/231 (76.19%) — 65.6–151.8 ms");
+    println!("• Zev-Dual-Ensemble (Apfel + Gemma 4):    173/231 (74.89%) — 0.055 ms p50");
+    println!("• Zev-Dual-Cascade / Load-Balanced:       168/231 (72.73%) — 0.055 ms p50");
+    println!("• Kev-4B BF16 (Qwen3-4B PyTorch, 14.9G):  165/231 (71.43%) — 65.8–133.1 ms");
+    println!("• Zev-Apfel (SIMD + Apple Intelligence):  163/231 (70.56%) — 0.055 ms p50");
+    println!("• Zev-SIMD (dataset-rules):               156/231 (67.53%) — 0.055 ms p50");
     println!("• Kev 0.6B (Python PyTorch Qwen3):        154/231 (66.67%) — 587.0 ms p50");
-    println!("• Kev 4B (Python PyTorch Qwen3):          153/231 (66.23%) — 586.0 ms p50");
-    println!("• Laya (Python ModernBERT-large 421M):    135/231 (58.44%) — 508.0 ms p50");
+    println!("• Laya English (ModernBERT-large 421M):   135/231 (58.44%) — 24.1–508.0 ms");
+    println!("• Zev-Default (Strict Pure Rust SIMD):    130/231 (56.28%) — 0.032 ms p50");
+    println!("• Laya Typed Decisions (ModernBERT 421M): 124/231 (53.68%) — 23.3–24.9 ms");
     println!("• Kev 0.5B (Python PyTorch Qwen2.5):      114/231 (49.35%) — 576.0 ms p50");
     println!();
     println!("3. ARCHITECTURAL ADVANTAGES OVER ORIGINAL PYTHON REPOSITORIES");
@@ -432,16 +439,21 @@ fn main() {
 
         println!();
         println!(
-            "7. GLOBAL LEADERBOARD: ZEV DUAL ENSEMBLE vs. INDUSTRY COMPETITORS & BENCHMARK HEAVEN"
+            "7. JEVBENCH 231 PUBLIC SUBSET: ZEV vs. GPU & CLOUD COMPETITORS"
         );
         println!("────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
-        println!("Model / Engine System                | Intelligence | Median Latency | Throughput    | Cost / 1k Dec | Hardware Footprint");
+        println!("Model / Engine System                | JevBench 231 | Median Latency | Throughput    | Cost / 1k Dec | Hardware Footprint");
         println!("─────────────────────────────────────+──────────────+────────────────+───────────────+───────────────+───────────────────");
+        println!("Winnow-12B Q8 (Gemma-4-12B LoRA)     |    85.71%    |  52,700 µs     |    45.2 dec/s |   $0.028000   | 14.36 GiB VRAM (GPU)");
+        println!("Jev 1.13 (TypeSafe Closed Ref)       |    85.71%    | 620,000 µs     |     1.6 dec/s |   $0.032000   | Cloud API Cluster");
+        println!("Winnow-12B BF16 (Gemma-4-12B LoRA)   |    85.28%    |  74,200 µs     |    29.8 dec/s |   $0.035000   | 24.80 GiB VRAM (GPU)");
+        println!("Clef-27B (Cloudflare Qwen3.8-27B)    |    81.39%    | 209,300 µs     |     4.7 dec/s |   $0.249227   | ~54.0 GiB VRAM (H200)");
+        println!("Clef-Flash 9B (Cloudflare Qwen3.5)   |    76.62%    |  38,800 µs     |    25.8 dec/s |   $0.059340   | ~18.0 GiB VRAM (GPU)");
+        println!("Kev-9B BF16 (Qwen3-9B PyTorch)       |    76.19%    |  65,600 µs     |    15.1 dec/s |   $0.030000   | 21.87 GiB VRAM (GPU)");
         println!(
             "Zev-Dual-Ensemble (PoE) 🏆           |    74.89%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 32 MB (Mac ANE/CPU)",
             ensemble_lat_us, ensemble_throughput
         );
-        println!("Winnow-12B Q8 (Heavy Cloud Decoder)  |    74.43%    |   340,000 µs   |     2.9 dec/s |   $0.028000   | 16 GB VRAM (GPU Pod)");
         println!(
             "Zev-Dual-Cascade (SIMD+Apfel+Gemma4) |    72.73%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 16 MB (Mac ANE/CPU)",
             cascade_lat_us, cascade_throughput
@@ -450,10 +462,7 @@ fn main() {
             "Zev-Load-Balanced (Apfel <-> Gemma4) |    72.73%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 32 MB (Mac ANE/CPU)",
             lb_lat_us, lb_throughput
         );
-        println!("djev (Maisa DiffusionGemma-26B)      |    72.33%    | 1,280,000 µs   |     0.8 dec/s |   $0.049000   | 32 GB VRAM (GPU Pod)");
-        println!("Jev 1.13.0 (TypeSafe Closed Ref)     |    72.00%    |   620,000 µs   |     1.6 dec/s |   $0.032000   | Cloud API Cluster");
-        println!("Kev 8B (Qwen3 PyTorch Original)      |    71.43%    |   591,000 µs   |     1.7 dec/s |   $0.030000   | 16 GB VRAM (PyTorch)");
-        println!("Cygnet (#1 Benchmark Heaven, Gemma4) |    71.09%    |   230,000 µs   |     4.3 dec/s |   $0.028000   | 24 GB VRAM (GPU Pod)");
+        println!("Kev-4B BF16 (Qwen3-4B PyTorch)       |    71.43%    |  65,800 µs     |    15.2 dec/s |   $0.027000   | 14.89 GiB VRAM (GPU)");
         println!(
             "Zev-Gemma4 (Gemma-4-31B Distilled)   |    71.00%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 32 MB (Mac ANE/CPU)",
             gemma_lat_us, gemma_throughput
@@ -463,11 +472,15 @@ fn main() {
             neural_lat_us, neural_throughput
         );
         println!(
-            "Zev-Default (Zero-Token Rust SIMD)   |    69.70%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 8 MB (CPU Only)",
+            "Zev-SIMD (dataset-rules)             |    67.53%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 8 MB (CPU Only)",
             def_lat_us, def_throughput
         );
-        println!("Jev-Omni (Gemma 4 256-way Head)      |    70.49%    |   290,000 µs   |     3.4 dec/s |   $0.031000   | 24 GB VRAM (GPU Pod)");
-        println!("decider-4b v2 (Mapika 4B)            |    55.77%    |   180,000 µs   |     5.5 dec/s |   $0.012000   | 8 GB VRAM (GPU Pod)");
+        println!("Laya English (ModernBERT-large 421M) |    58.44%    |  24,100 µs     |    41.9 dec/s |   $0.018000   | 4.00 GiB VRAM (GPU)");
+        println!(
+            "Zev-Default (Strict Pure Rust SIMD)  |    56.28%    | {:>8.2} µs   | {:>7.0} dec/s |   $0.000000   | < 8 MB (CPU Only)",
+            def_lat_us, def_throughput
+        );
+        println!("Laya Typed Decisions (ModernBERT)    |    53.68%    |  23,300 µs     |    43.8 dec/s |   $0.018000   | 4.94 GiB VRAM (GPU)");
         println!("Laya (ModernBERT-large 421M)         |    58.44%    |   508,000 µs   |     2.0 dec/s |   $0.018000   | 2 GB VRAM (PyTorch)");
         println!("────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
     }

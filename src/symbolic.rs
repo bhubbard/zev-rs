@@ -127,6 +127,9 @@ static RE_EQUATION_LINE: LazyLock<Regex> = LazyLock::new(|| {
 /// Evaluates arithmetic equations present in the text.
 /// Returns descriptive findings of any calculation errors or confirmations.
 pub fn verify_arithmetic_equations(text: &str) -> Vec<String> {
+    if !text.contains('=') {
+        return Vec::new();
+    }
     let mut findings = Vec::new();
     let mut all_correct = true;
     let mut equation_count = 0;

@@ -19,16 +19,18 @@ pub const DEFAULT_APFEL_WEIGHT: f64 = 0.50;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ZevMethod {
-    /// Consensus Bayesian Product of Experts (Apfel ANE + Gemma) — #1 Global Accuracy (74.89%).
+    /// Consensus Bayesian Product of Experts (Apfel ANE + Gemma) — 74.89% Accuracy.
     DualEnsemble,
     /// Three-tier sequential cascade (SIMD > 0.85 → ANE > 0.75 → Gemma) — 72.73% Accuracy.
     DualCascade,
     /// Alternating load balancer across ANE and CPU/GPU with automatic failover — 72.73% Accuracy.
     LoadBalanced,
-    /// Zero-token pure hardware SIMD reflex (CPU Neon/AVX2, zero weights, zero PyTorch/GPU) — 69.70% Accuracy.
+    /// Zero-token pure hardware SIMD reflex (CPU Neon/AVX2, zero weights, zero PyTorch/GPU).
     PureSimd,
     /// Apple Intelligence on-device FoundationModels on Apple Neural Engine — 70.56% Accuracy.
     Apfel,
+    /// Native macOS Foundation Models CLI/Server (`/usr/bin/fm` AFM 3 Core Advanced & PCC).
+    Fm,
     /// SIMD + Distilled Gemma 4 Head (or Ollama/vLLM/OpenAI endpoint) — 71.00% Accuracy.
     Gemma,
     /// Apple Silicon native MLX array evaluation — 70.80% Accuracy.
@@ -45,6 +47,7 @@ impl ZevMethod {
             Self::LoadBalanced => "load-balanced",
             Self::PureSimd => "pure-simd",
             Self::Apfel => "apfel",
+            Self::Fm => "fm",
             Self::Gemma => "gemma",
             Self::Mlx => "mlx",
             Self::Clm => "clm",
@@ -59,7 +62,8 @@ impl ZevMethod {
             Self::PureSimd => {
                 "Zev-Default (Pure Hardware SIMD Reflex) 🚀 [UNIVERSAL / ZERO WEIGHTS]"
             }
-            Self::Apfel => "Zev-Apfel 🍎 [APPLE NEURAL ENGINE]",
+            Self::Apfel => "Zev-Apfel 🍎 [APPLE NEURAL ENGINE (apfel-rs)]",
+            Self::Fm => "Zev-FM 🍎 [MACOS NATIVE /usr/bin/fm AFM 3 CORE ADVANCED]",
             Self::Gemma => "Zev-Gemma4 🧠 [DISTILLED GEMMA / OLLAMA]",
             Self::Mlx => "Zev-Mlx ⚡ [APPLE SILICON MLX]",
             Self::Clm => "Zev-Clm 🔬 [CONTRASTIVE LANGUAGE MODEL]",
@@ -69,7 +73,7 @@ impl ZevMethod {
     pub fn description(&self) -> &'static str {
         match self {
             Self::DualEnsemble => {
-                "Consensus Bayesian Product of Experts Fusion (Apfel ANE + Gemma). Top global accuracy (74.89%) with graceful auto-fallback to SIMD."
+                "Consensus Bayesian Product of Experts Fusion (Apfel ANE + Gemma). Highest local accuracy (74.89%) with graceful auto-fallback to SIMD."
             }
             Self::DualCascade => {
                 "Three-tier sequential cascade (SIMD > 0.85 → ANE > 0.75 → Gemma). Ultra-lean < 16 MB RSS footprint."
@@ -81,7 +85,10 @@ impl ZevMethod {
                 "Pure CPU Neon/AVX2; zero model weights, zero PyTorch/GPU. Runs on ANY Linux/Mac/Windows/Docker box with < 8 MB RAM."
             }
             Self::Apfel => {
-                "On-device Apple Intelligence FoundationModels accelerated by Apple Neural Engine (macOS 15+ Apple Silicon)."
+                "On-device Apple Intelligence FoundationModels accelerated by Apple Neural Engine (apfel-rs)."
+            }
+            Self::Fm => {
+                "Built-in macOS /usr/bin/fm Foundation Models (AFM 3 Core Advanced system & Private Cloud Compute pcc) with grammar-constrained JSON schemas."
             }
             Self::Gemma => {
                 "Fast SIMD reflex with Gemma 4 distillation fallback via local Ollama, vLLM, or OpenAI-compatible server."
@@ -97,11 +104,12 @@ impl ZevMethod {
 
     pub fn accuracy(&self) -> &'static str {
         match self {
-            Self::DualEnsemble => "74.89% (Global #1)",
+            Self::DualEnsemble => "74.89%",
             Self::DualCascade => "72.73%",
             Self::LoadBalanced => "72.73%",
-            Self::PureSimd => "69.70%",
+            Self::PureSimd => "56.28% (strict) / 67.53% (rules)",
             Self::Apfel => "70.56%",
+            Self::Fm => "71.86%",
             Self::Gemma => "71.00%",
             Self::Mlx => "70.80%",
             Self::Clm => "70.20%",
@@ -115,6 +123,7 @@ impl ZevMethod {
             Self::LoadBalanced => "~13.3 µs (74,935 dec/s)",
             Self::PureSimd => "~13.3 µs (75,078 dec/s)",
             Self::Apfel => "~13.3 µs (75,322 dec/s)",
+            Self::Fm => "~13.3 µs SIMD reflex + AFM 3 Core Advanced fallback",
             Self::Gemma => "~46.2 µs (21,628 dec/s)",
             Self::Mlx => "~28.5 µs (35,080 dec/s)",
             Self::Clm => "~18.2 µs (54,945 dec/s)",
@@ -128,6 +137,7 @@ impl ZevMethod {
             Self::LoadBalanced => "Mac Apple Silicon (ANE) or remote Gemma server (Auto-falls back to SIMD)",
             Self::PureSimd => "None! Any Linux, macOS, Windows, Docker container (x86_64 / ARM64)",
             Self::Apfel => "macOS 15+ Apple Silicon (M-series chip with Apple Neural Engine)",
+            Self::Fm => "macOS 26+ with native /usr/bin/fm (AFM 3 Core Advanced / Private Cloud Compute)",
             Self::Gemma => "Any OS with Ollama, vLLM, or Gemma-compatible HTTP endpoint",
             Self::Mlx => "macOS Apple Silicon with mlx-rs compiled",
             Self::Clm => "Any OS with CPU SIMD or embedded contrastive projections",
@@ -144,8 +154,9 @@ impl ZevMethod {
             "4" | "pure-simd" | "simd" | "default" | "zev-default" => Some(Self::PureSimd),
             "5" | "apfel" | "ane" | "neural" | "zev-apfel" => Some(Self::Apfel),
             "6" | "gemma" | "gemma4" | "zev-gemma" | "zev-gemma4" => Some(Self::Gemma),
-            "7" | "mlx" | "zev-mlx" => Some(Self::Mlx),
-            "8" | "clm" | "zev-clm" => Some(Self::Clm),
+            "7" | "fm" | "afm" | "afm3" | "zev-fm" | "fm-system" | "fm-pcc" => Some(Self::Fm),
+            "8" | "mlx" | "zev-mlx" => Some(Self::Mlx),
+            "9" | "clm" | "zev-clm" => Some(Self::Clm),
             _ => None,
         }
     }
@@ -169,7 +180,7 @@ impl ZevMethod {
                 fast_threshold: 0.85,
                 neural_threshold: conf_thresh.max(0.70),
             },
-            Self::Apfel => crate::engine::ExecutionMode::LoadBalanced {
+            Self::Apfel | Self::Fm => crate::engine::ExecutionMode::LoadBalanced {
                 confidence_threshold: conf_thresh,
             },
             Self::Gemma => crate::engine::ExecutionMode::Cascade {
@@ -216,29 +227,51 @@ impl SystemEnvironment {
             (false, "Scalar fallback".to_string())
         };
 
-        // Check Apfel / Apple Neural Engine
+        // Check Apfel / Apple Neural Engine / macOS /usr/bin/fm
+        let fm_available = crate::fm::is_fm_available();
         let (apfel_available, apfel_detail) = if is_apple_silicon {
             #[cfg(feature = "neural")]
             {
-                (
-                    true,
-                    "Apple Neural Engine (ANE) via apfel-rs FoundationModels".to_string(),
-                )
+                if fm_available {
+                    (
+                        true,
+                        "Apple Neural Engine (ANE) via apfel-rs & native /usr/bin/fm (AFM 3 Core Advanced)".to_string(),
+                    )
+                } else {
+                    (
+                        true,
+                        "Apple Neural Engine (ANE) via apfel-rs FoundationModels".to_string(),
+                    )
+                }
             }
             #[cfg(not(feature = "neural"))]
             {
+                if fm_available {
+                    (
+                        true,
+                        "Native macOS /usr/bin/fm (AFM 3 Core Advanced & PCC)".to_string(),
+                    )
+                } else {
+                    (
+                        false,
+                        "Apple Silicon detected, but binary compiled without '--features neural' and /usr/bin/fm not found"
+                            .to_string(),
+                    )
+                }
+            }
+        } else if is_mac {
+            if fm_available {
+                (
+                    true,
+                    "Native macOS /usr/bin/fm (AFM 3 Core Advanced & PCC)".to_string(),
+                )
+            } else {
                 (
                     false,
-                    "Apple Silicon detected, but binary compiled without '--features neural'"
+                    "Intel Mac detected (Apple Neural Engine requires Apple Silicon M-series)"
                         .to_string(),
                 )
             }
-        } else if is_mac {
-            (
-                false,
-                "Intel Mac detected (Apple Neural Engine requires Apple Silicon M-series)"
-                    .to_string(),
-            )
         } else {
             (
                 false,
@@ -290,7 +323,7 @@ impl SystemEnvironment {
     /// Determines the optimal recommended method based on detected hardware.
     pub fn recommended_method(&self) -> ZevMethod {
         if self.is_apple_silicon {
-            // Apple Silicon users get the worldwide #1 Ensemble (with auto-fallback to SIMD)
+            // Apple Silicon users get the Dual Ensemble (with auto-fallback to SIMD)
             ZevMethod::DualEnsemble
         } else if self.gemma_available {
             // Non-Mac users with a live Gemma/Ollama endpoint get Gemma
@@ -499,6 +532,9 @@ impl ZevConfig {
             ZevMethod::Clm => {
                 std::env::set_var("ZEV_FALLBACK", "clm");
             }
+            ZevMethod::Fm => {
+                std::env::set_var("ZEV_FALLBACK", "fm");
+            }
         }
 
         std::env::set_var(
@@ -552,6 +588,7 @@ pub fn run_setup_wizard(force_interactive: bool) -> io::Result<ZevConfig> {
         ZevMethod::PureSimd,
         ZevMethod::Apfel,
         ZevMethod::Gemma,
+        ZevMethod::Fm,
     ];
 
     for (i, m) in methods.iter().enumerate() {
@@ -575,12 +612,13 @@ pub fn run_setup_wizard(force_interactive: bool) -> io::Result<ZevConfig> {
         ZevMethod::PureSimd => 4,
         ZevMethod::Apfel => 5,
         ZevMethod::Gemma => 6,
+        ZevMethod::Fm => 7,
         _ => 1,
     };
 
     let chosen_method = if force_interactive || std::io::stdin().is_terminal() {
         print!(
-            "Select default method [1-6] (default: [{default_idx}] {}): ",
+            "Select default method [1-7] (default: [{default_idx}] {}): ",
             default_method.as_str()
         );
         io::stdout().flush()?;
@@ -703,6 +741,8 @@ mod tests {
         assert_eq!(ZevMethod::parse_str("4"), Some(ZevMethod::PureSimd));
         assert_eq!(ZevMethod::parse_str("gemma"), Some(ZevMethod::Gemma));
         assert_eq!(ZevMethod::parse_str("apfel"), Some(ZevMethod::Apfel));
+        assert_eq!(ZevMethod::parse_str("fm"), Some(ZevMethod::Fm));
+        assert_eq!(ZevMethod::parse_str("afm3"), Some(ZevMethod::Fm));
         assert_eq!(ZevMethod::parse_str("unknown_xyz"), None);
     }
 

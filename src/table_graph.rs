@@ -104,6 +104,9 @@ pub fn parse_markdown_tables(text: &str) -> Vec<MarkdownTable> {
 /// Matches search terms in non-table text against table cells, traverses joins across tables,
 /// and synthesizes explicit relational statements.
 pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
+    if !text.contains('|') {
+        return Vec::new();
+    }
     let tables = parse_markdown_tables(text);
     if tables.is_empty() {
         return Vec::new();
@@ -238,6 +241,9 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
 /// Detects sections marked as Endorsements, Riders, Amendments, Overrides, or Exceptions.
 /// If an override section matches query terms, it elevates the override above the base terms.
 pub fn resolve_policy_hierarchy(text: &str) -> Vec<String> {
+    if !text.contains("====") && !text.contains('#') {
+        return Vec::new();
+    }
     let mut overrides = Vec::new();
 
     // Find section headers
@@ -290,6 +296,9 @@ pub fn resolve_policy_hierarchy(text: &str) -> Vec<String> {
 /// Generic currency and numeric sublimit analyzer:
 /// Detects when a claimed amount exceeds an explicit monetary sublimit or policy cap.
 pub fn resolve_monetary_constraints(text: &str) -> Vec<String> {
+    if !text.contains('$') {
+        return Vec::new();
+    }
     let mut constraints = Vec::new();
 
     // Find sublimit caps and their matched byte spans

@@ -150,6 +150,16 @@ static RE_TEXT_DATE: LazyLock<Regex> = LazyLock::new(|| {
 /// Evaluates whether elapsed durations between dates mentioned in text exceed or satisfy stated policy windows.
 /// Returns descriptive findings for warranty, return, grace period, and SLA questions.
 pub fn resolve_temporal_duration_constraints(text: &str) -> Vec<String> {
+    let bytes = text.as_bytes();
+    let has_unit = bytes.windows(3).any(|w| {
+        w.eq_ignore_ascii_case(b"day")
+            || w.eq_ignore_ascii_case(b"wee")
+            || w.eq_ignore_ascii_case(b"mon")
+            || w.eq_ignore_ascii_case(b"yea")
+    });
+    if !has_unit {
+        return Vec::new();
+    }
     let mut policies = Vec::new();
 
     for cap in RE_DURATION_POLICY.captures_iter(text) {

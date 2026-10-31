@@ -34,7 +34,7 @@ The repository includes a ready-to-deploy Hugging Face Space configuration locat
    ```bash
    git clone https://huggingface.co/spaces/bkhubbard/zev /tmp/zev-space
    cp -r hf-space/* /tmp/zev-space/
-   cp -r assets src Cargo.toml Cargo.lock README.md /tmp/zev-space/
+   cp -r assets src examples Cargo.toml Cargo.lock README.md /tmp/zev-space/
    cd /tmp/zev-space
    git add .
    git commit -m "feat: Deploy Zev interactive zero-token playground and API"
