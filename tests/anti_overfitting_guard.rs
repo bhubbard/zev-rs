@@ -123,6 +123,16 @@ fn test_no_benchmark_entity_memorization_in_src() {
         "cancelled yesterday",
         "depot pickup",
         "did not change the booking",
+        "1,098 credits",
+        "1,464.00",
+        "sep_18_book_set",
+        "eur_498_81",
+        "eur_692_00",
+        "p0_fix_24h",
+        "pay_subject_to_15000_sublimit",
+        "erase_but_retain_transaction_records",
+        "credit_minus_restocking_fee",
+        "mon dec 8",
     ];
 
     for file in &files {
@@ -179,6 +189,7 @@ fn test_no_artificial_logit_boost_bypasses() {
     collect_rs_files(Path::new("src"), &mut files);
 
     let suspicious_patterns = [
+        "+= 5.5",
         "+= 6.0",
         "+= 8.0",
         "+= 20.",
@@ -188,6 +199,9 @@ fn test_no_artificial_logit_boost_bypasses() {
         "+= 100.",
         "line.find(\"-> \")",
         "blueprint resolution override",
+        "VERIFIED_OUTCOME:",
+        "verified_outcome:",
+        "VERIFIED_OUTCOME_CONFIRM",
     ];
 
     for file in &files {

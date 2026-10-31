@@ -646,14 +646,6 @@ impl PremiseContext {
             let id_lower = id.to_lowercase();
             let id_len = id_lower.chars().count();
 
-            let verified_tag = format!("verified_outcome: {id_lower}");
-            if self.raw_lower.contains(&verified_tag) {
-                logit += 5.5;
-                if self.raw_lower.contains("verified_outcome_confirm: true") {
-                    logit += 4.5;
-                }
-            }
-
             // Morphological Negation Normalization on candidate ID
             let has_morph_neg = match id_lower.as_str() {
                 "paid" => self.contains_bounded("unpaid"),

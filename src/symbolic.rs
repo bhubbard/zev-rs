@@ -366,21 +366,7 @@ pub fn verify_structural_constraints(request_text: &str, response_text: &str) ->
         }
     }
 
-    // 9. Check business day sequential counting gaps (e.g. Fri Dec 5 (7), and Tue Dec 9 (8) skipping Mon Dec 8)
-    if req_lower.contains("business days")
-        && resp_lower.contains("fri ")
-        && resp_lower.contains("tue ")
-        && !resp_lower.contains("mon dec 8")
-        && resp_lower.contains("fri dec 5")
-        && resp_lower.contains("tue dec 9")
-    {
-        findings.push(
-            "[CONSTRAINT ERROR]: Business day sequence skips a non-holiday weekday. (CONSTRAINT_SATISFIED: FALSE)"
-                .to_string(),
-        );
-    }
-
-    // 10. Check physical unit conversion factor consistency (1 g/cm³ = 1000 kg/m³)
+    // 9. Check physical unit conversion factor consistency (1 g/cm³ = 1000 kg/m³)
     if resp_lower.contains("g/cm")
         && resp_lower.contains("kg/m")
         && (resp_lower.contains("equals 100 ") || resp_lower.contains("= 100 "))
