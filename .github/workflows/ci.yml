@@ -27,6 +27,8 @@ jobs:
 
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-directories: ~/.mlx
 
       - name: Format Check
         run: cargo fmt --check
@@ -43,7 +45,11 @@ jobs:
 
       - name: Clippy (MLX Feature)
         if: matrix.os == 'macos-15'
-        run: cargo clippy --features mlx -- -D warnings
+        run: |
+          if [ -z "$(find "$HOME/.mlx" -name 'mlx.metallib' 2>/dev/null)" ]; then
+            cargo clean -p mlx-sys || true
+          fi
+          cargo clippy --features mlx -- -D warnings
 
       - name: Run Tests (Default Features)
         run: cargo test
