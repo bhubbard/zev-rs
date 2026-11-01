@@ -673,13 +673,18 @@ impl ZevEngine {
                 if let Ok(mut clm_ans) =
                     decode_decision(final_question, &candidates, &clm_logits, effective_temp)
                 {
-                    if clm_ans.confidence >= conf_thresh
-                        || (candidates.len() >= 100
-                            && clm_ans.uncertainty.margin.is_some_and(|m| m >= margin_thresh))
-                    {
-                        clm_ans.source = Some("clm".to_string());
+                    clm_ans.source = Some("clm".to_string());
+                    let clm_norm_entropy = clm_ans.uncertainty.entropy_nats / max_entropy;
+                    let has_decisive_margin = clm_ans
+                        .uncertainty
+                        .margin
+                        .is_some_and(|m| m >= margin_thresh)
+                        && (candidates.len() >= 100 || clm_norm_entropy <= entropy_thresh);
+                    if clm_ans.confidence >= conf_thresh || has_decisive_margin {
                         answer = clm_ans;
                         cascaded = true;
+                    } else {
+                        answer = clm_ans;
                     }
                 }
                 if !cascaded {
@@ -697,7 +702,16 @@ impl ZevEngine {
                         final_question,
                         &candidates,
                     ) {
-                        answer = gemma_ans;
+                        let is_live_gemma = matches!(
+                            gemma_ans.source.as_deref(),
+                            Some("gemma") | Some("diffusion_gemma")
+                        );
+                        if is_live_gemma
+                            || (!has_structured_resolution
+                                && matches!(final_question, Question::Choice(_)))
+                        {
+                            answer = gemma_ans;
+                        }
                     }
                 }
             }
@@ -710,10 +724,28 @@ impl ZevEngine {
                     }
                 }
             } else if fallback_mode == "gemma" {
-                if let Ok(gemma_ans) =
-                    crate::gemma::evaluate_gemma(preprocessed_state, final_question, &candidates)
-                {
-                    answer = gemma_ans;
+                let has_decisive_margin = answer
+                    .uncertainty
+                    .margin
+                    .is_some_and(|m| m >= margin_thresh)
+                    && (candidates.len() >= 100 || normalized_entropy <= entropy_thresh);
+                if !has_decisive_margin {
+                    if let Ok(gemma_ans) = crate::gemma::evaluate_gemma(
+                        preprocessed_state,
+                        final_question,
+                        &candidates,
+                    ) {
+                        let is_live_gemma = matches!(
+                            gemma_ans.source.as_deref(),
+                            Some("gemma") | Some("diffusion_gemma")
+                        );
+                        if is_live_gemma
+                            || (!has_structured_resolution
+                                && matches!(final_question, Question::Choice(_)))
+                        {
+                            answer = gemma_ans;
+                        }
+                    }
                 }
             } else if fallback_mode == "fm" {
                 if let Ok(fm_ans) =
@@ -810,7 +842,11 @@ impl ZevEngine {
             state: req.state.clone(),
             questions,
             model: Some(req.model.clone()),
-            temperature: Some(self.default_temperature),
+            temperature: if self.use_type_temperatures {
+                None
+            } else {
+                Some(self.default_temperature)
+            },
             enable_temporal_facts: true,
             images: None,
         };
@@ -818,13 +854,7 @@ impl ZevEngine {
         #[cfg(feature = "neural")]
         let zev_resp = {
             let m_lower = req.model.to_lowercase();
-            if m_lower.contains("poe") || m_lower.contains("ensemble") {
-                let backend = crate::neural::shared_apfel();
-                self.evaluate_speculative_ensemble(&zev_req, 0.75, 0.50, backend)?
-            } else if m_lower.contains("cascade") {
-                let backend = crate::neural::shared_apfel();
-                self.evaluate_dual_speculative_cascade(&zev_req, 0.80, 0.70, backend)?
-            } else if m_lower.contains("load_balanced") || m_lower.contains("load-balanced") {
+            if m_lower.contains("load_balanced") || m_lower.contains("load-balanced") {
                 let backend = crate::neural::shared_apfel();
                 self.evaluate_speculative_load_balanced(&zev_req, 0.80, backend)?
             } else {
@@ -946,6 +976,9 @@ impl ZevEngine {
         };
 
         for (key, q) in &req.questions {
+            if matches!(q, Question::Score(_) | Question::Numeric(_)) {
+                continue;
+            }
             if let Some(ans) = resp.answers.get_mut(key) {
                 if ans.confidence < confidence_threshold || ans.status != "ok" {
                     let candidates = crate::decoding::generate_candidates(q);
@@ -1009,6 +1042,9 @@ impl ZevEngine {
         };
 
         for (key, q) in &req.questions {
+            if matches!(q, Question::Score(_) | Question::Numeric(_)) {
+                continue;
+            }
             if let Some(ans) = resp.answers.get_mut(key) {
                 let q_apfel_thresh = Self::adaptive_speculative_threshold(apfel_threshold, q);
                 let q_gemma_thresh = Self::adaptive_speculative_threshold(gemma_threshold, q);
@@ -1069,6 +1105,9 @@ impl ZevEngine {
         let apfel_w = apfel_weight.clamp(0.0, 1.0);
 
         for (key, q) in &req.questions {
+            if matches!(q, Question::Score(_) | Question::Numeric(_)) {
+                continue;
+            }
             if let Some(ans) = resp.answers.get_mut(key) {
                 let q_thresh = Self::adaptive_speculative_threshold(confidence_threshold, q);
                 if ans.confidence < q_thresh || ans.status != "ok" {
@@ -1163,6 +1202,9 @@ impl ZevEngine {
         };
 
         for (key, q) in &req.questions {
+            if matches!(q, Question::Score(_) | Question::Numeric(_)) {
+                continue;
+            }
             if let Some(ans) = resp.answers.get_mut(key) {
                 let q_thresh = Self::adaptive_speculative_threshold(confidence_threshold, q);
                 if ans.confidence < q_thresh || ans.status != "ok" {

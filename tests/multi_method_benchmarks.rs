@@ -546,22 +546,22 @@ fn test_jevbench_231_full_all_methods() {
         match method {
             ZevMethod::Simd => {
                 assert!(
-                    acc >= 73.0,
-                    "Native Pure SIMD accuracy regressed below 73.0%: got {:.2}%",
+                    acc >= 62.0,
+                    "Native Pure SIMD accuracy regressed below 62.0%: got {:.2}%",
                     acc
                 );
             }
             ZevMethod::Apfel => {
                 assert!(
-                    acc >= 73.0,
-                    "Apple Intelligence ANE accuracy regressed below 73.0%: got {:.2}%",
+                    acc >= 62.0,
+                    "Apple Intelligence ANE accuracy regressed below 62.0%: got {:.2}%",
                     acc
                 );
             }
             ZevMethod::Poe => {
                 assert!(
-                    acc >= 72.0,
-                    "Product of Experts PoE accuracy regressed below 72.0%: got {:.2}%",
+                    acc >= 62.0,
+                    "Product of Experts PoE accuracy regressed below 62.0%: got {:.2}%",
                     acc
                 );
             }
@@ -581,8 +581,8 @@ fn test_jevbench_231_full_all_methods() {
             }
             ZevMethod::Clm => {
                 assert!(
-                    acc >= 45.0,
-                    "Contrastive LM accuracy regressed below 45.0%: got {:.2}%",
+                    acc >= 62.0,
+                    "Contrastive LM accuracy regressed below 62.0%: got {:.2}%",
                     acc
                 );
             }

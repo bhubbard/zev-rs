@@ -820,3 +820,107 @@ fn test_high_cardinality_catalog_stopword_and_tail_window_invariance() {
     );
 }
 
+#[test]
+fn test_speculative_cascade_score_and_interrogative_invariance() {
+    use std::collections::BTreeMap;
+    use zev::types::{ChoiceQuestion, OptionDef, Policy, Question, SystemOneRequest, ZevRequest};
+    use zev::wire::{WireQuestion, WireScoreQuestion};
+    use zev::ZevEngine;
+
+    let engine = ZevEngine::default();
+
+    // 1. Disambiguating interrogatives ("which", "where", "when") must remain discriminative
+    // under entity perturbation when classifying ambiguity types
+    for (state, expected_id) in [
+        (
+            "What happened: the operator asked to restart the node, leaving open which.",
+            "item_1",
+        ),
+        (
+            "What happened: the coordinator asked for a courier, leaving open where.",
+            "item_2",
+        ),
+    ] {
+        let mut q = BTreeMap::new();
+        q.insert(
+            "ambig".to_string(),
+            Question::Choice(ChoiceQuestion {
+                instructions: "Identify the missing detail.".into(),
+                options: vec![
+                    OptionDef {
+                        id: "item_1".into(),
+                        description: "Which".into(),
+                    },
+                    OptionDef {
+                        id: "item_2".into(),
+                        description: "Where".into(),
+                    },
+                    OptionDef {
+                        id: "item_3".into(),
+                        description: "What".into(),
+                    },
+                ],
+                policy: Policy {
+                    allow_abstain: false,
+                    ..Default::default()
+                },
+            }),
+        );
+        let res = engine
+            .evaluate(&ZevRequest {
+                state: serde_json::json!(state),
+                questions: q,
+                model: None,
+                temperature: None,
+                enable_temporal_facts: false,
+                images: None,
+            })
+            .expect("eval ambiguity");
+        assert_eq!(
+            res.answers["ambig"].decision,
+            Some(serde_json::json!(expected_id))
+        );
+    }
+
+    // 2. Score questions evaluated through SystemOneRequest across all methods must preserve
+    // ordinal severity scaling and never collapse to the first index under speculative cascade
+    let score_q = WireQuestion::Score(WireScoreQuestion {
+        instructions: serde_json::json!("Rate incident severity from 0 to 3"),
+        criteria: vec![
+            serde_json::json!("0 - Routine informational log"),
+            serde_json::json!("1 - Minor non-blocking warning"),
+            serde_json::json!("2 - Degraded latency on secondary replica"),
+            serde_json::json!("3 - Complete production outage with irreversible data loss"),
+        ],
+    });
+
+    for model in [
+        "zev-default",
+        "zev-clm",
+        "zev-apfel",
+        "zev-gemma",
+        "zev-cascade",
+        "zev-poe",
+    ] {
+        let req = SystemOneRequest {
+            state: serde_json::json!(
+                " Complete production outage with irreversible data loss across primary cluster."
+            ),
+            questions: [("sev".to_string(), score_q.clone())].into(),
+            model: model.to_string(),
+        };
+        let resp = engine.evaluate_system_one(&req).expect("eval system one");
+        let score_val = resp.answers["sev"]
+            .get("score")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        assert!(
+            score_val.round() as i64 >= 2,
+            "Model {} collapsed high-severity score to {}",
+            model,
+            score_val
+        );
+    }
+}
+
+

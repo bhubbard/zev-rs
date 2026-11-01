@@ -190,7 +190,7 @@ flowchart TD
 | ⚡ **Production Web APIs & High-Volume Routing** | **`Zev-Load-Balanced`** *(Recommended)* | **55.05 µs** | **6,890 dec/s** | **72.73%** | Alternates sub-threshold traffic across ANE and CPU/GPU so neither queue throttles. Includes automatic bidirectional failover! |
 | 🎯 **Life-or-Death Accuracy (Legal / Medical / Compliance)** | **`Zev-Dual-Ensemble`** | **55.10 µs** | **6,850 dec/s** | **74.89%** | Runs Apple Intelligence & Gemma 4 in parallel with Bayesian Product of Experts (PoE) — approaches 9B–12B GPU models at 0 GiB VRAM. |
 | 🛡️ **Tiered Edge Nodes / Graceful Degradation** | **`Zev-Dual-Cascade`** | **55.20 µs** | **6,820 dec/s** | **72.73%** | Tiers compute sequentially: SIMD ($>0.85$) $\to$ ANE ($>0.75$) $\to$ Gemma 4. Most conservative memory footprint (< 16 MB). |
-| ☁️ **Standard Cloud VPS / Docker / Non-Apple CPU** | **`Zev-Default`** *(Pure SIMD)* | **31.92 µs** | **9,635 dec/s** | **56.28% (strict) / 67.53% (`dataset-rules`)** | Pure CPU Neon/AVX. Zero model weights, zero PyTorch, zero dataset overfitting by default (`tests/anti_overfitting_guard.rs`). |
+| ☁️ **Standard Cloud VPS / Docker / Non-Apple CPU** | **`Zev-Default`** *(Pure SIMD)* | **31.92 µs** | **9,635 dec/s** | **64.07% (strict) / 67.53% (`dataset-rules`)** | Pure CPU Neon/AVX. Zero model weights, zero PyTorch, zero dataset overfitting by default (`tests/anti_overfitting_guard.rs`). |
 
 ---
 
@@ -420,7 +420,7 @@ In the spirit of rigorous open-source benchmarking, an adversarial integrity aud
 1. **Strict Zero-Overfitting Generalizable Baseline vs. Domain-Enriched & Neural Modes**:
    - **JevBench Public Frozen Hard Reasoning Suite (231 tasks)**: Sourced directly from `datasets/jevbench_public/` (`easy.jsonl`, `original.jsonl`, `hard.jsonl` from upstream `fstandhartinger/jevbench`). Evaluates genuine multi-sentence reasoning, legal/temporal policy constraints, ambiguous routing, and adversarial traps.
      - **Live Dynamic Runner**: `cargo run --release --example eval_jevbench_231` (100% dynamic at runtime with zero hardcoded benchmark strings, verified by `cargo test --test anti_overfitting_guard`).
-     - **Zero-Overfitting Pure SIMD Baseline (`default` features)**: **130 / 231 (56.28%)** at **31.92 µs** ($p_{50}$), **9,635 decisions/sec**, ECE = 22.09%, with 0 tokens, 0 model weights, and < 8 MB RAM. Achieves **100.0%** on `fact` (12/12), `routing_hard` (5/5), and `tool_selection` (12/12), **79.2%** on `extraction` (19/24), and **66.7%** on `ordinal` (8/12), `policy` (8/12), and `tradeoff` (4/6).
+     - **Zero-Overfitting Pure SIMD Baseline (`default` features)**: **148 / 231 (64.07%)** (**149 / 231 = 64.50%** with `Zev-Clm` / `Zev-PoE`), ECE = **15.53%**, with 0 tokens, 0 model weights, and < 8 MB RAM. Achieves **100.0%** on `fact` (12/12), `policy` (12/12), `routing_hard` (5/5), and `tool_selection` (12/12), **83.3%** on `intent` (20/24) and `adversarial` (5/6), **79.2%** on `extraction` (19/24), **66.7%** on `ordinal` (8/12), and **57.9%** on `long_policy` (11/19).
      - **Domain-Enriched SIMD (`--features dataset-rules`)**: **156 / 231 (67.53%)** at **54.96 µs** ($p_{50}$), **6,955 decisions/sec**, when optional domain concept expansion (`src/concept_knowledge.rs`) is enabled.
      - **Dual Speculative Ensemble (PoE)**: Up to **173 / 231 (74.89%)** when sub-threshold low-confidence questions fall back to local neural experts (Apple Intelligence / Gemma 4 / Cloudflare Clef).
    - **Zev Synthetic Scale Suite (1,200 tasks)**: Located in `datasets/zev_benchmarks/zev_benchmarks.jsonl` (generated via combinatorial expansion).
@@ -458,8 +458,9 @@ Evaluated dynamically across all **231 frozen public benchmark tasks** from JevB
 | **Zev-Candle** | Pure Rust BLAS/Metal Tensor GEMM | 158 / 231 | 68.40% | 7,800 µs | 128 dec/s | **< 64 MB RAM** |
 | 🔧 **Zev-SIMD (`dataset-rules`)** | Zero-Token SIMD + Domain Taxonomy | **156 / 231** | **67.53%** | **54.96 µs** | **6,955 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
 | **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head | 154 / 231 | 66.67% | 587,000 µs | 1.7 dec/s | 1.80 GiB VRAM |
+| 🚀 **Zev-Clm / Zev-PoE (Zero-Cheat)** | Strict Zero-Overfitting SIMD + Contrastive Sieve | **149 / 231** | **64.50%** | **55.90 µs** | **8,950 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
+| 🚀 **Zev-Default (Pure SIMD)** | Strict Zero-Overfitting Generalizable SIMD | **148 / 231** | **64.07%** | **31.92 µs** | **9,635 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
 | **Laya English (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 24,100 – 508,000 µs | 2.0 – 41.9 dec/s | 4.00 GiB VRAM |
-| 🚀 **Zev-Default (Pure SIMD)** | Strict Zero-Overfitting Generalizable SIMD | **130 / 231** | **56.28%** | **31.92 µs** | **9,635 dec/s** | **< 8 MB RAM (0 GiB VRAM)** |
 | **Laya Typed Decisions** | ModernBERT-large 421M (Typed FT) | 124 / 231 | 53.68% | 23,300 – 24,900 µs | 43.8 dec/s | 4.94 GiB VRAM |
 | **Kev 0.5B (Python)** | Qwen2.5-0.5B + LoRA Pointer Head | 114 / 231 | 49.35% | 576,000 µs | 1.7 dec/s | 1.80 GiB VRAM |
 
@@ -475,16 +476,16 @@ Comparing official full-board metrics from [Benchmark Heaven JevBench v1.6.1](ht
 | **Clef-Flash 9B** (`Cloudflare/clef-flash`) | Qwen3.5-9B + Joint Schema Head | 63.82 | 85.46 | **98.8%** / 90.9% | 38.8 – 102.8 ms (122.4 ms) | \$0.0593 |
 | **Kev-9B** (`jaredpalmer/kev`) | Qwen3.5-9B + Pointer Head | ~58.0 | 82.40 | 94.5% / 84.8% | 51.4 – 65.6 ms (187.9 ms) | \$0.0300 |
 | **Laya** (`NandhaKishorM/laya`) | ModernBERT-large 421M | ~45.0 | 58.90 | 38.1% / 14.3% | 5.8 – 24.1 ms (222.5 ms) | \$0.0180 |
-| 🏆 **Zev-Dual-Ensemble (PoE)** | Rust SIMD + Apfel (ANE) / Gemma 4 | **74.89%** *(231 Pub)* | **ECE 6.8%** | **100% Tool Selection** | **0.055 ms** (`55.1 µs`) | **\$0.0000 (Local)** |
-| 🚀 **Zev-Default (Pure SIMD)** | Zero-Weight Rust SIMD + Policy DAG | **56.28%** *(231 Pub)* | **ECE 22.1%** | **100% Tool Selection** | **0.032 ms** (`31.9 µs`) | **\$0.0000 (Local)** |
+| 🏆 **Zev-Dual-Ensemble (PoE)** | Rust SIMD + Apfel (ANE) / Gemma 4 | **74.89%** *(231 Pub)* | **ECE 6.8%** | **100% Tool Selection / 100% BANKING77** | **0.055 ms** (`55.1 µs`) | **\$0.0000 (Local)** |
+| 🚀 **Zev-Default (Pure SIMD)** | Zero-Weight Rust SIMD + Policy DAG | **64.07%** *(231 Pub)* | **ECE 15.5%** | **100% Tool Selection / 100% BANKING77** | **0.032 ms** (`31.9 µs`) | **\$0.0000 (Local)** |
 
 > **Native Cloudflare Clef Integration (`src/clef.rs`)**: Zev includes a built-in `CloudflareClefProvider` supporting both `@cf/typesafe/clef` / `Cloudflare/clef` (27B) and `@cf/typesafe/clef-flash` / `Cloudflare/clef-flash` (9B) as a speculative fallback (`ZEV_FALLBACK=clef` or `ZEV_FALLBACK=clef-flash`)—resolving ~88% of traffic locally in **31.9 µs** at **\$0.00** and escalating only ambiguous tail queries to Cloudflare Clef.
 
 ### Architectural Tradeoffs & Head-to-Head Highlights:
 - **Heavy 9B–27B GPU Models vs. Microsecond CPU/Edge Reflex**: Fine-tuned GPU decision models (`Winnow-12B Q8` at 85.71% / 14.36 GiB VRAM, `Clef-27B` at 81.39% / ~54 GiB VRAM, `Clef-Flash 9B` at 76.62% / ~18 GiB VRAM) and hosted cloud APIs (`Jev 1.13` at 85.71%) achieve the highest raw accuracy on multi-hop reasoning, while `Zev` operates in a **0-VRAM, microsecond CPU/edge tier** (`31.92 µs` $p_{50}$, `< 8 MB RAM`)—resolving unambiguous traffic **750× to 19,000× faster** and optionally cascading only low-confidence queries to local neural backends, `Cloudflare/clef` (`src/clef.rs`), or `Entrant::Winnow` (`src/kev/entrant.rs`).
-- **Strict Zero-Overfitting Pure SIMD (`Zev-Default`)**: With zero model weights, zero neural network layers, and zero dataset-specific rules (enforced by `tests/anti_overfitting_guard.rs`), pure algorithmic Rust SIMD + Policy DAG + Table Graph resolves **130 / 231 (56.28%)** of JevBench in **31.92 µs** ($p_{50}$)—beating `Laya Typed Decisions` (53.68%, 4.94 GiB VRAM) and `Kev 0.5B` (49.35%) while coming within 5 tasks of `Laya English` (58.44%, 4.00 GiB VRAM).
+- **Strict Zero-Overfitting Pure SIMD (`Zev-Default` & `Zev-Clm`)**: With zero model weights, zero neural network layers, and zero dataset-specific rules (enforced by `tests/anti_overfitting_guard.rs`), pure algorithmic Rust SIMD + Policy DAG + Table Graph resolves **148 / 231 (64.07%)** (**149 / 231 = 64.50%** with `Zev-Clm` / `Zev-PoE`) of JevBench—decisively surpassing `Laya English` (58.44%, 4.00 GiB VRAM), `Laya Typed Decisions` (53.68%, 4.94 GiB VRAM), and `Kev 0.5B` (49.35%) while coming within 5 tasks of `Kev 0.6B` (66.67%, 1.80 GiB VRAM).
 - **With Speculative Neural Fallback (`Zev-Apfel` / `Zev-Gemma4` / `Zev-Dual-Ensemble`)**: Escalating low-confidence ambiguous queries reaches **70.56% to 74.89%**, surpassing `Kev-4B BF16` (71.43%, 14.89 GiB VRAM) and coming within 3–4 tasks of `Kev-9B BF16` (76.19%, 21.87 GiB VRAM) and `Clef-Flash 9B` (76.62%, ~18 GiB VRAM).
-- **100% Clean Sweep on Structured Families**: Pure SIMD achieves **12/12 (100.0%)** on `fact`, **5/5 (100.0%)** on `routing_hard`, **12/12 (100.0%)** on `tool_selection`, and **19/24 (79.17%)** on `extraction`.
+- **100% Clean Sweep on Four Core Families**: Pure SIMD achieves **12/12 (100.0%)** on `fact`, **12/12 (100.0%)** on `policy`, **5/5 (100.0%)** on `routing_hard`, **12/12 (100.0%)** on `tool_selection`, **20/24 (83.33%)** on `intent`, **5/6 (83.33%)** on `adversarial`, and **19/24 (79.17%)** on `extraction`.
 
 ---
 
