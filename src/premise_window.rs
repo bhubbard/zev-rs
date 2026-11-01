@@ -164,9 +164,9 @@ const NLI_THEME_WORDS: &[&str] = &[
 
 fn expand_nli_synonym_stems(raw_w: &str, stem: &str) -> &'static [&'static str] {
     match stem {
-        "shar" | "share" | "disclos" | "divulg" | "reveal" => {
-            &["shar", "share", "disclos", "divulg", "reveal", "provid", "furnish"]
-        }
+        "shar" | "share" | "disclos" | "divulg" | "reveal" => &[
+            "shar", "share", "disclos", "divulg", "reveal", "provid", "furnish",
+        ],
         "verbal" | "oral" | "spoken" => &["verbal", "oral", "spoken", "voic"],
         "copi" | "copy" | "reproduc" | "duplicat" => {
             &["copi", "copy", "reproduc", "duplicat", "photocopi"]
@@ -174,9 +174,14 @@ fn expand_nli_synonym_stems(raw_w: &str, stem: &str) -> &'static [&'static str] 
         "destroy" | "destruct" | "delet" | "eras" | "dispos" => {
             &["destroy", "destruct", "delet", "eras", "dispos", "return"]
         }
-        "keep" | "retain" | "maintain" | "archiv" | "preserv" => {
-            &["keep", "retain", "maintain", "archiv", "preserv", "retention"]
-        }
+        "keep" | "retain" | "maintain" | "archiv" | "preserv" => &[
+            "keep",
+            "retain",
+            "maintain",
+            "archiv",
+            "preserv",
+            "retention",
+        ],
         "creat" | "develop" | "generat" | "produc" => {
             &["creat", "develop", "generat", "produc", "discover"]
         }
@@ -199,7 +204,9 @@ fn expand_nli_synonym_stems(raw_w: &str, stem: &str) -> &'static [&'static str] 
             &["permiss", "consent", "approv", "authoriz"]
         }
         "writ" | "written" => &["writ", "written", "tangible"],
-        "mark" | "marked" | "designat" | "label" => &["mark", "marked", "designat", "label", "stamp"],
+        "mark" | "marked" | "designat" | "label" => {
+            &["mark", "marked", "designat", "label", "stamp"]
+        }
         _ => match raw_w {
             "share" | "shared" | "sharing" => {
                 &["shar", "share", "disclos", "divulg", "reveal", "provid"]
@@ -273,11 +280,7 @@ pub fn evaluate_nli_hypothesis(
             continue;
         }
         merged_text.push_str(t);
-        if t.ends_with('.') || t.ends_with(';') || t.ends_with(':') {
-            merged_text.push(' ');
-        } else {
-            merged_text.push(' ');
-        }
+        merged_text.push(' ');
     }
 
     let mut sentences: Vec<String> = Vec::new();
@@ -361,10 +364,10 @@ pub fn evaluate_nli_hypothesis(
 
         for (t_idx, (raw_w, stem)) in hyp_terms.iter().enumerate() {
             let in_w0 = set_matches_term(&sent_stem_sets[idx], raw_w, stem);
-            let in_w1 = (idx + 1 < num_sents)
-                && set_matches_term(&sent_stem_sets[idx + 1], raw_w, stem);
-            let in_w2 = (idx + 2 < num_sents)
-                && set_matches_term(&sent_stem_sets[idx + 2], raw_w, stem);
+            let in_w1 =
+                (idx + 1 < num_sents) && set_matches_term(&sent_stem_sets[idx + 1], raw_w, stem);
+            let in_w2 =
+                (idx + 2 < num_sents) && set_matches_term(&sent_stem_sets[idx + 2], raw_w, stem);
             if in_w0 || in_w1 || in_w2 {
                 matched_isf += term_isf[t_idx];
                 if !is_theme_term[t_idx] || specific_indices.len() == hyp_terms.len() {
@@ -461,10 +464,11 @@ pub fn evaluate_nli_hypothesis(
         || win_ctx.contains_bounded("regardless")
         || win_ctx.contains_bounded("either");
 
-    let is_contradiction = (!hyp_has_neg && win_has_neg && !win_has_permissive && any_focal_neg_in_win)
-        || (hyp_has_neg && !win_has_neg && win_has_permissive)
-        || (hyp_has_only && win_has_inclusive)
-        || (hyp_has_neg == win_has_neg && antonym_clashes >= 2);
+    let is_contradiction =
+        (!hyp_has_neg && win_has_neg && !win_has_permissive && any_focal_neg_in_win)
+            || (hyp_has_neg && !win_has_neg && win_has_permissive)
+            || (hyp_has_only && win_has_inclusive)
+            || (hyp_has_neg == win_has_neg && antonym_clashes >= 2);
 
     for (role, l) in roles.iter().zip(logits.iter_mut()) {
         if is_contradiction {
@@ -605,113 +609,105 @@ pub fn resolve_entity_schema_query(
     }
 
     // Helper: evaluate whether a single entity object `entity_obj` is an active target of `req_lower`
-    let is_entity_addressed = |entity_obj: &serde_json::Map<String, serde_json::Value>,
-                               req_lower: &str|
-     -> bool {
-        let id_str = entity_obj
-            .get("id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_lowercase();
-        let name_str = entity_obj
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_lowercase();
-        let room_str = entity_obj
-            .get("room")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_lowercase();
-        let kind_str = entity_obj
-            .get("kind")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_lowercase();
+    let is_entity_addressed =
+        |entity_obj: &serde_json::Map<String, serde_json::Value>, req_lower: &str| -> bool {
+            let id_str = entity_obj
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_lowercase();
+            let name_str = entity_obj
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_lowercase();
+            let room_str = entity_obj
+                .get("room")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_lowercase();
+            let kind_str = entity_obj
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_lowercase();
 
-        let id_spaced = id_str.replace('_', " ");
-        let direct_match = (!id_str.is_empty() && req_lower.contains(&id_str))
-            || (!id_spaced.is_empty() && req_lower.contains(&id_spaced))
-            || (!name_str.is_empty() && req_lower.contains(&name_str));
+            let id_spaced = id_str.replace('_', " ");
+            let direct_match = (!id_str.is_empty() && req_lower.contains(&id_str))
+                || (!id_spaced.is_empty() && req_lower.contains(&id_spaced))
+                || (!name_str.is_empty() && req_lower.contains(&name_str));
 
-        let mut group_match = false;
-        if let Some(groups) = map.get("groups").and_then(|v| v.as_object()) {
-            for (g_name, g_members) in groups {
-                let g_lower = g_name.to_lowercase();
-                let g_spaced = g_lower.replace('_', " ");
-                if req_lower.contains(&g_lower) || req_lower.contains(&g_spaced) {
-                    if let Some(arr) = g_members.as_array() {
-                        if arr
-                            .iter()
-                            .any(|m| m.as_str().is_some_and(|s| s.eq_ignore_ascii_case(&id_str)))
-                        {
-                            group_match = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        let room_spaced = room_str.replace('_', " ");
-        let mut room_match = !room_str.is_empty()
-            && (req_lower.contains(&room_str) || req_lower.contains(&room_spaced));
-        if !room_match && !room_str.is_empty() {
-            if let Some(aliases) = map.get("room_aliases").and_then(|v| v.as_object()) {
-                for (alias, rooms) in aliases {
-                    let alias_lower = alias.to_lowercase();
-                    let alias_spaced = alias_lower.replace('_', " ");
-                    if req_lower.contains(&alias_lower) || req_lower.contains(&alias_spaced) {
-                        if let Some(arr) = rooms.as_array() {
-                            if arr.iter().any(|r| {
-                                r.as_str().is_some_and(|s| s.eq_ignore_ascii_case(&room_str))
+            let mut group_match = false;
+            if let Some(groups) = map.get("groups").and_then(|v| v.as_object()) {
+                for (g_name, g_members) in groups {
+                    let g_lower = g_name.to_lowercase();
+                    let g_spaced = g_lower.replace('_', " ");
+                    if req_lower.contains(&g_lower) || req_lower.contains(&g_spaced) {
+                        if let Some(arr) = g_members.as_array() {
+                            if arr.iter().any(|m| {
+                                m.as_str().is_some_and(|s| s.eq_ignore_ascii_case(&id_str))
                             }) {
-                                room_match = true;
+                                group_match = true;
                             }
                         }
                     }
                 }
             }
-        }
 
-        let kind_match = !kind_str.is_empty()
-            && (req_lower.contains(&kind_str)
-                || (kind_str == "lock"
-                    && (req_lower.contains("lock")
-                        || req_lower.contains("unlock")
-                        || req_lower.contains("door")))
-                || (kind_str == "light"
-                    && (req_lower.contains("light") || req_lower.contains("lamp")))
-                || (kind_str == "plug"
-                    && (req_lower.contains("plug")
-                        || req_lower.contains("outlet")
-                        || req_lower.contains("socket")))
-                || (kind_str == "thermostat"
-                    && (req_lower.contains("thermostat")
-                        || req_lower.contains("temperature")
-                        || req_lower.contains("heat")
-                        || req_lower.contains("cool")
-                        || req_lower.contains("hvac"))));
+            let room_spaced = room_str.replace('_', " ");
+            let mut room_match = !room_str.is_empty()
+                && (req_lower.contains(&room_str) || req_lower.contains(&room_spaced));
+            if !room_match && !room_str.is_empty() {
+                if let Some(aliases) = map.get("room_aliases").and_then(|v| v.as_object()) {
+                    for (alias, rooms) in aliases {
+                        let alias_lower = alias.to_lowercase();
+                        let alias_spaced = alias_lower.replace('_', " ");
+                        if req_lower.contains(&alias_lower) || req_lower.contains(&alias_spaced) {
+                            if let Some(arr) = rooms.as_array() {
+                                if arr.iter().any(|r| {
+                                    r.as_str()
+                                        .is_some_and(|s| s.eq_ignore_ascii_case(&room_str))
+                                }) {
+                                    room_match = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
-        let room_all_match = room_match
-            && (req_lower.contains("everything")
-                || req_lower.contains("all devices")
-                || req_lower.contains("all appliances"));
+            let kind_match = !kind_str.is_empty()
+                && (req_lower.contains(&kind_str)
+                    || (kind_str == "lock"
+                        && (req_lower.contains("lock")
+                            || req_lower.contains("unlock")
+                            || req_lower.contains("door")))
+                    || (kind_str == "light"
+                        && (req_lower.contains("light") || req_lower.contains("lamp")))
+                    || (kind_str == "plug"
+                        && (req_lower.contains("plug")
+                            || req_lower.contains("outlet")
+                            || req_lower.contains("socket")))
+                    || (kind_str == "thermostat"
+                        && (req_lower.contains("thermostat")
+                            || req_lower.contains("temperature")
+                            || req_lower.contains("heat")
+                            || req_lower.contains("cool")
+                            || req_lower.contains("hvac"))));
 
-        direct_match
-            || (group_match && (kind_match || kind_str.is_empty()))
-            || (room_match && kind_match)
-            || room_all_match
-    };
+            let room_all_match = room_match
+                && (req_lower.contains("everything")
+                    || req_lower.contains("all devices")
+                    || req_lower.contains("all appliances"));
+
+            direct_match
+                || (group_match && (kind_match || kind_str.is_empty()))
+                || (room_match && kind_match)
+                || room_all_match
+        };
 
     // Helper: analyze the state-transition semantics of `map["request"]` against `objects` and `map["policy"]`
-    let analyze_request_transition = |req_str: &str| -> (
-        bool, // is_query
-        bool, // is_schedule
-        bool, // is_rule
-        bool, // is_policy_blocked
-        Vec<(&serde_json::Map<String, serde_json::Value>, bool, bool)>, // (obj, is_available, is_already_satisfied)
-        Option<bool>, // desired_power
-    ) {
+    let analyze_request_transition = |req_str: &str| {
         let req_lower = req_str.trim().to_lowercase();
         let is_query = req_lower.ends_with('?')
             || req_lower.starts_with("is ")
@@ -797,10 +793,9 @@ pub fn resolve_entity_schema_query(
                         already_sat = true;
                     }
                 }
-                if wants_lock && obj.get("locked").and_then(|v| v.as_bool()) == Some(true) {
-                    already_sat = true;
-                } else if wants_unlock
-                    && obj.get("locked").and_then(|v| v.as_bool()) == Some(false)
+                let locked_val = obj.get("locked").and_then(|v| v.as_bool());
+                if (wants_lock && locked_val == Some(true))
+                    || (wants_unlock && locked_val == Some(false))
                 {
                     already_sat = true;
                 }

@@ -61,13 +61,59 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         || state_lower.contains("reservation");
 
     const WORLD_LANGUAGES: &[&str] = &[
-        "spanish", "french", "german", "italian", "japanese", "chinese", "mandarin", "cantonese",
-        "korean", "russian", "portuguese", "arabic", "dutch", "swedish", "polish", "greek",
-        "hindi", "vietnamese", "thai", "turkish", "hebrew", "latin", "icelandic", "finnish",
-        "norwegian", "danish", "hungarian", "czech", "romanian", "ukrainian", "bulgarian",
-        "croatian", "serbian", "slovak", "slovenian", "indonesian", "malay", "tagalog",
-        "filipino", "swahili", "persian", "farsi", "urdu", "bengali", "punjabi", "tamil",
-        "telugu", "hawaiian", "irish", "welsh", "gaelic", "yiddish", "catalan",
+        "spanish",
+        "french",
+        "german",
+        "italian",
+        "japanese",
+        "chinese",
+        "mandarin",
+        "cantonese",
+        "korean",
+        "russian",
+        "portuguese",
+        "arabic",
+        "dutch",
+        "swedish",
+        "polish",
+        "greek",
+        "hindi",
+        "vietnamese",
+        "thai",
+        "turkish",
+        "hebrew",
+        "latin",
+        "icelandic",
+        "finnish",
+        "norwegian",
+        "danish",
+        "hungarian",
+        "czech",
+        "romanian",
+        "ukrainian",
+        "bulgarian",
+        "croatian",
+        "serbian",
+        "slovak",
+        "slovenian",
+        "indonesian",
+        "malay",
+        "tagalog",
+        "filipino",
+        "swahili",
+        "persian",
+        "farsi",
+        "urdu",
+        "bengali",
+        "punjabi",
+        "tamil",
+        "telugu",
+        "hawaiian",
+        "irish",
+        "welsh",
+        "gaelic",
+        "yiddish",
+        "catalan",
     ];
 
     let has_language_target = WORLD_LANGUAGES.iter().any(|lang| {
@@ -160,7 +206,9 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
 /// Speech-Act Classifier (Searle's taxonomy: Expressive/Assertive vs Directive/Interrogative).
 /// Returns true if the message expresses gratitude or comprehension without any directive request
 /// or interrogative question.
-pub fn is_pure_acknowledgment_without_request(ctx: &crate::order_invariant::PremiseContext) -> bool {
+pub fn is_pure_acknowledgment_without_request(
+    ctx: &crate::order_invariant::PremiseContext,
+) -> bool {
     if ctx.raw_lower.contains('?') {
         return false;
     }
@@ -174,9 +222,7 @@ pub fn is_pure_acknowledgment_without_request(ctx: &crate::order_invariant::Prem
         "clear",
         "clearer",
     ];
-    let has_expressive = EXPRESSIVE_MARKERS
-        .iter()
-        .any(|&w| ctx.contains_bounded(w));
+    let has_expressive = EXPRESSIVE_MARKERS.iter().any(|&w| ctx.contains_bounded(w));
     if !has_expressive {
         return false;
     }

@@ -153,9 +153,8 @@ pub fn build_policy_dag_from_text(text: &str) -> PolicyDag {
             || lower.contains("depends on ")
             || lower.contains("depend on ")
             || lower.contains("conditional upon ");
-        let has_exc = lower.contains("unless ")
-            || lower.contains("except ")
-            || lower.contains("excluding ");
+        let has_exc =
+            lower.contains("unless ") || lower.contains("except ") || lower.contains("excluding ");
         let has_ovr = lower.contains("override")
             || lower.contains("supersede")
             || lower.contains("prohibit")
@@ -289,9 +288,11 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
                 .filter(|w| w.len() >= 4 && *w != "temporary" && *w != "all" && *w != "their")
                 .collect();
             if !content_words.is_empty()
-                && content_words
-                    .iter()
-                    .all(|w| (fact_ctx.contains_bounded(w) || fact_ctx.contains_stem(w)) && !fact_ctx.is_negated(w) && !fact_ctx.is_stem_negated(w))
+                && content_words.iter().all(|w| {
+                    (fact_ctx.contains_bounded(w) || fact_ctx.contains_stem(w))
+                        && !fact_ctx.is_negated(w)
+                        && !fact_ctx.is_stem_negated(w)
+                })
             {
                 active_nodes.push(idx);
             }
@@ -413,7 +414,10 @@ mod tests {
 
         assert!(dag.is_reachable(a, b));
         assert!(dag.is_reachable(b, c));
-        assert!(dag.is_reachable(a, c), "Transitive 2-hop closure must reach C from A");
+        assert!(
+            dag.is_reachable(a, c),
+            "Transitive 2-hop closure must reach C from A"
+        );
     }
 
     #[test]
@@ -437,6 +441,8 @@ Customer contacted us: item is defective.
 "#;
         let deductions = resolve_policy_dag_deductions(text);
         assert!(!deductions.is_empty());
-        assert!(deductions.iter().any(|d| d.contains("DEDUCTION_VALID: TRUE")));
+        assert!(deductions
+            .iter()
+            .any(|d| d.contains("DEDUCTION_VALID: TRUE")));
     }
 }

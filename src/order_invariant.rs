@@ -38,8 +38,8 @@ const SCOPED_NEGATORS: &[&str] = &[
     "replacing",
     "might use",
     "could use",
-    "refused",
-    "declined",
+    "refused to",
+    "declined to",
     "resolved",
     "restored",
     "mitigated",
@@ -212,7 +212,9 @@ pub fn stem_english_word(word: &str) -> String {
     match w.as_str() {
         "lost" | "loss" | "losses" | "lose" | "loses" | "losing" => return "los".to_string(),
         "paid" | "payment" | "payments" | "paying" => return "pay".to_string(),
-        "bought" | "buying" | "purchase" | "purchased" | "purchases" => return "purchas".to_string(),
+        "bought" | "buying" | "purchase" | "purchased" | "purchases" => {
+            return "purchas".to_string()
+        }
         "sold" | "sale" | "sales" | "selling" => return "sal".to_string(),
         "broke" | "broken" | "breaking" => return "break".to_string(),
         "spoke" | "spoken" | "speech" | "speaking" => return "speak".to_string(),
@@ -227,11 +229,7 @@ pub fn stem_english_word(word: &str) -> String {
         return format!("{}y", &s[..s.len() - 3]);
     }
     if s.ends_with("es") && s.len() > 4 {
-        if s.ends_with("sses")
-            || s.ends_with("ches")
-            || s.ends_with("shes")
-            || s.ends_with("xes")
-        {
+        if s.ends_with("sses") || s.ends_with("ches") || s.ends_with("shes") || s.ends_with("xes") {
             s = &s[..s.len() - 2];
         } else {
             s = &s[..s.len() - 1];
@@ -447,7 +445,9 @@ impl PremiseContext {
         }
         let stem = stem_english_word(word);
         if let Some(positions) = self.stem_positions.get(&stem) {
-            positions.iter().any(|&pos| self.is_pos_negated(pos as usize))
+            positions
+                .iter()
+                .any(|&pos| self.is_pos_negated(pos as usize))
         } else {
             false
         }
@@ -539,7 +539,9 @@ impl PremiseContext {
         }
 
         if let Some(positions) = self.token_positions.get(w) {
-            return positions.iter().any(|&pos| self.is_pos_negated(pos as usize));
+            return positions
+                .iter()
+                .any(|&pos| self.is_pos_negated(pos as usize));
         }
 
         // If w is a single word token and not in token_positions, it cannot appear as a bounded token in raw_lower
@@ -846,8 +848,7 @@ impl PremiseContext {
                 || (!is_multi_class && id == "yes")
                 || (id != "false"
                     && id != "no"
-                    && (has_yes_interjection
-                        || desc_trimmed.starts_with("every required"))));
+                    && (has_yes_interjection || desc_trimmed.starts_with("every required"))));
 
         let is_negative = is_bool_opt
             && (id == "false"
@@ -899,19 +900,38 @@ impl PremiseContext {
                     || self.contains_bounded("prohibited");
 
                 let has_strong_pos = self.contains_bounded("paid in full")
-                    || (self.contains_bounded("is enabled") && !self.is_negated("enabled"));
+                    || (self.contains_bounded("is enabled") && !self.is_negated("enabled"))
+                    || self.contains_bounded("yes")
+                    || self.contains_bounded("true");
+
+                let is_pure_bool_opt = id == "true"
+                    || id == "false"
+                    || id == "yes"
+                    || id == "no"
+                    || desc_trimmed == "yes"
+                    || desc_trimmed == "no"
+                    || desc_trimmed == "true"
+                    || desc_trimmed == "false"
+                    || desc_trimmed.starts_with("every required")
+                    || desc_trimmed.starts_with("a condition is missing");
 
                 if is_affirmative {
                     if !has_neg || has_strong_pos {
-                        logit += 2.4;
+                        if is_pure_bool_opt || has_strong_pos {
+                            logit += 2.4;
+                        } else {
+                            logit += 0.6;
+                        }
                     } else {
                         logit -= 1.5;
                     }
                 } else if is_negative {
                     if has_neg && !has_strong_pos {
                         logit += 2.2;
-                    } else {
+                    } else if is_pure_bool_opt || has_strong_pos {
                         logit -= 1.5;
+                    } else {
+                        logit -= 0.4;
                     }
                 }
             }
@@ -1181,11 +1201,7 @@ pub fn compute_order_invariant_logits_with_context(
             }
         }
 
-        if has_abstain
-            && has_concrete
-            && max_concrete <= 0.5 + 1e-6
-            && min_concrete < 0.5 - 1e-6
-        {
+        if has_abstain && has_concrete && max_concrete <= 0.5 + 1e-6 && min_concrete < 0.5 - 1e-6 {
             for (c, l) in candidates.iter().zip(logits.iter_mut()) {
                 if crate::abstain::is_abstain_candidate(&c.id, &c.description) {
                     *l = 2.0;

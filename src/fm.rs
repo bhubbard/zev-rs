@@ -47,11 +47,9 @@ pub struct FmConfig {
 
 impl Default for FmConfig {
     fn default() -> Self {
-        let binary_path =
-            std::env::var("FM_BIN").unwrap_or_else(|_| DEFAULT_FM_BIN.to_string());
+        let binary_path = std::env::var("FM_BIN").unwrap_or_else(|_| DEFAULT_FM_BIN.to_string());
         let model = std::env::var("FM_MODEL").unwrap_or_else(|_| FM_SYSTEM_MODEL.to_string());
-        let endpoint =
-            std::env::var("FM_URL").unwrap_or_else(|_| DEFAULT_FM_ENDPOINT.to_string());
+        let endpoint = std::env::var("FM_URL").unwrap_or_else(|_| DEFAULT_FM_ENDPOINT.to_string());
         let use_structured_schema = std::env::var("FM_STRUCTURED_SCHEMA")
             .map(|v| v != "0" && v != "false")
             .unwrap_or(true);
@@ -158,7 +156,10 @@ pub fn build_fm_decision_schema(candidates: &[Candidate]) -> serde_json::Value {
 
 /// Formats the classification prompt for `fm`.
 pub fn format_fm_prompt(state: &str, instructions: &str, candidates: &[Candidate]) -> String {
-    let mut prompt = format!("Question / Task:\n{}\n\nCandidate Options:\n", instructions.trim());
+    let mut prompt = format!(
+        "Question / Task:\n{}\n\nCandidate Options:\n",
+        instructions.trim()
+    );
     for (i, c) in candidates.iter().enumerate() {
         prompt.push_str(&format!("{}. [{}] {}\n", i + 1, c.id, c.description));
     }
@@ -189,7 +190,7 @@ pub fn evaluate_fm_with_config(
     #[cfg(target_arch = "wasm32")]
     {
         let _ = (state, question, candidates, config);
-        return Err( crate::error::ZevError::Evaluation(
+        return Err(crate::error::ZevError::Evaluation(
             "macOS /usr/bin/fm is not available in wasm32 targets".into(),
         ));
     }
@@ -356,8 +357,9 @@ fn call_fm_cli_respond(
         let _ = std::fs::remove_file(p);
     }
 
-    let output = output_res
-        .map_err(|e| ZevError::Evaluation(format!("Failed to execute {}: {e}", config.binary_path)))?;
+    let output = output_res.map_err(|e| {
+        ZevError::Evaluation(format!("Failed to execute {}: {e}", config.binary_path))
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -483,8 +485,8 @@ fn build_fm_answer(
         }
         let dec = match question {
             Question::Boolean(_) => {
-                let b = parsed_id.eq_ignore_ascii_case("true")
-                    || parsed_id.eq_ignore_ascii_case("yes");
+                let b =
+                    parsed_id.eq_ignore_ascii_case("true") || parsed_id.eq_ignore_ascii_case("yes");
                 serde_json::Value::Bool(b)
             }
             _ => serde_json::Value::String(parsed_id),

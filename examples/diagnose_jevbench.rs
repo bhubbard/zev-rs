@@ -123,6 +123,9 @@ fn main() {
 
     println!("\nAll Failures ({} total):", failures.len());
     for (item, pred, exp) in &failures {
-        println!("FAIL: {:<32} | {:<18} | exp: {:<25} | pred: {}", item.id, item.family, exp, pred);
+        println!(
+            "FAIL: {:<32} | {:<18} | exp: {:<25} | pred: {}",
+            item.id, item.family, exp, pred
+        );
     }
 }

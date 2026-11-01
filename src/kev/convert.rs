@@ -56,8 +56,9 @@ pub fn extract_meta_from_pt<P: AsRef<Path>>(
     // Find the data.pkl entry
     let data_pkl_name = zip
         .file_names()
+        .filter_map(Result::ok)
         .find(|name| name.ends_with("data.pkl"))
-        .map(|s| s.to_string())
+        .map(|s| s.into_owned())
         .ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::NotFound, "No data.pkl in archive")
         })?;

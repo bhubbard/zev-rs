@@ -18,10 +18,8 @@ pub struct MarkdownTable {
     pub rows: Vec<Vec<String>>,
 }
 
-
-static RE_SEPARATOR: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\s*\|?\s*[-:]+[-| :]*\|?\s*$").expect("valid separator regex")
-});
+static RE_SEPARATOR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\s*\|?\s*[-:]+[-| :]*\|?\s*$").expect("valid separator regex"));
 
 static RE_SECTION_HEADER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^(?:={4,}|#{1,4})\s*(.*?)\s*(?:={4,})?$").expect("valid section header regex")
@@ -169,7 +167,11 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
                             facts.push(format!("{}: {}", header, trimmed_val));
                             // Non-numeric tokens longer than 2 chars become bridge entities for hop 2
                             let val_lower = trimmed_val.to_lowercase();
-                            if val_lower.len() >= 3 && !val_lower.chars().all(|c| c.is_numeric() || c == '.' || c == ',') {
+                            if val_lower.len() >= 3
+                                && !val_lower
+                                    .chars()
+                                    .all(|c| c.is_numeric() || c == '.' || c == ',')
+                            {
                                 hop1_bridge_entities.insert(val_lower);
                             }
                         }
@@ -182,7 +184,11 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
                         .as_deref()
                         .map(|t| format!("In {}: ", t))
                         .unwrap_or_default();
-                    relations.push(format!("[TABULAR RELATION]: {}{}", title_prefix, facts.join(", ")));
+                    relations.push(format!(
+                        "[TABULAR RELATION]: {}{}",
+                        title_prefix,
+                        facts.join(", ")
+                    ));
                 }
             }
         }
@@ -204,7 +210,9 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
                 for cell in row {
                     let cell_lower = cell.trim().to_lowercase();
                     for bridge in &hop1_bridge_entities {
-                        if cell_lower == *bridge || (bridge.len() >= 4 && cell_lower.contains(bridge)) {
+                        if cell_lower == *bridge
+                            || (bridge.len() >= 4 && cell_lower.contains(bridge))
+                        {
                             matched_bridge = Some(cell.trim().to_string());
                             break;
                         }
@@ -265,7 +273,9 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
                 for cell in row {
                     let cell_lower = cell.trim().to_lowercase();
                     for bridge in &hop2_bridge_entities {
-                        if cell_lower == *bridge || (bridge.len() >= 4 && cell_lower.contains(bridge)) {
+                        if cell_lower == *bridge
+                            || (bridge.len() >= 4 && cell_lower.contains(bridge))
+                        {
                             matched_bridge = Some(cell.trim().to_string());
                             break;
                         }
@@ -391,7 +401,10 @@ pub fn resolve_monetary_constraints(text: &str) -> Vec<String> {
         let m = cap_match.get(1).unwrap();
         let m_range = m.range();
         // Skip if this currency amount is part of the sublimit definition
-        if caps.iter().any(|(_, r)| r.start == m_range.start && r.end == m_range.end) {
+        if caps
+            .iter()
+            .any(|(_, r)| r.start == m_range.start && r.end == m_range.end)
+        {
             continue;
         }
 
@@ -469,7 +482,9 @@ Table 2:
         let rels = resolve_tabular_relations(text);
         assert!(rels.len() >= 2);
         assert!(rels.iter().any(|r| r.contains("payments")));
-        assert!(rels.iter().any(|r| r.contains("TRANSITIVE RELATION (2-HOP)") && r.contains("Fintech")));
+        assert!(rels
+            .iter()
+            .any(|r| r.contains("TRANSITIVE RELATION (2-HOP)") && r.contains("Fintech")));
     }
 
     #[test]

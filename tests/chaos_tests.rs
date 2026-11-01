@@ -4,16 +4,16 @@
 // ============================================================================
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use zev::{
-    clean_text, compute_brier_score, compute_dataset_brier_score, compute_ece,
-    detect_script, fast_walsh_hadamard_transform, jaro_winkler_similarity,
-    make_safe_for_division, preprocess_state, revin_denormalize, revin_normalize,
-    scaled_softmax, smooth_ordinal_probabilities, soundex_code,
-    BooleanQuestion, ChoiceQuestion, DecisionCache, GateType, OptionDef, Policy,
-    Question, ScoreQuestion, TopologicalCircuit, ZevEngine, ZevRequest,
+    clean_text, compute_brier_score, compute_dataset_brier_score, compute_ece, detect_script,
+    fast_walsh_hadamard_transform, jaro_winkler_similarity, make_safe_for_division,
+    preprocess_state, revin_denormalize, revin_normalize, scaled_softmax,
+    smooth_ordinal_probabilities, soundex_code, BooleanQuestion, ChoiceQuestion, DecisionCache,
+    GateType, OptionDef, Policy, Question, ScoreQuestion, TopologicalCircuit, ZevEngine,
+    ZevRequest,
 };
 
 // ============================================================================
@@ -95,8 +95,14 @@ fn test_chaos_ordinal_smoothing_adversarial_inputs() {
     assert_eq!(smooth_ordinal_probabilities(&[1.0], 0.25), vec![1.0]);
 
     // Zero or negative alpha (identity)
-    assert_eq!(smooth_ordinal_probabilities(&[0.3, 0.7], 0.0), vec![0.3, 0.7]);
-    assert_eq!(smooth_ordinal_probabilities(&[0.3, 0.7], -0.5), vec![0.3, 0.7]);
+    assert_eq!(
+        smooth_ordinal_probabilities(&[0.3, 0.7], 0.0),
+        vec![0.3, 0.7]
+    );
+    assert_eq!(
+        smooth_ordinal_probabilities(&[0.3, 0.7], -0.5),
+        vec![0.3, 0.7]
+    );
 
     // Alpha >= 0.5 is clamped to 0.49
     let clamped = smooth_ordinal_probabilities(&[0.0, 1.0, 0.0], 0.99);
@@ -176,7 +182,10 @@ fn test_chaos_fwht_rejects_non_power_of_two() {
 
 #[test]
 fn test_chaos_decision_cache_concurrent_hammering() {
-    let cache = Arc::new(DecisionCache::<u64, String>::new(100, Some(Duration::from_millis(50))));
+    let cache = Arc::new(DecisionCache::<u64, String>::new(
+        100,
+        Some(Duration::from_millis(50)),
+    ));
     let stop_flag = Arc::new(AtomicBool::new(false));
     let mut handles = Vec::new();
 
@@ -225,7 +234,7 @@ fn test_chaos_decision_cache_concurrent_hammering() {
 fn test_chaos_preprocessor_adversarial_unicode_and_bombardment() {
     let giant_token = "A".repeat(50_000);
     let adversarial_strings = [
-        "", // Empty
+        "",            // Empty
         "   \t\n\r  ", // Whitespace only
         "Null byte \0 in string",
         "\x1b[31;1mRed text\x1b[0m and \x1b[2J clear screen", // ANSI escape codes
@@ -269,7 +278,10 @@ fn test_chaos_series_guardrails_numeric_boundaries() {
     let constant_series = vec![42.0, 42.0, 42.0, 42.0];
     let (norm, mean, std) = revin_normalize(&constant_series);
     assert_eq!(mean, 42.0);
-    assert!(std > 0.0, "std must be safe for division even when variance is zero");
+    assert!(
+        std > 0.0,
+        "std must be safe for division even when variance is zero"
+    );
     for x in &norm {
         assert!((x - 0.0).abs() < 1e-6);
     }
@@ -303,7 +315,10 @@ fn test_chaos_topological_circuit_cycles_and_invalid_wires() {
 
     // Compilation must detect the cycle and return an error rather than hanging in infinite loop
     let compile_result = circuit.compile();
-    assert!(compile_result.is_err(), "Cyclic circuit must be rejected by compiler");
+    assert!(
+        compile_result.is_err(),
+        "Cyclic circuit must be rejected by compiler"
+    );
 }
 
 // ============================================================================
@@ -391,7 +406,8 @@ fn test_chaos_zev_engine_adversarial_request_evaluation() {
         }),
     );
 
-    let state_text = "System is operating normally with minor background CPU spikes of 15%.".repeat(50);
+    let state_text =
+        "System is operating normally with minor background CPU spikes of 15%.".repeat(50);
     let req = ZevRequest {
         state: serde_json::json!(state_text),
         questions,
@@ -401,14 +417,24 @@ fn test_chaos_zev_engine_adversarial_request_evaluation() {
         images: None,
     };
 
-    let response = engine.evaluate(&req).expect("engine evaluate must survive chaos inputs");
+    let response = engine
+        .evaluate(&req)
+        .expect("engine evaluate must survive chaos inputs");
 
     assert!(response.answers.contains_key("large_choice"));
     assert!(response.answers.contains_key("inverted_bool"));
     assert!(response.answers.contains_key("scale_score"));
 
     for (k, ans) in &response.answers {
-        assert!(ans.confidence >= 0.0 && ans.confidence <= 1.0, "Confidence for {} out of range", k);
-        assert!(ans.temperature > 0.0, "Temperature for {} must be positive", k);
+        assert!(
+            ans.confidence >= 0.0 && ans.confidence <= 1.0,
+            "Confidence for {} out of range",
+            k
+        );
+        assert!(
+            ans.temperature > 0.0,
+            "Temperature for {} must be positive",
+            k
+        );
     }
 }

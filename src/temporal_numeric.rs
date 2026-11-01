@@ -138,9 +138,8 @@ static RE_DURATION_POLICY: LazyLock<Regex> = LazyLock::new(|| {
         .expect("valid duration policy regex")
 });
 
-static RE_ISO_DATE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\b(\d{4})-(\d{2})-(\d{2})\b").expect("valid iso date regex")
-});
+static RE_ISO_DATE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b(\d{4})-(\d{2})-(\d{2})\b").expect("valid iso date regex"));
 
 static RE_TEXT_DATE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(\d{1,2}),?\s+(\d{4})\b")
@@ -248,7 +247,6 @@ pub fn resolve_temporal_duration_constraints(text: &str) -> Vec<String> {
 
     findings
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -2,7 +2,7 @@
 name = "zev-rs"
 version = "0.3.11"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.87"
 authors = ["Brandon Hubbard", "zev-rs contributors"]
 license = "MIT"
 description = "Zev: The ultimate zero-token LLM decision engine combining order-invariance, calibrated temperature, candidate-only projection, and guardrails"
@@ -60,7 +60,7 @@ chrono = { version = "0.4", features = ["serde"] }
 smallvec = "1.14"
 rand = "0.9"
 serde-pickle = "1.2"
-zip = "8.6.0"
+zip = { version = "9", default-features = false, features = ["deflate"] }
 xxhash-rust = { version = "0.8.18", features = ["xxh3"] }
 axum = { version = "0.8", optional = true }
 apfel = { package = "apfel-rs", version = "0.1", git = "https://github.com/bhubbard/apfel-rs", optional = true }

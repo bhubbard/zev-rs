@@ -321,7 +321,12 @@ fn test_no_prompt_template_regexes_in_src() {
     // Multi-clause prompt-template regexes that span across paragraphs with `[\s\S]*?`
     // inside temporal_numeric.rs, table_graph.rs, or symbolic.rs are a classic signature
     // of matching specific benchmark prompt layouts rather than general linguistic constructs.
-    let guarded_modules = ["temporal_numeric.rs", "table_graph.rs", "symbolic.rs", "order_invariant.rs"];
+    let guarded_modules = [
+        "temporal_numeric.rs",
+        "table_graph.rs",
+        "symbolic.rs",
+        "order_invariant.rs",
+    ];
 
     for file in &files {
         let fname = file.file_name().and_then(|s| s.to_str()).unwrap_or("");
@@ -397,13 +402,20 @@ fn test_entity_perturbation_robustness() {
     let ans_b = &res_b.answers["ticket_type"];
 
     // Both should yield consistent decision direction (billing)
-    assert_eq!(ans_a.decision, ans_b.decision, "Decisions must remain invariant under entity perturbations");
+    assert_eq!(
+        ans_a.decision, ans_b.decision,
+        "Decisions must remain invariant under entity perturbations"
+    );
     assert_eq!(
         ans_a.decision,
         Some(serde_json::Value::String("billing".into()))
     );
     let prob_diff = (ans_a.probabilities["billing"] - ans_b.probabilities["billing"]).abs();
-    assert!(prob_diff < 0.20, "Confidence spread under entity perturbation should be reasonable, got diff: {}", prob_diff);
+    assert!(
+        prob_diff < 0.20,
+        "Confidence spread under entity perturbation should be reasonable, got diff: {}",
+        prob_diff
+    );
 }
 
 #[test]
@@ -413,14 +425,15 @@ fn test_nli_perturbation_invariance() {
         OptionDef {
             id: "Entailment".into(),
             description: "The contract entails the hypothesis.".into(),
-            },
+        },
         OptionDef {
             id: "Contradiction".into(),
             description: "The contract contradicts the hypothesis.".into(),
         },
         OptionDef {
             id: "NotMentioned".into(),
-            description: "The hypothesis is neither entailed nor contradicted by the contract.".into(),
+            description: "The hypothesis is neither entailed nor contradicted by the contract."
+                .into(),
         },
     ];
 
@@ -479,21 +492,48 @@ fn test_nli_perturbation_invariance() {
     let res_a = engine.evaluate(&req_a).expect("eval nli a");
     let res_b = engine.evaluate(&req_b).expect("eval nli b");
 
-    assert_eq!(res_a.answers["q_ent"].decision, Some(serde_json::json!("Entailment")));
-    assert_eq!(res_b.answers["q_ent"].decision, Some(serde_json::json!("Entailment")));
-    assert_eq!(res_a.answers["q_nm"].decision, Some(serde_json::json!("NotMentioned")));
-    assert_eq!(res_b.answers["q_nm"].decision, Some(serde_json::json!("NotMentioned")));
-    assert_eq!(res_a.answers["q_con"].decision, Some(serde_json::json!("Contradiction")));
-    assert_eq!(res_b.answers["q_con"].decision, Some(serde_json::json!("Contradiction")));
+    assert_eq!(
+        res_a.answers["q_ent"].decision,
+        Some(serde_json::json!("Entailment"))
+    );
+    assert_eq!(
+        res_b.answers["q_ent"].decision,
+        Some(serde_json::json!("Entailment"))
+    );
+    assert_eq!(
+        res_a.answers["q_nm"].decision,
+        Some(serde_json::json!("NotMentioned"))
+    );
+    assert_eq!(
+        res_b.answers["q_nm"].decision,
+        Some(serde_json::json!("NotMentioned"))
+    );
+    assert_eq!(
+        res_a.answers["q_con"].decision,
+        Some(serde_json::json!("Contradiction"))
+    );
+    assert_eq!(
+        res_b.answers["q_con"].decision,
+        Some(serde_json::json!("Contradiction"))
+    );
 }
 
 #[test]
 fn test_entity_schema_projection_perturbation_invariance() {
     let engine = ZevEngine::default();
     let options = vec![
-        OptionDef { id: "opt_heat".into(), description: "heat".into() },
-        OptionDef { id: "opt_cool".into(), description: "cool".into() },
-        OptionDef { id: "opt_na".into(), description: "not applicable or not listed".into() },
+        OptionDef {
+            id: "opt_heat".into(),
+            description: "heat".into(),
+        },
+        OptionDef {
+            id: "opt_cool".into(),
+            description: "cool".into(),
+        },
+        OptionDef {
+            id: "opt_na".into(),
+            description: "not applicable or not listed".into(),
+        },
     ];
 
     let mut questions = BTreeMap::new();
@@ -502,7 +542,10 @@ fn test_entity_schema_projection_perturbation_invariance() {
         Question::Choice(ChoiceQuestion {
             instructions: "Select the mode for entity_alpha:".into(),
             options: options.clone(),
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         }),
     );
     questions.insert(
@@ -510,7 +553,10 @@ fn test_entity_schema_projection_perturbation_invariance() {
         Question::Choice(ChoiceQuestion {
             instructions: "Select the mode for entity_beta:".into(),
             options,
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         }),
     );
 
@@ -529,8 +575,14 @@ fn test_entity_schema_projection_perturbation_invariance() {
     };
 
     let res = engine.evaluate(&req).expect("eval schema projection");
-    assert_eq!(res.answers["q_present"].decision, Some(serde_json::json!("opt_heat")));
-    assert_eq!(res.answers["q_missing"].decision, Some(serde_json::json!("opt_na")));
+    assert_eq!(
+        res.answers["q_present"].decision,
+        Some(serde_json::json!("opt_heat"))
+    );
+    assert_eq!(
+        res.answers["q_missing"].decision,
+        Some(serde_json::json!("opt_na"))
+    );
 }
 
 #[test]
@@ -555,7 +607,10 @@ fn test_state_transition_and_3hop_table_perturbation_invariance() {
         Question::Choice(ChoiceQuestion {
             instructions: "Determine whether dev_alpha_99 is in the justified target set:".into(),
             options: target_options.clone(),
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         }),
     );
     q_map.insert(
@@ -563,7 +618,10 @@ fn test_state_transition_and_3hop_table_perturbation_invariance() {
         Question::Choice(ChoiceQuestion {
             instructions: "Determine whether dev_beta_88 is in the justified target set:".into(),
             options: target_options,
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         }),
     );
 
@@ -631,7 +689,10 @@ Incident alert on node NODE-7741.
                     description: "Ledger service on-call pager".into(),
                 },
             ],
-            policy: Policy { allow_abstain: false, ..Default::default() },
+            policy: Policy {
+                allow_abstain: false,
+                ..Default::default()
+            },
         }),
     );
 
@@ -755,10 +816,19 @@ fn test_high_cardinality_catalog_stopword_and_tail_window_invariance() {
     }
 
     for (utterance, model) in [
-        ("How would you say 'quantum telemetry' in Japanese?", "zev-default"),
+        (
+            "How would you say 'quantum telemetry' in Japanese?",
+            "zev-default",
+        ),
         ("How do I say 'orbital beacon' in German?", "zev-clm"),
-        ("Can you translate 'cryogenic valve' into Spanish?", "zev-cascade"),
-        ("What is the word for 'stellar nebula' in French?", "zev-gemma"),
+        (
+            "Can you translate 'cryogenic valve' into Spanish?",
+            "zev-cascade",
+        ),
+        (
+            "What is the word for 'stellar nebula' in French?",
+            "zev-gemma",
+        ),
     ] {
         let mut q = BTreeMap::new();
         q.insert(
@@ -803,12 +873,9 @@ fn test_high_cardinality_catalog_stopword_and_tail_window_invariance() {
         Case Fact: Technician Lin submitted an emergency hardware replacement request on Tuesday morning for the primary storage array. \n\
         [TEMPORAL CONSTRAINT]: request_status = exempt";
 
-    let windowed = zev::premise_window::extract_premise_window(
-        long_doc,
-        "reimbursement travel approval",
-        2,
-    )
-    .expect("window extraction should succeed");
+    let windowed =
+        zev::premise_window::extract_premise_window(long_doc, "reimbursement travel approval", 2)
+            .expect("window extraction should succeed");
 
     assert!(
         windowed.contains("Technician Lin submitted an emergency hardware replacement"),
@@ -922,5 +989,3 @@ fn test_speculative_cascade_score_and_interrogative_invariance() {
         );
     }
 }
-
-

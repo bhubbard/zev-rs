@@ -438,9 +438,7 @@ fn main() {
         println!("────────────────────────────────────────────────────────────────────────────────────────────────────────");
 
         println!();
-        println!(
-            "7. JEVBENCH 231 PUBLIC SUBSET: ZEV vs. GPU & CLOUD COMPETITORS"
-        );
+        println!("7. JEVBENCH 231 PUBLIC SUBSET: ZEV vs. GPU & CLOUD COMPETITORS");
         println!("────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
         println!("Model / Engine System                | JevBench 231 | Median Latency | Throughput    | Cost / 1k Dec | Hardware Footprint");
         println!("─────────────────────────────────────+──────────────+────────────────+───────────────+───────────────+───────────────────");

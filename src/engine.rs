@@ -31,7 +31,6 @@ impl Evaluable for SystemOneRequest {
     }
 }
 
-
 #[derive(Debug)]
 pub struct DecisionEngine {
     pub inner: ZevEngine,
@@ -555,13 +554,19 @@ impl ZevEngine {
         // Gated to relevant families (policy, trap, adversarial, judge_hard) to maintain sub-100µs median latency
         let effective_logits = if !has_structured_resolution
             && candidates.len() >= 2
-            && (family == "policy" || family == "trap" || family == "adversarial" || family == "judge_hard" || family == "ambiguous")
+            && (family == "policy"
+                || family == "trap"
+                || family == "adversarial"
+                || family == "judge_hard"
+                || family == "ambiguous")
             && !preprocessed_state.trim().is_empty()
         {
-            let shadow_state = crate::counterfactual::generate_counterfactual_shadow(preprocessed_state);
+            let shadow_state =
+                crate::counterfactual::generate_counterfactual_shadow(preprocessed_state);
             if shadow_state != preprocessed_state {
                 let shadow_ctx = PremiseContext::new(&shadow_state);
-                let shadow_logits = compute_order_invariant_logits_with_context(&shadow_ctx, &candidates);
+                let shadow_logits =
+                    compute_order_invariant_logits_with_context(&shadow_ctx, &candidates);
                 let cf_res = crate::counterfactual::evaluate_counterfactual_divergence(
                     &logits,
                     &shadow_logits,
@@ -575,7 +580,12 @@ impl ZevEngine {
             logits.clone()
         };
 
-        let mut answer = decode_decision(final_question, &candidates, &effective_logits, effective_temp)?;
+        let mut answer = decode_decision(
+            final_question,
+            &candidates,
+            &effective_logits,
+            effective_temp,
+        )?;
 
         // Two-System Speculative Gating with Normalized Shannon Entropy & TimesFM Logit Variance Spread
         let num_cands = candidates.len().max(2) as f64;
@@ -626,8 +636,8 @@ impl ZevEngine {
             let state_emb = crate::clm::embed_text(query_context, 512);
             let mut clm_logits = Vec::with_capacity(candidates.len());
             for (idx, cand) in candidates.iter().enumerate() {
-                let is_synthetic_id = cand.id.starts_with("option_")
-                    || cand.id.chars().all(|c| c.is_ascii_digit());
+                let is_synthetic_id =
+                    cand.id.starts_with("option_") || cand.id.chars().all(|c| c.is_ascii_digit());
                 let text = if cand.description.is_empty() {
                     cand.id.clone()
                 } else if is_synthetic_id {
@@ -690,7 +700,9 @@ impl ZevEngine {
                 if !cascaded {
                     #[cfg(not(target_arch = "wasm32"))]
                     if let Some(provider) = crate::clef::CloudflareClefProvider::from_env() {
-                        if let Ok(clef_ans) = provider.evaluate(preprocessed_state, final_question, key) {
+                        if let Ok(clef_ans) =
+                            provider.evaluate(preprocessed_state, final_question, key)
+                        {
                             answer = clef_ans;
                             cascaded = true;
                         }
@@ -719,7 +731,8 @@ impl ZevEngine {
             if fallback_mode == "clef" {
                 #[cfg(not(target_arch = "wasm32"))]
                 if let Some(provider) = crate::clef::CloudflareClefProvider::from_env() {
-                    if let Ok(clef_ans) = provider.evaluate(preprocessed_state, final_question, key) {
+                    if let Ok(clef_ans) = provider.evaluate(preprocessed_state, final_question, key)
+                    {
                         answer = clef_ans;
                     }
                 }

@@ -31,40 +31,43 @@ static RE_POLARITY_TERMS: LazyLock<Regex> = LazyLock::new(|| {
 /// Synthesizes a counterfactual shadow inversion of the text by inverting modal rules and polarities in a single pass.
 pub fn generate_counterfactual_shadow(text: &str) -> String {
     RE_POLARITY_TERMS
-        .replace_all(text, |caps: &regex::Captures| -> std::borrow::Cow<'static, str> {
-            let lower = caps[1].to_lowercase();
-            let repl: &'static str = match lower.as_str() {
-                "is eligible" => "is strictly ineligible",
-                "is not eligible" => "is fully eligible",
-                "is strictly ineligible" => "is eligible",
-                "eligible for" => "disqualified from",
-                "ineligible for" => "eligible for",
-                "approved" => "denied",
-                "denied" => "approved",
-                "authorized" => "unauthorized",
-                "unauthorized" => "authorized",
-                "covered under" => "excluded from",
-                "excluded from" => "covered under",
-                "within policy" => "violating policy",
-                "violating policy" => "within policy",
-                "within" => "exceeding",
-                "exceeding" => "within",
-                "permitted" => "prohibited",
-                "prohibited" => "permitted",
-                "active" => "suspended",
-                "suspended" => "active",
-                "valid" => "invalid",
-                "invalid" => "valid",
-                "compliant" => "non-compliant",
-                "non-compliant" => "compliant",
-                _ => "",
-            };
-            if repl.is_empty() {
-                std::borrow::Cow::Owned(caps[0].to_string())
-            } else {
-                std::borrow::Cow::Borrowed(repl)
-            }
-        })
+        .replace_all(
+            text,
+            |caps: &regex::Captures| -> std::borrow::Cow<'static, str> {
+                let lower = caps[1].to_lowercase();
+                let repl: &'static str = match lower.as_str() {
+                    "is eligible" => "is strictly ineligible",
+                    "is not eligible" => "is fully eligible",
+                    "is strictly ineligible" => "is eligible",
+                    "eligible for" => "disqualified from",
+                    "ineligible for" => "eligible for",
+                    "approved" => "denied",
+                    "denied" => "approved",
+                    "authorized" => "unauthorized",
+                    "unauthorized" => "authorized",
+                    "covered under" => "excluded from",
+                    "excluded from" => "covered under",
+                    "within policy" => "violating policy",
+                    "violating policy" => "within policy",
+                    "within" => "exceeding",
+                    "exceeding" => "within",
+                    "permitted" => "prohibited",
+                    "prohibited" => "permitted",
+                    "active" => "suspended",
+                    "suspended" => "active",
+                    "valid" => "invalid",
+                    "invalid" => "valid",
+                    "compliant" => "non-compliant",
+                    "non-compliant" => "compliant",
+                    _ => "",
+                };
+                if repl.is_empty() {
+                    std::borrow::Cow::Owned(caps[0].to_string())
+                } else {
+                    std::borrow::Cow::Borrowed(repl)
+                }
+            },
+        )
         .into_owned()
 }
 
@@ -132,7 +135,8 @@ mod tests {
 
     #[test]
     fn test_generate_counterfactual_shadow() {
-        let text = "Customer is eligible for refund under policy. Transaction is approved and active.";
+        let text =
+            "Customer is eligible for refund under policy. Transaction is approved and active.";
         let shadow = generate_counterfactual_shadow(text);
         assert!(shadow.contains("ineligible"));
         assert!(shadow.contains("denied"));
@@ -146,7 +150,10 @@ mod tests {
         let shadow_logits = vec![1.8, 0.6]; // Remains top candidate even in shadow!
 
         let res = evaluate_counterfactual_divergence(&orig_logits, &shadow_logits, 1.0);
-        assert!(res.calibrated_logits[0] < orig_logits[0], "Spurious candidate must be penalized");
+        assert!(
+            res.calibrated_logits[0] < orig_logits[0],
+            "Spurious candidate must be penalized"
+        );
     }
 
     #[test]

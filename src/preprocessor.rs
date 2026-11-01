@@ -157,7 +157,9 @@ pub fn clean_email_body(body: &str) -> String {
     for (i, line) in lines.into_iter().enumerate() {
         let trimmed = line.trim();
         if DISCLAIMER_REGEX.is_match(&line)
-            || (i >= tail_start && (trimmed == "---" || trimmed == "___"))
+            || (i > 0
+                && (i >= tail_start || count.saturating_sub(i) <= 5)
+                && (trimmed == "---" || trimmed == "___"))
         {
             break;
         }
@@ -374,21 +376,19 @@ pub fn format_structured_state<'a>(input: &'a str) -> Cow<'a, str> {
             if let serde_json::Value::Object(sub) = v {
                 let sub_strs: Vec<String> = sub
                     .iter()
-                    .map(|(sk, sv)| {
-                        match sv {
-                            serde_json::Value::String(s) => format!("{}: {}", sk, s),
-                            serde_json::Value::Object(nested) => {
-                                let nest_strs: Vec<String> = nested
-                                    .iter()
-                                    .map(|(nk, nv)| match nv {
-                                        serde_json::Value::String(ns) => format!("{}: {}", nk, ns),
-                                        _ => format!("{}: {}", nk, nv),
-                                    })
-                                    .collect();
-                                format!("{}: {{{}}}", sk, nest_strs.join(", "))
-                            }
-                            _ => format!("{}: {}", sk, sv),
+                    .map(|(sk, sv)| match sv {
+                        serde_json::Value::String(s) => format!("{}: {}", sk, s),
+                        serde_json::Value::Object(nested) => {
+                            let nest_strs: Vec<String> = nested
+                                .iter()
+                                .map(|(nk, nv)| match nv {
+                                    serde_json::Value::String(ns) => format!("{}: {}", nk, ns),
+                                    _ => format!("{}: {}", nk, nv),
+                                })
+                                .collect();
+                            format!("{}: {{{}}}", sk, nest_strs.join(", "))
                         }
+                        _ => format!("{}: {}", sk, sv),
                     })
                     .collect();
                 parts.push(format!("{}: {}", k, sub_strs.join(", ")));
@@ -412,9 +412,12 @@ static RE_UNTRUSTED_PAYLOAD: LazyLock<Regex> = LazyLock::new(|| {
 /// Masks untrusted attachments, OCR text layers, and embedded prompt injection payloads.
 pub fn mask_untrusted_payload<'a>(text: &'a str) -> Cow<'a, str> {
     let bytes = text.as_bytes();
-    let has_trigger = bytes
-        .windows(7)
-        .any(|w| w.eq_ignore_ascii_case(b"preview") || w.eq_ignore_ascii_case(b"embedde") || w.eq_ignore_ascii_case(b"attachm") || w.eq_ignore_ascii_case(b"white-o"));
+    let has_trigger = bytes.windows(7).any(|w| {
+        w.eq_ignore_ascii_case(b"preview")
+            || w.eq_ignore_ascii_case(b"embedde")
+            || w.eq_ignore_ascii_case(b"attachm")
+            || w.eq_ignore_ascii_case(b"white-o")
+    });
     if !has_trigger {
         return Cow::Borrowed(text);
     }
@@ -469,21 +472,27 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
     }
 
     // 5. Generic structural constraint verification for request/response pairs
-    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(state_str.trim()) {
+    if let Ok(serde_json::Value::Object(map)) =
+        serde_json::from_str::<serde_json::Value>(state_str.trim())
+    {
         if let (Some(req_val), Some(resp_val)) = (map.get("request"), map.get("response")) {
             if let (Some(req_str), Some(resp_str)) = (req_val.as_str(), resp_val.as_str()) {
-                let structural_findings = crate::symbolic::verify_structural_constraints(req_str, resp_str);
+                let structural_findings =
+                    crate::symbolic::verify_structural_constraints(req_str, resp_str);
                 if !structural_findings.is_empty() {
                     enriched.push_str("\n\n");
                     enriched.push_str(&structural_findings.join("\n"));
                 }
             }
         }
-    } else if let (Some(req_idx), Some(resp_idx)) = (enriched.find("Request:"), enriched.find("Response:")) {
+    } else if let (Some(req_idx), Some(resp_idx)) =
+        (enriched.find("Request:"), enriched.find("Response:"))
+    {
         if req_idx < resp_idx {
             let req_str = enriched[req_idx + "Request:".len()..resp_idx].trim();
             let resp_str = enriched[resp_idx + "Response:".len()..].trim();
-            let structural_findings = crate::symbolic::verify_structural_constraints(req_str, resp_str);
+            let structural_findings =
+                crate::symbolic::verify_structural_constraints(req_str, resp_str);
             if !structural_findings.is_empty() {
                 enriched.push_str("\n\n");
                 enriched.push_str(&structural_findings.join("\n"));
@@ -492,7 +501,8 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
     }
 
     // 6. Generic temporal policy duration and window constraints
-    let duration_constraints = crate::temporal_numeric::resolve_temporal_duration_constraints(&enriched);
+    let duration_constraints =
+        crate::temporal_numeric::resolve_temporal_duration_constraints(&enriched);
     if !duration_constraints.is_empty() {
         enriched.push_str("\n\n");
         enriched.push_str(&duration_constraints.join("\n"));

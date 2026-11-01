@@ -95,8 +95,15 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
     let mut state_tokens: HashSet<String> = HashSet::new();
     let mut state_stems: HashSet<String> = HashSet::new();
 
-    for w in state_lower.split(|c: char| !c.is_alphanumeric()) {
+    for w in state_lower.split(|c: char| !c.is_alphanumeric() && c != '_' && c != '-') {
         if w.len() > 2 && !SHORTLIST_STOPWORDS.contains(&w) {
+            state_tokens.insert(w.to_string());
+        }
+    }
+
+    for w in state_lower.split(|c: char| !c.is_alphanumeric()) {
+        let is_num = !w.is_empty() && w.chars().all(|c| c.is_ascii_digit());
+        if (w.len() > 2 || is_num) && !SHORTLIST_STOPWORDS.contains(&w) {
             state_tokens.insert(w.to_string());
             if w.len() >= 4 {
                 let stem = crate::order_invariant::stem_english_word(w);
@@ -119,7 +126,8 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
                 matches += 4.0;
             }
             for part in id_lower.split(['_', '-']) {
-                if part.len() > 2 {
+                let is_num = !part.is_empty() && part.chars().all(|c| c.is_ascii_digit());
+                if part.len() > 2 || is_num {
                     opt_token_count += 1;
                     if state_tokens.contains(part) {
                         matches += 2.5;
@@ -134,7 +142,8 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
 
             // Description tokens & morphological stems
             for trimmed in opt.description.split(|c: char| !c.is_alphanumeric()) {
-                if trimmed.len() > 2 {
+                let is_num = !trimmed.is_empty() && trimmed.chars().all(|c| c.is_ascii_digit());
+                if trimmed.len() > 2 || is_num {
                     opt_token_count += 1;
                     let word_lower = trimmed.to_lowercase();
                     let weight = 1.0 + (word_lower.len() as f64 - 3.0).clamp(0.0, 3.0) * 0.2;

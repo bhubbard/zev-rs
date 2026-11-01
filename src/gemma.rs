@@ -433,8 +433,10 @@ fn evaluate_gemma_distilled(
             state
         };
         let ctx = crate::order_invariant::PremiseContext::new(query_ctx);
-        let mut logits =
-            crate::order_invariant::compute_order_invariant_logits_with_context(&ctx, all_candidates);
+        let mut logits = crate::order_invariant::compute_order_invariant_logits_with_context(
+            &ctx,
+            all_candidates,
+        );
         let cand_labels: Vec<&str> = all_candidates
             .iter()
             .map(|c| {
@@ -450,7 +452,8 @@ fn evaluate_gemma_distilled(
             &mut logits,
             &cand_labels,
         );
-        if let Ok(mut ans) = crate::decoding::decode_decision(question, all_candidates, &logits, 1.0)
+        if let Ok(mut ans) =
+            crate::decoding::decode_decision(question, all_candidates, &logits, 1.0)
         {
             ans.source = Some("distilled_gemma".to_string());
             return Ok(ans);

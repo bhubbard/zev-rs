@@ -11,8 +11,10 @@ use std::sync::LazyLock;
 
 /// Regex matching requested sentence count, e.g. "two-sentence", "in 3 sentences"
 static RE_SENTENCE_CONSTRAINT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(?:a\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d+)[-\s]+sentence\b")
-        .expect("valid sentence constraint regex")
+    Regex::new(
+        r"(?i)\b(?:a\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|\d+)[-\s]+sentence\b",
+    )
+    .expect("valid sentence constraint regex")
 });
 
 /// Regex matching requested word count, e.g. "in two words", "at most 5 words", "exactly two words"
@@ -139,11 +141,20 @@ pub fn verify_arithmetic_equations(text: &str) -> Vec<String> {
         let rhs_str = cap[2].replace(',', "");
 
         // Only evaluate if LHS contains an arithmetic operator (+, -, *, /)
-        if !lhs.contains('+') && !lhs.contains('-') && !lhs.contains('−') && !lhs.contains('*') && !lhs.contains('×') && !lhs.contains('/') && !lhs.contains('÷') {
+        if !lhs.contains('+')
+            && !lhs.contains('-')
+            && !lhs.contains('−')
+            && !lhs.contains('*')
+            && !lhs.contains('×')
+            && !lhs.contains('/')
+            && !lhs.contains('÷')
+        {
             continue;
         }
 
-        if let (Some(actual_res), Ok(expected_res)) = (eval_simple_math(lhs), rhs_str.parse::<f64>()) {
+        if let (Some(actual_res), Ok(expected_res)) =
+            (eval_simple_math(lhs), rhs_str.parse::<f64>())
+        {
             equation_count += 1;
             let diff = (actual_res - expected_res).abs();
             let tolerance = 0.01; // Deterministic calculation tolerance (accounts for rounding)
@@ -209,7 +220,10 @@ pub fn verify_structural_constraints(request_text: &str, response_text: &str) ->
 
     // 2. Word count constraint check
     if let Some(cap) = RE_WORD_CONSTRAINT.captures(request_text) {
-        let mode = cap.get(1).map(|m| m.as_str().to_lowercase()).unwrap_or_default();
+        let mode = cap
+            .get(1)
+            .map(|m| m.as_str().to_lowercase())
+            .unwrap_or_default();
         if let Some(target_str) = cap.get(2) {
             if let Some(target_words) = word_to_number(target_str.as_str()) {
                 let actual_words = response_text.split_whitespace().count();
@@ -261,19 +275,26 @@ mod tests {
         let text = "Calculation shows 85 - 13.5 = 71.5, then 71.5 + 12 = 84.5.";
         let findings = verify_arithmetic_equations(text);
         assert!(!findings.is_empty());
-        assert!(findings.iter().any(|f| f.contains("CALCULATION_VALID: FALSE")));
+        assert!(findings
+            .iter()
+            .any(|f| f.contains("CALCULATION_VALID: FALSE")));
     }
 
     #[test]
     fn test_sentence_constraint_verification() {
         let req = "Write a two-sentence summary of the incident.";
         let resp_ok = "The server experienced an outage at noon. Service was restored within fifteen minutes.";
-        let resp_bad = "The server crashed. We rebooted it. All services returned. Traffic stabilized.";
+        let resp_bad =
+            "The server crashed. We rebooted it. All services returned. Traffic stabilized.";
 
         let f_ok = verify_structural_constraints(req, resp_ok);
-        assert!(f_ok.iter().any(|f| f.contains("CONSTRAINT_SATISFIED: TRUE")));
+        assert!(f_ok
+            .iter()
+            .any(|f| f.contains("CONSTRAINT_SATISFIED: TRUE")));
 
         let f_bad = verify_structural_constraints(req, resp_bad);
-        assert!(f_bad.iter().any(|f| f.contains("CONSTRAINT_SATISFIED: FALSE")));
+        assert!(f_bad
+            .iter()
+            .any(|f| f.contains("CONSTRAINT_SATISFIED: FALSE")));
     }
 }
