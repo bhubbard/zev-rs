@@ -500,10 +500,17 @@ fn test_native_submillisecond_latency_budget() {
 
     println!("Average pure-Rust decision latency: {:.2?}", avg_latency);
 
-    // Pure Rust evaluation should be well under 1 millisecond (typically < 150 microseconds)
+    // Pure Rust evaluation should be well under 1 millisecond in release (< 150 microseconds)
+    // and under 5 milliseconds in unoptimized/coverage debug builds on shared CI runners.
+    let budget = if cfg!(debug_assertions) {
+        std::time::Duration::from_millis(5)
+    } else {
+        std::time::Duration::from_millis(1)
+    };
     assert!(
-        avg_latency < std::time::Duration::from_millis(1),
-        "Decision latency exceeded 1ms budget: {:.2?}",
+        avg_latency < budget,
+        "Decision latency exceeded {:?} budget: {:.2?}",
+        budget,
         avg_latency
     );
 }

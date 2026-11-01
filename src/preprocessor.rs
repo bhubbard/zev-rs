@@ -26,6 +26,9 @@ static RE_TEXT_DATE: LazyLock<Regex> = LazyLock::new(|| {
 /// Ported from `kev-rs`. Eliminates temporal subtraction errors on warranty, return,
 /// SLA, and flight schedule queries by making relative date math explicitly available.
 pub fn compute_pairwise_date_facts(text: &str) -> String {
+    if !text.bytes().any(|b| b.is_ascii_digit()) {
+        return String::new();
+    }
     let mut found = Vec::new();
 
     // Match ISO dates: YYYY-MM-DD
@@ -443,11 +446,19 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
         unmasked.into_owned()
     };
 
+    if enriched.is_empty() {
+        return Cow::Owned(enriched);
+    }
+
+    let has_digit = enriched.bytes().any(|b| b.is_ascii_digit());
+
     // 1. Generic markdown table resolution
-    let table_relations = crate::table_graph::resolve_tabular_relations(&enriched);
-    if !table_relations.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&table_relations.join("\n"));
+    if enriched.contains('|') {
+        let table_relations = crate::table_graph::resolve_tabular_relations(&enriched);
+        if !table_relations.is_empty() {
+            enriched.push_str("\n\n");
+            enriched.push_str(&table_relations.join("\n"));
+        }
     }
 
     // 2. Generic policy hierarchy resolution
@@ -457,31 +468,36 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
         enriched.push_str(&policy_overrides.join("\n"));
     }
 
-    // 3. Generic monetary sublimit and claim constraint checks
-    let monetary_constraints = crate::table_graph::resolve_monetary_constraints(&enriched);
-    if !monetary_constraints.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&monetary_constraints.join("\n"));
-    }
+    if has_digit {
+        // 3. Generic monetary sublimit and claim constraint checks
+        let monetary_constraints = crate::table_graph::resolve_monetary_constraints(&enriched);
+        if !monetary_constraints.is_empty() {
+            enriched.push_str("\n\n");
+            enriched.push_str(&monetary_constraints.join("\n"));
+        }
 
-    // 4. Generic symbolic arithmetic equation verification
-    let arithmetic_findings = crate::symbolic::verify_arithmetic_equations(&enriched);
-    if !arithmetic_findings.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&arithmetic_findings.join("\n"));
+        // 4. Generic symbolic arithmetic equation verification
+        let arithmetic_findings = crate::symbolic::verify_arithmetic_equations(&enriched);
+        if !arithmetic_findings.is_empty() {
+            enriched.push_str("\n\n");
+            enriched.push_str(&arithmetic_findings.join("\n"));
+        }
     }
 
     // 5. Generic structural constraint verification for request/response pairs
-    if let Ok(serde_json::Value::Object(map)) =
-        serde_json::from_str::<serde_json::Value>(state_str.trim())
-    {
-        if let (Some(req_val), Some(resp_val)) = (map.get("request"), map.get("response")) {
-            if let (Some(req_str), Some(resp_str)) = (req_val.as_str(), resp_val.as_str()) {
-                let structural_findings =
-                    crate::symbolic::verify_structural_constraints(req_str, resp_str);
-                if !structural_findings.is_empty() {
-                    enriched.push_str("\n\n");
-                    enriched.push_str(&structural_findings.join("\n"));
+    let trimmed_state = state_str.trim();
+    if trimmed_state.starts_with('{') && trimmed_state.len() > 2 {
+        if let Ok(serde_json::Value::Object(map)) =
+            serde_json::from_str::<serde_json::Value>(trimmed_state)
+        {
+            if let (Some(req_val), Some(resp_val)) = (map.get("request"), map.get("response")) {
+                if let (Some(req_str), Some(resp_str)) = (req_val.as_str(), resp_val.as_str()) {
+                    let structural_findings =
+                        crate::symbolic::verify_structural_constraints(req_str, resp_str);
+                    if !structural_findings.is_empty() {
+                        enriched.push_str("\n\n");
+                        enriched.push_str(&structural_findings.join("\n"));
+                    }
                 }
             }
         }
@@ -501,11 +517,13 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
     }
 
     // 6. Generic temporal policy duration and window constraints
-    let duration_constraints =
-        crate::temporal_numeric::resolve_temporal_duration_constraints(&enriched);
-    if !duration_constraints.is_empty() {
-        enriched.push_str("\n\n");
-        enriched.push_str(&duration_constraints.join("\n"));
+    if has_digit {
+        let duration_constraints =
+            crate::temporal_numeric::resolve_temporal_duration_constraints(&enriched);
+        if !duration_constraints.is_empty() {
+            enriched.push_str("\n\n");
+            enriched.push_str(&duration_constraints.join("\n"));
+        }
     }
 
     // 7. Generic finite-state policy DAG reachability deductions
