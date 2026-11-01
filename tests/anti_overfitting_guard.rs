@@ -650,3 +650,173 @@ Incident alert on node NODE-7741.
         Some(serde_json::json!("pager_quantum_oncall"))
     );
 }
+
+#[test]
+fn test_mc_length_normalization_and_article_negation_invariance() {
+    let engine = ZevEngine::default();
+
+    // 1. Indefinite article 'a' after a negator ("not a defect", "without a delay")
+    // must NOT falsely negate option ID "A".
+    let ctx = zev::order_invariant::PremiseContext::new(
+        "The inspection confirmed this is not a defect and proceeded without a delay.",
+    );
+    assert!(
+        !ctx.is_negated("A") && !ctx.is_negated("a"),
+        "Indefinite article 'a' in prose must not trigger option 'A' negation"
+    );
+
+    // 2. BM25 length normalization on lettered MC options ('A'..'D') must be order-invariant
+    let opts_fwd = vec![
+        OptionDef {
+            id: "A".into(),
+            description: "Thermal equilibrium is reached".into(),
+        },
+        OptionDef {
+            id: "B".into(),
+            description: "The copper block and aluminum vessel exchange kinetic energy inside the insulated chamber without reaching equilibrium".into(),
+        },
+        OptionDef {
+            id: "C".into(),
+            description: "Phase transition to plasma".into(),
+        },
+        OptionDef {
+            id: "D".into(),
+            description: "Spontaneous magnetic reversal".into(),
+        },
+    ];
+    let mut opts_rev = opts_fwd.clone();
+    opts_rev.reverse();
+
+    let mut q_fwd = BTreeMap::new();
+    q_fwd.insert(
+        "mc".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "When a warm copper block is placed inside an insulated aluminum vessel and left undisturbed for several hours until both reach the same temperature, thermal equilibrium is reached.".into(),
+            options: opts_fwd,
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+
+    let mut q_rev = BTreeMap::new();
+    q_rev.insert(
+        "mc".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "When a warm copper block is placed inside an insulated aluminum vessel and left undisturbed for several hours until both reach the same temperature, thermal equilibrium is reached.".into(),
+            options: opts_rev,
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+
+    let res_fwd = engine
+        .evaluate(&ZevRequest {
+            state: serde_json::json!(""),
+            questions: q_fwd,
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+            images: None,
+        })
+        .expect("eval mc fwd");
+    let res_rev = engine
+        .evaluate(&ZevRequest {
+            state: serde_json::json!(""),
+            questions: q_rev,
+            model: None,
+            temperature: None,
+            enable_temporal_facts: false,
+            images: None,
+        })
+        .expect("eval mc rev");
+
+    assert_eq!(res_fwd.answers["mc"].decision, Some(serde_json::json!("A")));
+    assert_eq!(res_rev.answers["mc"].decision, Some(serde_json::json!("A")));
+}
+
+#[test]
+fn test_high_cardinality_catalog_stopword_and_tail_window_invariance() {
+    let engine = ZevEngine::default();
+
+    // 1. Build a 105-option synthetic catalog where meta-intents contain conversational stopwords
+    // ("what", "can", "i", "you", "how") and option_77 is "translate".
+    let mut options = Vec::with_capacity(105);
+    for idx in 0..105 {
+        let desc = match idx {
+            0 => "what can i ask you".to_string(),
+            1 => "how old are you".to_string(),
+            2 => "where are you from".to_string(),
+            3 => "can you help me".to_string(),
+            77 => "translate".to_string(),
+            _ => format!("synthetic_domain_intent_{}", idx),
+        };
+        options.push(OptionDef {
+            id: format!("option_{}", idx),
+            description: desc,
+        });
+    }
+
+    for (utterance, model) in [
+        ("How would you say 'quantum telemetry' in Japanese?", "zev-default"),
+        ("How do I say 'orbital beacon' in German?", "zev-clm"),
+        ("Can you translate 'cryogenic valve' into Spanish?", "zev-cascade"),
+        ("What is the word for 'stellar nebula' in French?", "zev-gemma"),
+    ] {
+        let mut q = BTreeMap::new();
+        q.insert(
+            "intent".into(),
+            Question::Choice(ChoiceQuestion {
+                instructions: utterance.into(),
+                options: options.clone(),
+                policy: Policy {
+                    allow_abstain: false,
+                    max_slots: Some(105),
+                    ..Default::default()
+                },
+            }),
+        );
+        let res = engine
+            .evaluate(&ZevRequest {
+                state: serde_json::json!(""),
+                questions: q,
+                model: Some(model.into()),
+                temperature: None,
+                enable_temporal_facts: false,
+                images: None,
+            })
+            .expect("eval high cardinality catalog");
+        assert_eq!(
+            res.answers["intent"].decision,
+            Some(serde_json::json!("option_77")),
+            "Model {} failed on perturbed translation query: {}",
+            model,
+            utterance
+        );
+    }
+
+    // 2. Verify extract_premise_window retains tail case facts and bracketed verifier tags on >=800 byte documents
+    let long_doc = "Section 1: General overview of corporate governance, regulatory reporting obligations, and multi-year archival retention schedules across all international subsidiaries. \
+        Section 2: Standard travel reimbursement requires written department manager approval within thirty calendar days of the completed itinerary. \
+        Section 3: Emergency datacenter hardware replacements are explicitly exempt from standard waiting periods and secondary procurement sign-offs. \
+        Section 4: Facilities maintenance and environmental controls operate Monday through Friday across all regional engineering offices and laboratories. \
+        Section 5: Quarterly security compliance audits are conducted by the internal review committee in accordance with ISO certification standards. \
+        Section 6: Employee parking permits and physical security badges must be renewed annually at the main campus security desk prior to expiration. \
+        Section 7: Software license renewals require architecture review board sign-off when annual contract value exceeds fifty thousand dollars. \
+        Case Fact: Technician Lin submitted an emergency hardware replacement request on Tuesday morning for the primary storage array. \n\
+        [TEMPORAL CONSTRAINT]: request_status = exempt";
+
+    let windowed = zev::premise_window::extract_premise_window(
+        long_doc,
+        "reimbursement travel approval",
+        2,
+    )
+    .expect("window extraction should succeed");
+
+    assert!(
+        windowed.contains("Technician Lin submitted an emergency hardware replacement"),
+        "Window must preserve tail case fact sentence"
+    );
+    assert!(
+        windowed.contains("[TEMPORAL CONSTRAINT]: request_status = exempt"),
+        "Window must preserve bracketed verifier tags"
+    );
+}
+

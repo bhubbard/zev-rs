@@ -966,7 +966,7 @@ pub fn extract_premise_window(state: &str, query: &str, max_sentences: usize) ->
         if trimmed.is_empty() {
             continue;
         }
-        if trimmed.starts_with('[') && trimmed.contains("]:") {
+        if trimmed.starts_with('[') && (trimmed.contains("]:") || trimmed.ends_with(']')) {
             verifier_tags.push(trimmed);
             continue;
         }
@@ -983,6 +983,7 @@ pub fn extract_premise_window(state: &str, query: &str, max_sentences: usize) ->
     }
 
     // Score each sentence by query word & stem hits
+    let mut scores = Vec::with_capacity(sentences.len());
     let mut best_idx = 0;
     let mut best_score = 0;
 
@@ -999,6 +1000,7 @@ pub fn extract_premise_window(state: &str, query: &str, max_sentences: usize) ->
                 }
             }
         }
+        scores.push(score);
         if score > best_score {
             best_score = score;
             best_idx = idx;
@@ -1009,12 +1011,19 @@ pub fn extract_premise_window(state: &str, query: &str, max_sentences: usize) ->
         return None;
     }
 
-    // Take a small contiguous window around the best sentence
+    // Take a contiguous window around the best sentence, plus the final 2 sentences
+    // (which typically hold the concrete case/event facts in long prompts) in document order.
     let half = max_sentences / 2;
     let start_idx = best_idx.saturating_sub(half);
     let end_idx = (start_idx + max_sentences).min(sentences.len());
 
-    let mut window: Vec<&str> = sentences[start_idx..end_idx].to_vec();
+    let tail_start = sentences.len().saturating_sub(2);
+    let mut window: Vec<&str> = Vec::with_capacity(max_sentences + 3);
+    for (idx, &sent) in sentences.iter().enumerate() {
+        if (idx >= start_idx && idx < end_idx) || idx >= tail_start {
+            window.push(sent);
+        }
+    }
     window.extend(verifier_tags);
     Some(window.join(". "))
 }

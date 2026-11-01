@@ -74,19 +74,38 @@ pub fn shortlist_by_embedding(
         .collect()
 }
 
-/// Shortlists candidate options using lightweight token-set overlap with ID boost and canonical tie-breaking.
+/// Shortlists candidate options using lightweight token-set and morphological-stem overlap
+/// with ID boost, abstention retention, and canonical tie-breaking.
 /// If options <= max_slots, returns the list unchanged.
 pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -> Vec<OptionDef> {
     if options.len() <= max_slots {
         return options.to_vec();
     }
 
-    let state_tokens: HashSet<String> = state
-        .to_lowercase()
-        .split_whitespace()
-        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string())
-        .filter(|w| w.len() > 2)
-        .collect();
+    const SHORTLIST_STOPWORDS: &[&str] = &[
+        "the", "and", "for", "are", "was", "with", "that", "from", "this", "these", "those",
+        "than", "then", "have", "been", "were", "some", "yes", "all", "what", "when", "where",
+        "which", "who", "whom", "whose", "why", "how", "you", "your", "yours", "they", "them",
+        "their", "theirs", "our", "ours", "him", "his", "her", "hers", "she", "can", "could",
+        "would", "should", "will", "shall", "may", "might", "does", "did", "has", "had", "into",
+        "onto", "upon", "about", "there", "here", "just", "very", "also", "not", "but", "option",
+    ];
+
+    let state_lower = state.to_lowercase();
+    let mut state_tokens: HashSet<String> = HashSet::new();
+    let mut state_stems: HashSet<String> = HashSet::new();
+
+    for w in state_lower.split(|c: char| !c.is_alphanumeric()) {
+        if w.len() > 2 && !SHORTLIST_STOPWORDS.contains(&w) {
+            state_tokens.insert(w.to_string());
+            if w.len() >= 4 {
+                let stem = crate::order_invariant::stem_english_word(w);
+                if stem.len() >= 3 {
+                    state_stems.insert(stem);
+                }
+            }
+        }
+    }
 
     let mut scored: Vec<(f64, &OptionDef)> = options
         .iter()
@@ -94,7 +113,7 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
             let mut matches = 0.0;
             let mut opt_token_count = 0usize;
 
-            // Direct ID match & constituent ID token match
+            // Direct ID match & constituent ID token/stem match
             let id_lower = opt.id.to_lowercase();
             if state_tokens.contains(&id_lower) {
                 matches += 4.0;
@@ -104,20 +123,28 @@ pub fn shortlist_options(options: &[OptionDef], state: &str, max_slots: usize) -
                     opt_token_count += 1;
                     if state_tokens.contains(part) {
                         matches += 2.5;
+                    } else if part.len() >= 4 {
+                        let stem = crate::order_invariant::stem_english_word(part);
+                        if stem.len() >= 3 && state_stems.contains(&stem) {
+                            matches += 1.8;
+                        }
                     }
                 }
             }
 
-            // Description tokens
-            for word in opt.description.split_whitespace() {
-                let trimmed = word.trim_matches(|c: char| !c.is_alphanumeric());
+            // Description tokens & morphological stems
+            for trimmed in opt.description.split(|c: char| !c.is_alphanumeric()) {
                 if trimmed.len() > 2 {
                     opt_token_count += 1;
                     let word_lower = trimmed.to_lowercase();
+                    let weight = 1.0 + (word_lower.len() as f64 - 3.0).clamp(0.0, 3.0) * 0.2;
                     if state_tokens.contains(&word_lower) {
-                        // Weighted by length (discriminative tokens carry more weight)
-                        let weight = 1.0 + (word_lower.len() as f64 - 3.0).clamp(0.0, 3.0) * 0.2;
                         matches += weight;
+                    } else if word_lower.len() >= 4 {
+                        let stem = crate::order_invariant::stem_english_word(&word_lower);
+                        if stem.len() >= 3 && state_stems.contains(&stem) {
+                            matches += weight * 0.75;
+                        }
                     }
                 }
             }

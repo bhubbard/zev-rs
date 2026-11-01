@@ -395,7 +395,12 @@ impl ZevEngine {
                     slot_limit.max(2)
                 };
                 if c.options.len() > max_keep {
-                    let shortlisted = shortlist_options(&c.options, preprocessed_state, max_keep);
+                    let shortlist_ctx = if preprocessed_state.trim().is_empty() {
+                        crate::premise_window::strip_directive_header(&c.instructions)
+                    } else {
+                        preprocessed_state
+                    };
+                    let shortlisted = shortlist_options(&c.options, shortlist_ctx, max_keep);
                     shortlisted_storage = Some(Question::Choice(ChoiceQuestion {
                         instructions: c.instructions.clone(),
                         options: shortlisted,
@@ -458,11 +463,14 @@ impl ZevEngine {
                     ctx
                 }
             }
-        } else if family == "policy"
-            && preprocessed_state.len() >= 900
+        } else if _state_borrowed.len() >= 1000
+            && candidates.iter().all(|c| c.id.len() > 1)
             && !_state_borrowed.trim().starts_with('{')
             && !preprocessed_state.contains("[TABULAR RELATION]")
             && !preprocessed_state.contains("[TEMPORAL CONSTRAINT]")
+            && !preprocessed_state.contains("[Pairwise Date Facts:")
+            && !preprocessed_state.contains("[Temporal Facts:")
+            && !preprocessed_state.contains("[ARITHMETIC")
         {
             let mut query_text =
                 crate::premise_window::strip_directive_header(final_question.instructions())
@@ -492,12 +500,23 @@ impl ZevEngine {
 
         // Calibrated Decoding
 
-        if matches!(final_question, Question::Choice(_)) && (2..=16).contains(&candidates.len()) {
-            let cand_ids: Vec<&str> = candidates.iter().map(|c| c.id.as_str()).collect();
+        if matches!(final_question, Question::Choice(_))
+            && ((2..=16).contains(&candidates.len()) || candidates.len() >= 100)
+        {
+            let cand_labels: Vec<&str> = candidates
+                .iter()
+                .map(|c| {
+                    if c.id.starts_with("option_") && !c.description.is_empty() {
+                        c.description.as_str()
+                    } else {
+                        c.id.as_str()
+                    }
+                })
+                .collect();
             crate::intent_sieve::apply_hierarchical_intent_sieve(
                 &q_ctx.raw_lower,
                 &mut logits,
-                &cand_ids,
+                &cand_labels,
             );
 
             if family == "intent"
@@ -654,7 +673,10 @@ impl ZevEngine {
                 if let Ok(mut clm_ans) =
                     decode_decision(final_question, &candidates, &clm_logits, effective_temp)
                 {
-                    if clm_ans.confidence >= conf_thresh {
+                    if clm_ans.confidence >= conf_thresh
+                        || (candidates.len() >= 100
+                            && clm_ans.uncertainty.margin.is_some_and(|m| m >= margin_thresh))
+                    {
                         clm_ans.source = Some("clm".to_string());
                         answer = clm_ans;
                         cascaded = true;

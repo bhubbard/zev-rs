@@ -532,6 +532,12 @@ impl PremiseContext {
             word
         };
 
+        // The lowercase token "a" in English prose is the indefinite article ("not a problem",
+        // "without a doubt"), where negation scopes over the head noun rather than the symbol "A".
+        if w == "a" {
+            return false;
+        }
+
         if let Some(positions) = self.token_positions.get(w) {
             return positions.iter().any(|&pos| self.is_pos_negated(pos as usize));
         }
@@ -716,6 +722,15 @@ impl PremiseContext {
         desc_str: &str,
         carrier_tokens: Option<&std::collections::HashSet<String>>,
     ) -> f64 {
+        const ID_PART_STOPWORDS: &[&str] = &[
+            "the", "and", "for", "are", "was", "with", "that", "from", "this", "these", "those",
+            "than", "then", "have", "been", "were", "some", "yes", "all", "what", "when", "where",
+            "which", "who", "whom", "whose", "why", "how", "you", "your", "yours", "they", "them",
+            "their", "theirs", "our", "ours", "him", "his", "her", "hers", "she", "does", "did",
+            "has", "had", "into", "onto", "upon", "about", "there", "here", "just", "very", "also",
+            "will", "would", "could", "should", "can", "may", "might", "must", "shall",
+        ];
+
         let mut logit: f64 = 0.5;
 
         // Exact ID match & constituent token matching
@@ -764,12 +779,16 @@ impl PremiseContext {
                             logit += 3.5 * w;
                         }
                     } else {
-                        const GENERIC_PARTS: [&str; 10] = [
+                        const GENERIC_PARTS: [&str; 18] = [
                             "order", "question", "action", "task", "service", "item", "query",
-                            "info", "type", "call",
+                            "info", "type", "call", "option", "choice", "make", "give", "find",
+                            "tell", "show", "list",
                         ];
                         for part in id_lower.split(['_', '-']) {
-                            if part.len() > 3 {
+                            if part.len() >= 4
+                                && !part.chars().all(|c| c.is_ascii_digit())
+                                && !ID_PART_STOPWORDS.contains(&part)
+                            {
                                 let weight_scale = if GENERIC_PARTS.contains(&part) {
                                     0.6
                                 } else {
@@ -800,13 +819,14 @@ impl PremiseContext {
 
         // Semantic polarity alignment for binary / boolean options
         let desc_trimmed = desc_str.trim().to_lowercase();
-        let has_yes_interjection = desc_trimmed == "yes"
+        let is_multi_class = carrier_tokens.is_some();
+        let has_yes_interjection = (!is_multi_class && desc_trimmed == "yes")
             || desc_trimmed.starts_with("yes,")
             || desc_trimmed.starts_with("yes:")
             || desc_trimmed.starts_with("yes.")
             || desc_trimmed.starts_with("yes;")
             || desc_trimmed.starts_with("yes -");
-        let has_no_interjection = desc_trimmed == "no"
+        let has_no_interjection = (!is_multi_class && desc_trimmed == "no")
             || desc_trimmed.starts_with("no,")
             || desc_trimmed.starts_with("no:")
             || desc_trimmed.starts_with("no.")
@@ -815,8 +835,7 @@ impl PremiseContext {
 
         let is_bool_opt = id == "true"
             || id == "false"
-            || id == "yes"
-            || id == "no"
+            || (!is_multi_class && (id == "yes" || id == "no"))
             || has_yes_interjection
             || has_no_interjection
             || desc_trimmed.starts_with("every required")
@@ -824,7 +843,7 @@ impl PremiseContext {
 
         let is_affirmative = is_bool_opt
             && (id == "true"
-                || id == "yes"
+                || (!is_multi_class && id == "yes")
                 || (id != "false"
                     && id != "no"
                     && (has_yes_interjection
@@ -832,7 +851,7 @@ impl PremiseContext {
 
         let is_negative = is_bool_opt
             && (id == "false"
-                || id == "no"
+                || (!is_multi_class && id == "no")
                 || (id != "true"
                     && id != "yes"
                     && (has_no_interjection
@@ -899,6 +918,9 @@ impl PremiseContext {
         }
 
         let is_abstain_opt = crate::abstain::is_abstain_candidate(id, desc_str);
+        let is_catalog_option = id.starts_with("option_");
+        let mut desc_logit: f64 = 0.0;
+        let mut desc_content_words: usize = 0;
 
         // Clause-scoped 2x2 polarity and morphological stem matching across description
         for clause in desc_str.split(['.', ';', ',', ':', '!', '?', '\n']) {
@@ -940,11 +962,12 @@ impl PremiseContext {
 
                 // Bilateral morphological antonym check (un-, in-, im-, ir-, dis-)
                 if self.has_morphological_antonym(word_str) {
+                    desc_content_words += 1;
                     let w = self.recency_weight(word_str) * carrier_scale;
                     if cand_word_negated {
-                        logit += 1.8 * w;
+                        desc_logit += 1.8 * w;
                     } else {
-                        logit -= 1.8 * w;
+                        desc_logit -= 1.8 * w;
                     }
                     cand_neg_remaining = cand_neg_remaining.saturating_sub(1);
                     continue;
@@ -956,25 +979,36 @@ impl PremiseContext {
                         "a", "an", "in", "on", "at", "to", "is", "it", "or", "of", "by", "as",
                         "if", "be", "do", "we", "he", "so",
                     ];
-                    if (!COMMON_STOPWORDS.contains(&word_str) || desc_trimmed == word_str)
-                        && self.contains_bounded(word_str)
+                    const CATALOG_SHORT_STOPWORDS: [&str; 9] =
+                        ["i", "my", "me", "am", "us", "up", "go", "no", "ok"];
+                    if (!COMMON_STOPWORDS.contains(&word_str)
+                        && !(is_catalog_option && CATALOG_SHORT_STOPWORDS.contains(&word_str)))
+                        || desc_trimmed == word_str
                     {
-                        let w = self.recency_weight(word_str) * carrier_scale;
-                        let premise_negated = self.is_negated(word_str);
-                        if premise_negated == cand_word_negated {
-                            logit += 1.8 * w;
-                        } else {
-                            logit -= 1.8 * w;
+                        desc_content_words += 1;
+                        if self.contains_bounded(word_str) {
+                            let w = self.recency_weight(word_str) * carrier_scale;
+                            let premise_negated = self.is_negated(word_str);
+                            if premise_negated == cand_word_negated {
+                                desc_logit += 1.8 * w;
+                            } else {
+                                desc_logit -= 1.8 * w;
+                            }
+                            cand_neg_remaining = cand_neg_remaining.saturating_sub(1);
                         }
-                        cand_neg_remaining = cand_neg_remaining.saturating_sub(1);
                     }
                 } else {
                     const COMMON_LONG_STOPWORDS: [&str; 18] = [
                         "the", "and", "for", "are", "was", "with", "that", "from", "this", "these",
                         "than", "then", "have", "been", "were", "some", "yes", "all",
                     ];
-                    if COMMON_LONG_STOPWORDS.contains(&word_str) {
+                    if COMMON_LONG_STOPWORDS.contains(&word_str)
+                        || (is_catalog_option && ID_PART_STOPWORDS.contains(&word_str))
+                    {
                         continue;
+                    }
+                    if !is_carrier {
+                        desc_content_words += 1;
                     }
 
                     let is_ascii = word_str.is_ascii();
@@ -998,9 +1032,9 @@ impl PremiseContext {
                         let w = self.recency_weight(word_str) * carrier_scale * generic_scale;
                         let premise_negated = self.is_negated(word_str);
                         if premise_negated == cand_word_negated {
-                            logit += 1.8 * w;
+                            desc_logit += 1.8 * w;
                         } else {
-                            logit -= 1.8 * w;
+                            desc_logit -= 1.8 * w;
                         }
                     } else if is_ascii && char_count >= 4 {
                         // Morphological stem match or prefix stem check
@@ -1013,9 +1047,9 @@ impl PremiseContext {
                             let w = self.recency_weight(&stem) * stem_carrier_scale;
                             let premise_negated = self.is_stem_negated(word_str);
                             if premise_negated == cand_word_negated {
-                                logit += 1.5 * w;
+                                desc_logit += 1.5 * w;
                             } else {
-                                logit -= 1.5 * w;
+                                desc_logit -= 1.5 * w;
                             }
                         } else if char_count >= 5 {
                             let stem = word_str.get(..word_str.len() - 1).unwrap_or("");
@@ -1027,9 +1061,9 @@ impl PremiseContext {
                                 let w = self.recency_weight(stem) * stem_carrier_scale;
                                 let premise_negated = self.is_negated(stem);
                                 if premise_negated == cand_word_negated {
-                                    logit += 1.4 * w;
+                                    desc_logit += 1.4 * w;
                                 } else {
-                                    logit -= 1.4 * w;
+                                    desc_logit -= 1.4 * w;
                                 }
                             }
                         }
@@ -1037,6 +1071,17 @@ impl PremiseContext {
                     cand_neg_remaining = cand_neg_remaining.saturating_sub(1);
                 }
             }
+        }
+
+        // BM25-style candidate length normalization on lettered multiple-choice options ('A'..'E')
+        // to prevent verbose distractors that echo multiple background nouns from overwhelming concise options.
+        let is_mc_option =
+            id.len() == 1 && matches!(id, "A" | "B" | "C" | "D" | "E") && desc_str.trim().len() > 2;
+        if is_mc_option && desc_logit > 0.0 && desc_content_words > 2 {
+            let norm = 1.0 / (1.0 + 0.25 * (desc_content_words.saturating_sub(2) as f64));
+            logit += desc_logit * norm;
+        } else {
+            logit += desc_logit;
         }
 
         logit
@@ -1111,9 +1156,8 @@ pub fn compute_order_invariant_logits_with_context(
 
     // Abstention / Catch-all Fallback:
     // If the candidate set includes an explicit abstention/catch-all option ("unknown", "other", "none", "oos"),
-    // no concrete candidate has positive evidence above 0.5, and either at least one concrete candidate was
-    // explicitly negated/rejected (min_concrete < 0.5) or this is a high-cardinality catalog (>= 20 options)
-    // where zero options matched any lexical/stem token, elevate the abstention option.
+    // no concrete candidate has positive evidence above 0.5, and at least one concrete candidate was
+    // explicitly negated/rejected (min_concrete < 0.5), elevate the abstention option.
     if candidates.len() >= 2 {
         let mut max_concrete = f64::NEG_INFINITY;
         let mut min_concrete = f64::INFINITY;

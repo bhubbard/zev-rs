@@ -60,6 +60,40 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         || state_lower.contains("car rental")
         || state_lower.contains("reservation");
 
+    let is_translate = state_lower.contains("translate")
+        || state_lower.contains("translation")
+        || state_lower.contains("how do you say")
+        || state_lower.contains("how would you say")
+        || state_lower.contains("how do i say")
+        || state_lower.contains("how would i say")
+        || state_lower.contains("how can i say")
+        || state_lower.contains("how to say")
+        || state_lower.contains("how do they say")
+        || state_lower.contains("what is the word for")
+        || state_lower.contains("what's the word for")
+        || state_lower.contains("in spanish")
+        || state_lower.contains("in french")
+        || state_lower.contains("in german")
+        || state_lower.contains("in italian")
+        || state_lower.contains("in japanese")
+        || state_lower.contains("in chinese")
+        || state_lower.contains("in mandarin")
+        || state_lower.contains("in cantonese")
+        || state_lower.contains("in korean")
+        || state_lower.contains("in russian")
+        || state_lower.contains("in portuguese")
+        || state_lower.contains("in arabic")
+        || state_lower.contains("in dutch")
+        || state_lower.contains("in swedish")
+        || state_lower.contains("in polish")
+        || state_lower.contains("in greek")
+        || state_lower.contains("in hindi")
+        || state_lower.contains("in vietnamese")
+        || state_lower.contains("in thai")
+        || state_lower.contains("in turkish")
+        || state_lower.contains("in hebrew")
+        || state_lower.contains("in latin");
+
     let is_delivery_status = state_lower.contains('?')
         && (state_lower.contains("parcel")
             || state_lower.contains("package")
@@ -105,6 +139,9 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         }
         if is_travel && (id_lower.contains("flight") || id_lower.contains("travel")) {
             logits[idx] += 2.0;
+        }
+        if is_translate && (id_lower == "translate" || id_lower.contains("translat")) {
+            logits[idx] += 4.5;
         }
         if is_delivery_status
             && (id_lower.contains("status")

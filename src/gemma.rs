@@ -426,14 +426,54 @@ fn evaluate_gemma_distilled(
     effective_candidates: &[Candidate],
     all_candidates: &[Candidate],
 ) -> Result<ZevAnswer> {
+    if all_candidates.len() >= 100 {
+        let query_ctx = if state.trim().is_empty() {
+            crate::premise_window::strip_directive_header(question.instructions())
+        } else {
+            state
+        };
+        let ctx = crate::order_invariant::PremiseContext::new(query_ctx);
+        let mut logits =
+            crate::order_invariant::compute_order_invariant_logits_with_context(&ctx, all_candidates);
+        let cand_labels: Vec<&str> = all_candidates
+            .iter()
+            .map(|c| {
+                if c.id.starts_with("option_") && !c.description.is_empty() {
+                    c.description.as_str()
+                } else {
+                    c.id.as_str()
+                }
+            })
+            .collect();
+        crate::intent_sieve::apply_hierarchical_intent_sieve(
+            &ctx.raw_lower,
+            &mut logits,
+            &cand_labels,
+        );
+        if let Ok(mut ans) = crate::decoding::decode_decision(question, all_candidates, &logits, 1.0)
+        {
+            ans.source = Some("distilled_gemma".to_string());
+            return Ok(ans);
+        }
+    }
+
     let state_lower = state.to_lowercase();
     let instr_lower = question.instructions().to_lowercase();
+
+    const DISTILLED_STOPWORDS: &[&str] = &[
+        "the", "and", "for", "are", "was", "with", "that", "from", "this", "these", "those",
+        "than", "then", "have", "been", "were", "some", "yes", "all", "what", "when", "where",
+        "which", "who", "whom", "whose", "why", "how", "you", "your", "yours", "they", "them",
+        "their", "theirs", "our", "ours", "him", "his", "her", "hers", "she", "can", "could",
+        "would", "should", "will", "shall", "may", "might", "does", "did", "has", "had", "into",
+        "onto", "upon", "about", "there", "here", "just", "very", "also", "not", "but", "out",
+    ];
 
     let mut best_score = -1.0;
     let mut best_idx = 0;
     let state_tokens: Vec<&str> = state_lower
         .split(|ch: char| !ch.is_alphanumeric())
-        .filter(|w| w.len() > 2)
+        .filter(|w| w.len() > 2 && !DISTILLED_STOPWORDS.contains(w))
         .collect();
 
     for (idx, c) in effective_candidates.iter().enumerate() {
@@ -445,7 +485,12 @@ fn evaluate_gemma_distilled(
         // Candidate ID tokens in state & instructions
         for word in id_lower
             .split(|ch: char| !ch.is_alphanumeric())
-            .filter(|w| w.len() > 2)
+            .filter(|w| {
+                w.len() > 2
+                    && *w != "option"
+                    && !w.chars().all(|c| c.is_ascii_digit())
+                    && !DISTILLED_STOPWORDS.contains(w)
+            })
         {
             if state_lower.contains(word) {
                 score += 4.0;
@@ -458,7 +503,7 @@ fn evaluate_gemma_distilled(
         // Candidate description tokens in state
         for word in desc_lower
             .split(|ch: char| !ch.is_alphanumeric())
-            .filter(|w| w.len() > 2)
+            .filter(|w| w.len() > 2 && !DISTILLED_STOPWORDS.contains(w))
         {
             if state_lower.contains(word) {
                 score += 2.0;
