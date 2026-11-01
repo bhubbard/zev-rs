@@ -475,6 +475,11 @@ fn evaluate_gemma_distilled(
         .split(|ch: char| !ch.is_alphanumeric())
         .filter(|w| w.len() > 2 && !DISTILLED_STOPWORDS.contains(w))
         .collect();
+    let state_synsets: Vec<u16> = state_tokens
+        .iter()
+        .filter_map(|w| crate::lexicon::lookup_word(w).map(|e| e.synset_id))
+        .filter(|&id| id != 0)
+        .collect();
 
     for (idx, c) in effective_candidates.iter().enumerate() {
         let id_lower = c.id.to_lowercase();
@@ -494,6 +499,10 @@ fn evaluate_gemma_distilled(
         {
             if state_lower.contains(word) {
                 score += 4.0;
+            } else if let Some(entry) = crate::lexicon::lookup_word(word) {
+                if entry.synset_id != 0 && state_synsets.contains(&entry.synset_id) {
+                    score += 2.5;
+                }
             }
             if instr_lower.contains(word) {
                 score += 1.0;
@@ -507,6 +516,14 @@ fn evaluate_gemma_distilled(
         {
             if state_lower.contains(word) {
                 score += 2.0;
+            } else if let Some(entry) = crate::lexicon::lookup_word(word) {
+                if entry.synset_id != 0 && state_synsets.contains(&entry.synset_id) {
+                    score += 1.25;
+                } else if entry.antonym_synset_id != 0
+                    && state_synsets.contains(&entry.antonym_synset_id)
+                {
+                    score -= 1.5;
+                }
             }
         }
 

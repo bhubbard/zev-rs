@@ -21,6 +21,7 @@ pub mod gemma;
 pub mod grep;
 pub mod intent_sieve;
 pub mod kv_rewind;
+pub mod lexicon;
 pub mod logic;
 pub mod matrix;
 #[cfg(not(target_arch = "wasm32"))]

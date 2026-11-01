@@ -302,6 +302,21 @@ pub fn embed_text(text: &str, dim: usize) -> Vec<f32> {
         };
         vec[idx] += sign * 2.0;
 
+        // Canonical synset & antonym projection from static lexicon
+        if clean.len() >= 3 {
+            let stem = crate::order_invariant::stem_english_word(clean);
+            if let Some(entry) = crate::lexicon::lookup_word_or_stem(clean, &stem) {
+                if entry.synset_id != 0 {
+                    let sh = (entry.synset_id as u32)
+                        .wrapping_mul(2654435761)
+                        .wrapping_add(1013904223);
+                    let sidx = (sh as usize) % dim;
+                    let ssign = if (sh & 1) != 0 { 1.0f32 } else { -1.0f32 };
+                    vec[sidx] += ssign * 1.6;
+                }
+            }
+        }
+
         // Subword 3-grams
         let chars: Vec<char> = clean.chars().collect();
         if chars.len() >= 3 {

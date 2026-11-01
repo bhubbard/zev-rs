@@ -301,18 +301,59 @@ pub fn stem_english_word(word: &str) -> String {
 #[derive(Debug)]
 pub struct PremiseContext {
     pub raw_lower: String,
-    pub token_positions: HashMap<String, SmallVec<[u32; 4]>>,
-    pub stem_positions: HashMap<String, SmallVec<[u32; 4]>>,
+    pub token_positions: HashMap<String, SmallVec<[u32; 4]>, crate::fast_hash::Xxh3BuildHasher>,
+    pub stem_positions: HashMap<String, SmallVec<[u32; 4]>, crate::fast_hash::Xxh3BuildHasher>,
+    pub synset_positions: HashMap<u16, SmallVec<[u32; 4]>, crate::fast_hash::Xxh3BuildHasher>,
 }
 
 impl PremiseContext {
     #[inline]
     pub fn new(premise: &str) -> Self {
         let raw_lower = premise.to_lowercase();
-        let mut token_positions: HashMap<String, SmallVec<[u32; 4]>> = HashMap::new();
-        let mut stem_positions: HashMap<String, SmallVec<[u32; 4]>> = HashMap::new();
+        let mut token_positions: HashMap<
+            String,
+            SmallVec<[u32; 4]>,
+            crate::fast_hash::Xxh3BuildHasher,
+        > = HashMap::with_hasher(crate::fast_hash::Xxh3BuildHasher);
+        let mut stem_positions: HashMap<
+            String,
+            SmallVec<[u32; 4]>,
+            crate::fast_hash::Xxh3BuildHasher,
+        > = HashMap::with_hasher(crate::fast_hash::Xxh3BuildHasher);
+        let mut synset_positions: HashMap<
+            u16,
+            SmallVec<[u32; 4]>,
+            crate::fast_hash::Xxh3BuildHasher,
+        > = HashMap::with_hasher(crate::fast_hash::Xxh3BuildHasher);
         let mut in_token = false;
         let mut token_start = 0;
+
+        let mut index_subtoken = |sub: &str, pos_u32: u32| {
+            if sub.len() >= 3 {
+                if let Some(entry) = crate::lexicon::lookup_word(sub) {
+                    if entry.synset_id != 0 {
+                        synset_positions
+                            .entry(entry.synset_id)
+                            .or_default()
+                            .push(pos_u32);
+                    }
+                }
+            }
+            if sub.len() >= 4 {
+                let stem = stem_english_word(sub);
+                if stem.len() >= 3 {
+                    if let Some(entry) = crate::lexicon::lookup_word(&stem) {
+                        if entry.synset_id != 0 {
+                            synset_positions
+                                .entry(entry.synset_id)
+                                .or_default()
+                                .push(pos_u32);
+                        }
+                    }
+                    stem_positions.entry(stem).or_default().push(pos_u32);
+                }
+            }
+        };
 
         for (byte_idx, ch) in raw_lower.char_indices() {
             if ch.is_alphanumeric() || ch == '_' {
@@ -329,12 +370,7 @@ impl PremiseContext {
                     .or_default()
                     .push(pos_u32);
                 for sub in token.split('_') {
-                    if sub.len() >= 4 {
-                        let stem = stem_english_word(sub);
-                        if stem.len() >= 3 {
-                            stem_positions.entry(stem).or_default().push(pos_u32);
-                        }
-                    }
+                    index_subtoken(sub, pos_u32);
                 }
             }
         }
@@ -346,12 +382,7 @@ impl PremiseContext {
                 .or_default()
                 .push(pos_u32);
             for sub in token.split('_') {
-                if sub.len() >= 4 {
-                    let stem = stem_english_word(sub);
-                    if stem.len() >= 3 {
-                        stem_positions.entry(stem).or_default().push(pos_u32);
-                    }
-                }
+                index_subtoken(sub, pos_u32);
             }
         }
 
@@ -359,6 +390,7 @@ impl PremiseContext {
             raw_lower,
             token_positions,
             stem_positions,
+            synset_positions,
         }
     }
 
@@ -453,7 +485,41 @@ impl PremiseContext {
         }
     }
 
-    /// Checks whether the premise contains a morphological antonym (`un-`, `in-`, `im-`, `ir-`, `dis-`) of `word`.
+    #[inline]
+    pub fn contains_synset(&self, synset_id: u16) -> bool {
+        synset_id != 0 && self.synset_positions.contains_key(&synset_id)
+    }
+
+    #[inline]
+    pub fn is_synset_negated(&self, synset_id: u16) -> bool {
+        if let Some(positions) = self.synset_positions.get(&synset_id) {
+            positions.iter().any(|&pos| self.is_pos_negated(pos as usize))
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub fn has_affirmative_synset(&self, synset_id: u16) -> bool {
+        if let Some(positions) = self.synset_positions.get(&synset_id) {
+            positions.iter().any(|&pos| !self.is_pos_negated(pos as usize))
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub fn synset_recency_weight(&self, synset_id: u16) -> f64 {
+        if let Some(positions) = self.synset_positions.get(&synset_id) {
+            if let Some(&pos) = positions.last() {
+                return 1.0 + (pos as f64 / self.raw_lower.len().max(1) as f64) * 0.6;
+            }
+        }
+        1.0
+    }
+
+    /// Checks whether the premise contains a morphological antonym (`un-`, `in-`, `im-`, `ir-`, `dis-`)
+    /// or strict lexical antonym of `word`.
     #[inline]
     pub fn has_morphological_antonym(&self, word: &str) -> bool {
         let w = word.trim().to_lowercase();
@@ -478,31 +544,42 @@ impl PremiseContext {
             _ => {}
         }
 
-        if w.len() < 5 || !w.is_ascii() {
+        if w.len() < 4 || !w.is_ascii() {
             return false;
         }
         let stem = stem_english_word(&w);
-        if stem.len() < 4 {
-            return false;
-        }
 
-        // If `w` itself is negated by a prefix ("un...", "in...", "im...", "ir...", "dis..."),
-        // check if the base stem is affirmatively present while the prefixed stem is NOT present.
-        for prefix in ["un", "in", "im", "ir", "dis"] {
-            if let Some(base_stem) = stem.strip_prefix(prefix) {
-                if base_stem.len() >= 4
-                    && !self.stem_positions.contains_key(&stem)
-                    && self.stem_positions.contains_key(base_stem)
-                {
-                    return true;
-                }
-            } else {
-                let prefixed_stem = format!("{}{}", prefix, stem);
-                if self.stem_positions.contains_key(&prefixed_stem) {
-                    return true;
+        if w.len() >= 5 && stem.len() >= 4 {
+            // If `w` itself is negated by a prefix ("un...", "in...", "im...", "ir...", "dis..."),
+            // check if the base stem is affirmatively present while the prefixed stem is NOT present.
+            for prefix in ["un", "in", "im", "ir", "dis"] {
+                if let Some(base_stem) = stem.strip_prefix(prefix) {
+                    if base_stem.len() >= 4
+                        && !self.stem_positions.contains_key(&stem)
+                        && self.stem_positions.contains_key(base_stem)
+                    {
+                        return true;
+                    }
+                } else {
+                    let prefixed_stem = format!("{}{}", prefix, stem);
+                    if self.stem_positions.contains_key(&prefixed_stem) {
+                        return true;
+                    }
                 }
             }
         }
+
+        if let Some(entry) = crate::lexicon::lookup_word_or_stem(&w, &stem) {
+            if entry.antonym_synset_id != 0
+                && !self.contains_bounded(&w)
+                && !self.stem_positions.contains_key(&stem)
+                && !self.has_affirmative_synset(entry.synset_id)
+                && self.has_affirmative_synset(entry.antonym_synset_id)
+            {
+                return true;
+            }
+        }
+
         false
     }
 
@@ -1055,19 +1132,47 @@ impl PremiseContext {
                             } else {
                                 desc_logit -= 1.5 * w;
                             }
-                        } else if char_count >= 5 {
-                            let stem = word_str.get(..word_str.len() - 1).unwrap_or("");
-                            if self.contains_bounded(stem) {
-                                let stem_is_carrier =
-                                    carrier_tokens.is_some_and(|set| set.contains(stem));
-                                let stem_carrier_scale =
-                                    if stem_is_carrier { 0.20 } else { carrier_scale };
-                                let w = self.recency_weight(stem) * stem_carrier_scale;
-                                let premise_negated = self.is_negated(stem);
-                                if premise_negated == cand_word_negated {
-                                    desc_logit += 1.4 * w;
-                                } else {
-                                    desc_logit -= 1.4 * w;
+                        } else {
+                            let mut prefix_matched = false;
+                            if char_count >= 5 {
+                                let stem = word_str.get(..word_str.len() - 1).unwrap_or("");
+                                if self.contains_bounded(stem) {
+                                    prefix_matched = true;
+                                    let stem_is_carrier =
+                                        carrier_tokens.is_some_and(|set| set.contains(stem));
+                                    let stem_carrier_scale =
+                                        if stem_is_carrier { 0.20 } else { carrier_scale };
+                                    let w = self.recency_weight(stem) * stem_carrier_scale;
+                                    let premise_negated = self.is_negated(stem);
+                                    if premise_negated == cand_word_negated {
+                                        desc_logit += 1.4 * w;
+                                    } else {
+                                        desc_logit -= 1.4 * w;
+                                    }
+                                }
+                            }
+                            if !prefix_matched {
+                                let stem = stem_english_word(word_str);
+                                if let Some(entry) =
+                                    crate::lexicon::lookup_word_or_stem(word_str, &stem)
+                                {
+                                    if self.contains_synset(entry.synset_id) {
+                                        let syn_key = format!("__syn_{}", entry.synset_id);
+                                        let syn_is_carrier = carrier_tokens
+                                            .is_some_and(|set| set.contains(&syn_key));
+                                        let syn_carrier_scale =
+                                            if syn_is_carrier { 0.20 } else { carrier_scale };
+                                        let w = self.synset_recency_weight(entry.synset_id)
+                                            * syn_carrier_scale
+                                            * generic_scale;
+                                        let premise_negated =
+                                            self.is_synset_negated(entry.synset_id);
+                                        if premise_negated == cand_word_negated {
+                                            desc_logit += 1.05 * w;
+                                        } else {
+                                            desc_logit -= 1.05 * w;
+                                        }
+                                    }
                                 }
                             }
                         }

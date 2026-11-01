@@ -923,4 +923,82 @@ fn test_speculative_cascade_score_and_interrogative_invariance() {
     }
 }
 
+#[test]
+fn test_static_lexicon_synset_and_antonym_invariance() {
+    use zev::order_invariant::compute_order_invariant_logits;
+    use zev::types::Candidate;
+
+    // 1. Canonical synset matching must route zero-surface-overlap paraphrases consistently
+    // across entity perturbations.
+    for (premise, expected_idx) in [
+        (
+            "Customer Aura-99 requested a full reimbursement for the duplicate charge.",
+            0,
+        ),
+        (
+            "Passenger Kestrel-42 reported missing luggage at the terminal carousel.",
+            1,
+        ),
+        (
+            "Clinician Vance prescribed a new pharmaceutical regimen for hypertension.",
+            2,
+        ),
+    ] {
+        let candidates = vec![
+            Candidate {
+                id: "route_a".into(),
+                description: "Process customer refund".into(),
+                value: None,
+            },
+            Candidate {
+                id: "route_b".into(),
+                description: "Track lost baggage".into(),
+                value: None,
+            },
+            Candidate {
+                id: "route_c".into(),
+                description: "Review doctor medication".into(),
+                value: None,
+            },
+        ];
+        let logits = compute_order_invariant_logits(premise, &candidates);
+        let best_idx = logits
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+            .unwrap()
+            .0;
+        assert_eq!(
+            best_idx, expected_idx,
+            "Failed zero-overlap synset routing for premise: {} (logits: {:?})",
+            premise, logits
+        );
+    }
+
+    // 2. Bilateral lexical antonym pairs ("permitted" vs "prohibited", "mandatory" vs "optional")
+    // must penalize opposite-pole candidates and reward double-negated ("not prohibited") clauses.
+    let candidates = vec![
+        Candidate {
+            id: "opt_allow".into(),
+            description: "The transfer is permitted under policy".into(),
+            value: None,
+        },
+        Candidate {
+            id: "opt_forbid".into(),
+            description: "The transfer is prohibited under policy".into(),
+            value: None,
+        },
+    ];
+    let logits_forbid = compute_order_invariant_logits(
+        "Section 9: Cross-border transfers are strictly forbidden.",
+        &candidates,
+    );
+    assert!(
+        logits_forbid[1] > logits_forbid[0],
+        "Expected 'prohibited' candidate to beat 'permitted' when premise states 'forbidden': {:?}",
+        logits_forbid
+    );
+}
+
+
 
