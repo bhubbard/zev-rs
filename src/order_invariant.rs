@@ -998,9 +998,13 @@ impl PremiseContext {
                         }
                     }
                 } else {
-                    const COMMON_LONG_STOPWORDS: [&str; 18] = [
+                    const COMMON_LONG_STOPWORDS: &[&str] = &[
                         "the", "and", "for", "are", "was", "with", "that", "from", "this", "these",
-                        "than", "then", "have", "been", "were", "some", "yes", "all",
+                        "those", "than", "then", "have", "been", "were", "some", "yes", "all",
+                        "what", "why", "how", "you", "your", "yours", "they", "them", "their",
+                        "theirs", "our", "ours", "him", "his", "her", "hers", "she", "does", "did",
+                        "has", "had", "into", "onto", "upon", "about", "there", "here", "just",
+                        "very", "also",
                     ];
                     if COMMON_LONG_STOPWORDS.contains(&word_str)
                         || (is_catalog_option && ID_PART_STOPWORDS.contains(&word_str))
