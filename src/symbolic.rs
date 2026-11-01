@@ -21,6 +21,11 @@ static RE_WORD_CONSTRAINT: LazyLock<Regex> = LazyLock::new(|| {
         .expect("valid word constraint regex")
 });
 
+static RE_COUNTED_BDAY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(Mon|Tue|Wed|Thu|Fri)\s+([A-Za-z]{3})\s+(\d{1,2})\s*\((\d+)\)")
+        .expect("valid counted bday regex")
+});
+
 fn word_to_number(w: &str) -> Option<usize> {
     match w.to_lowercase().as_str() {
         "one" | "1" => Some(1),
@@ -375,6 +380,41 @@ pub fn verify_structural_constraints(request_text: &str, response_text: &str) ->
             "[ARITHMETIC ERROR]: Incorrect metric density conversion factor (1 g/cm³ equals 1,000 kg/m³, not 100 kg/m³). (CALCULATION_VALID: FALSE, CONSTRAINT_SATISFIED: FALSE)"
                 .to_string(),
         );
+    }
+
+    // 10. Check business-day weekday sequence continuity when counted business days are enumerated
+    if req_lower.contains("business days") {
+        let bdays: Vec<(String, String, i32, i32)> = RE_COUNTED_BDAY
+            .captures_iter(response_text)
+            .filter_map(|c| {
+                Some((
+                    c[1].to_ascii_lowercase(),
+                    c[2].to_ascii_lowercase(),
+                    c[3].parse::<i32>().ok()?,
+                    c[4].parse::<i32>().ok()?,
+                ))
+            })
+            .collect();
+        for pair in bdays.windows(2) {
+            let (w1, m1, d1, k1) = &pair[0];
+            let (w2, m2, d2, k2) = &pair[1];
+            if *k2 == *k1 + 1 {
+                let expected_next_w = match w1.as_str() {
+                    "mon" => "tue",
+                    "tue" => "wed",
+                    "wed" => "thu",
+                    "thu" => "fri",
+                    "fri" => "mon",
+                    _ => "",
+                };
+                if w2 != expected_next_w && !req_lower.contains(m2.as_str()) {
+                    findings.push(format!(
+                        "[ARITHMETIC ERROR]: Business day sequence skips from {} {} {} ({}) to {} {} {} ({}) without a declared holiday in {}. (CALCULATION_VALID: FALSE, CONSTRAINT_SATISFIED: FALSE)",
+                        w1, m1, d1, k1, w2, m2, d2, k2, m2
+                    ));
+                }
+            }
+        }
     }
 
     findings

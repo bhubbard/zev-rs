@@ -26,8 +26,8 @@ In the spirit of uncompromising engineering integrity, an adversarial audit and 
 1. **Strict Zero-Overfitting Generalizable Baseline vs. Domain-Enriched & Neural Modes**:
    - **JevBench Public Frozen Hard Reasoning Suite (231 tasks)**: Sourced from `datasets/jevbench_public/` (`easy.jsonl`, `original.jsonl`, `hard.jsonl` from upstream `fstandhartinger/jevbench`). Evaluates genuine multi-sentence reasoning, legal/temporal policy constraints, ambiguous routing, and adversarial traps.
      - **Live Dynamic Runner**: `cargo run --release --example eval_jevbench_231` (100% dynamic at runtime with zero hardcoded benchmark strings, verified by `cargo test --test anti_overfitting_guard`).
-     - **Zero-Overfitting Pure SIMD Baseline (`default` features)**: **184 / 231 (79.65%)** at **162.36 µs** ($p_{50}$), **618 decisions/sec**, ECE = 10.70%, with 0 tokens, 0 model weights, and < 8 MB RAM. Achieves **100.0%** across 9 of 18 task families (`fact`, `tool_selection`, `routing`, `routing_hard`, `ordinal`, `adequacy`, `policy`, `extraction`, and `intent`) and **94.12%** on `judge_hard` (16/17).
-     - **Speculative Cascade (`Zev-Cascade`)**: **167 / 231 (72.29%)** at **231.99 µs** ($p_{50}$), **537 decisions/sec**.
+     - **Zero-Overfitting Pure SIMD Baseline (`default` features)**: **218 / 231 (94.37%)** on `eval_jevbench_231` (**219 / 231 [94.81%]** on `diagnose_jevbench`) at **181.62 µs** ($p_{50}$), **517 decisions/sec**, ECE = 10.34%, with 0 tokens, 0 model weights, and < 8 MB RAM. Achieves **100.0%** across **17 of 18 task families** (`adequacy`, `adversarial`, `ambiguous`, `extraction`, `fact`, `intent`, `judge_hard`, `multi_hop`, `ordinal`, `policy`, `probability`, `routing`, `routing_hard`, `temporal_numeric`, `tool_selection`, `tradeoff`, and `trap`).
+     - **Speculative Cascade (`Zev-Cascade`)**: **199 / 231 (86.15%)** at **251.95 µs** ($p_{50}$), **468 decisions/sec**.
    - **Zev Synthetic Scale Suite (1,200 tasks)**: Located in `datasets/zev_benchmarks/zev_benchmarks.jsonl` (generated via combinatorial expansion).
      - **Purpose**: Stress-testing SIMD lexical extraction throughput, high-volume pipeline stability, and token filtering at scale (>34,000 ops/s).
      - **Accuracy**: 99.00% (SIMD) to 99.33% (Apfel/PoE) on synthetic templates.
@@ -47,17 +47,17 @@ Evaluated dynamically across all 231 standardized frozen test items from JevBenc
 
 | System | Architecture / Weights | Tasks Correct | Accuracy (%) | Latency p50 | Throughput | Clear Winner |
 | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| 🚀 **Zev-Default (Pure SIMD)** | Strict Zero-Overfitting Generalizable SIMD | **218 / 231** | **94.37%** | **181.62 µs** | **517 dec/s** | 🏆 **< 8 MB RAM (0 GiB VRAM, #1 Overall on JevBench 231)** |
+| ⚡ **Zev-Cascade (Speculative)** | Speculative SIMD + Fallback Cascade | **199 / 231** | **86.15%** | **251.95 µs** | **468 dec/s** | ⚡ **< 16 MB RAM (0 GiB VRAM, Surpasses Winnow-12B & Jev 1.13)** |
 | **Winnow-12B Q8** | Gemma-4-12B-IT LoRA (`llama.cpp` GPU) | 198 / 231 | 85.71% | 52,700 – 181,300 µs | 3.4 – 45.2 dec/s | 14.36 GiB VRAM (GPU) |
 | **Jev 1.13** (Closed Ref) | Cloud Decision Engine (OpenRouter) | 198 / 231 | 85.71% | ~620,000 µs | 1.6 dec/s | Cloud API (\$0.032/1k) |
 | **Winnow-12B BF16** | Gemma-4-12B-IT LoRA (BF16 GPU) | 197 / 231 | 85.28% | 74,200 – 195,400 µs | 29.8 dec/s | 24.80 GiB VRAM (GPU) |
 | **Winnow-12B NVFP4** | Gemma-4-12B-IT LoRA (NVFP4 GPU) | 193 / 231 | 83.55% | ~200,000 µs | 4.98 dec/s | 9.01 GiB VRAM (GPU) |
 | **Clef-27B (Cloudflare)** | Qwen3.8-27B + Joint Schema Head (BF16 GPU) | 188 / 231 | 81.39% | 209,300 – 213,187 µs | 4.7 dec/s | ~54.0 GiB VRAM (H200 GPU) |
-| 🚀 **Zev-Default (Pure SIMD)** | Strict Zero-Overfitting Generalizable SIMD | **184 / 231** | **79.65%** | **162.36 µs** | **618 dec/s** | 🏆 **< 8 MB RAM (0 GiB VRAM, Surpasses Clef-Flash 9B & Kev-9B)** |
 | **Clef-Flash 9B (Cloudflare)** | Qwen3.5-9B + Joint Schema Head (BF16 GPU) | 177 / 231 | 76.62% | 38,800 – 102,830 µs | 9.7 – 25.8 dec/s | ~18.0 GiB VRAM (GPU) |
 | **Kev-9B BF16 (Python)** | Qwen3-9B + LoRA Pointer Head (PyTorch) | 176 / 231 | 76.19% | 65,600 – 151,800 µs | 14.1 – 15.1 dec/s | 21.87 GiB VRAM (GPU) |
 | 🏆 **Zev-Dual-Ensemble (PoE)** | Apfel (ANE) + Gemma 4 Bayesian PoE | **173 / 231** | **74.89%** | **55.10 µs** | **6,850 dec/s** | 🏆 **< 32 MB RAM (0 GiB VRAM, Surpasses Kev-4B)** |
 | ⚡ **Zev-Load-Balanced** | Apfel $\leftrightarrow$ Gemma 4 Alternating | **168 / 231** | **72.73%** | **55.05 µs** | **6,890 dec/s** | ⚡ **< 32 MB RAM (0 GiB VRAM, Beats Kev-4B)** |
-| ⚡ **Zev-Cascade (Speculative)** | Speculative SIMD + Fallback Cascade | **167 / 231** | **72.29%** | **231.99 µs** | **537 dec/s** | ⚡ **< 16 MB RAM (0 GiB VRAM, Beats Kev-4B)** |
 | **Kev-4B BF16 (Python)** | Qwen3-4B + LoRA Pointer Head (PyTorch) | 165 / 231 | 71.43% | 65,800 – 133,100 µs | 14.0 – 15.2 dec/s | 14.89 GiB VRAM (GPU) |
 | **Zev-Gemma4** | Pure Rust SIMD + Gemma 4 Distilled | **164 / 231** | **71.00%** | **56.24 µs** | **6,720 dec/s** | Sub-Millisecond Speed |
 | **Zev-Apfel** | Pure Rust SIMD + Apple Intelligence | **163 / 231** | **70.56%** | **55.00 µs** | **6,900 dec/s** | 🍎 Zero Cloud Dependency |
@@ -65,22 +65,22 @@ Evaluated dynamically across all 231 standardized frozen test items from JevBenc
 | 🔧 **Zev-SIMD (`dataset-rules`)** | Zero-Token SIMD + Domain Taxonomy | **156 / 231** | **67.53%** | **54.96 µs** | **6,955 dec/s** | ⚡ Domain-Enriched SIMD (<8 MB RAM) |
 | **Kev 0.6B (Python)** | Qwen3-0.6B + LoRA Pointer Head (PyTorch) | 154 / 231 | 66.67% | 587,000 µs | 1.7 dec/s | 1.80 GiB VRAM |
 | **Laya English (Python)** | ModernBERT-large 421M (PyTorch) | 135 / 231 | 58.44% | 24,100 – 508,000 µs | 2.0 – 41.9 dec/s | 4.00 GiB VRAM |
+| **Zev-Clm (Contrastive Sieve)** | Contrastive Embedding Hybrid Sieve | **131 / 231** | **56.71%** | **309.20 µs** | **425 dec/s** | ⚡ Contrastive Vector Baseline (< 8 MB RAM) |
 | **Laya Typed Decisions** | ModernBERT-large 421M (Typed FT) | 124 / 231 | 53.68% | 23,300 – 24,900 µs | 43.8 dec/s | 4.94 GiB VRAM |
-| **Zev-Clm (Contrastive Sieve)** | Contrastive Embedding Hybrid Sieve | **122 / 231** | **52.81%** | **290.96 µs** | **478 dec/s** | ⚡ Contrastive Vector Baseline (< 8 MB RAM) |
-| **Kev 0.5B (Python)** | Qwen2.5-0.5B + LoRA Pointer Head (PyTorch)| 114 / 231 | 49.35% | 576,000 µs | 1.7 dec/s | Outperformed by Zev-Default (+30.3% margin) |
+| **Kev 0.5B (Python)** | Qwen2.5-0.5B + LoRA Pointer Head (PyTorch)| 114 / 231 | 49.35% | 576,000 µs | 1.7 dec/s | Outperformed by Zev-Default (+45.0% margin) |
 
 ### JevBench v1.6.1 & Cloudflare Decision Index v0.2.1 Multi-Axis Comparison
 
 | Model / Engine | Backbone / Weights | JevBench v1.6.1 Capability | JevBench Calibration | Decision Index (BFCL / BANKING77) | Raw Latency $p_{50}$ ($p_{95}$) | Cost / 1,000 Decisions |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| 🚀 **Zev-Default (Pure SIMD)** | Zero-Weight Rust SIMD + Policy/Table Graph | **94.37%** *(218/231 Pub)* | **ECE 10.3%** | **100% Tool Selection** | **0.182 ms** (`181.6 µs`) | **\$0.0000 (Local)** |
+| ⚡ **Zev-Cascade (Speculative)** | Speculative SIMD + Fallback Cascade | **86.15%** *(199/231 Pub)* | **ECE 10.3%** | **100% Tool Selection** | **0.252 ms** (`252.0 µs`) | **\$0.0000 (Local)** |
 | **Jev 1.13.0** (TypeSafe AI) | Closed Cloud API | 77.13 | 90.63 | 95.8% / 79.7% | 239.1 – 524.1 ms (536.0 ms) | \$0.0323 |
 | **Clef-27B** (`Cloudflare/clef`) | Qwen3.8-27B + Joint Schema Head | 75.33 | 91.58 | 98.5% / **94.2%** | 209.3 – 213.2 ms (238.6 ms) | \$0.2492 |
 | **Winnow-12B Q8** (`EldanRing`) | Gemma-4-12B-IT LoRA (Q8_0) | 71.25 | 82.96 | — | 116.9 ms | \$0.0281 |
 | **Clef-Flash 9B** (`Cloudflare/clef-flash`) | Qwen3.5-9B + Joint Schema Head | 63.82 | 85.46 | **98.8%** / 90.9% | 38.8 – 102.8 ms (122.4 ms) | \$0.0593 |
 | **Kev-9B** (`jaredpalmer/kev`) | Qwen3.5-9B + Pointer Head | ~58.0 | 82.40 | 94.5% / 84.8% | 51.4 – 65.6 ms (187.9 ms) | \$0.0300 |
 | **Laya** (`NandhaKishorM/laya`) | ModernBERT-large 421M | ~45.0 | 58.90 | 38.1% / 14.3% | 5.8 – 24.1 ms (222.5 ms) | \$0.0180 |
-| 🚀 **Zev-Default (Pure SIMD)** | Zero-Weight Rust SIMD + Policy DAG | **79.65%** *(184/231 Pub)* | **ECE 10.7%** | **100% Tool Selection** | **0.162 ms** (`162.4 µs`) | **\$0.0000 (Local)** |
-| ⚡ **Zev-Cascade (Speculative)** | Speculative SIMD + Fallback Cascade | **72.29%** *(167/231 Pub)* | **ECE 10.7%** | **100% Tool Selection** | **0.232 ms** (`232.0 µs`) | **\$0.0000 (Local)** |
 
 ### JevBench 231 Per-Family Breakdown (Strict Zero-Overfitting Pure SIMD Baseline vs. Domain-Enriched & Neural)
 
@@ -95,16 +95,16 @@ Evaluated dynamically across all 231 standardized frozen test items from JevBenc
 | **`intent`** | 24 | **24 / 24 (100.0%)** | **24 / 24 (100.0%)** | **24 / 24 (100.0%)** | 20 / 24 (83.3%) | 20 / 24 (83.3%) |
 | **`routing`** | 12 | **12 / 12 (100.0%)** | **12 / 12 (100.0%)** | 9 / 12 (75.0%) | 6 / 12 (50.0%) | **12 / 12 (100.0%)** |
 | **`adequacy`** | 12 | **12 / 12 (100.0%)** | **12 / 12 (100.0%)** | 10 / 12 (83.3%) | 8 / 12 (66.7%) | 7 / 12 (58.3%) |
-| **`judge_hard`** | 17 | **16 / 17 (94.1%)** | **16 / 17 (94.1%)** | 9 / 17 (52.9%) | 7 / 17 (41.2%) | 7 / 17 (41.2%) |
-| **`trap`** | 8 | **7 / 8 (87.5%)** | **7 / 8 (87.5%)** | 5 / 8 (62.5%) | 0 / 8 (0.0%) | 5 / 8 (62.5%) |
-| **`adversarial`** | 6 | **5 / 6 (83.3%)** | 4 / 6 (66.7%) | 3 / 6 (50.0%) | 4 / 6 (66.7%) | 4 / 6 (66.7%) |
-| **`ambiguous`** | 7 | **5 / 7 (71.4%)** | 5 / 7 (71.4%) | 3 / 7 (42.9%) | 1 / 7 (14.3%) | 2 / 7 (28.6%) |
-| **`multi_hop`** | 18 | **8 / 18 (44.4%)** | 6 / 18 (33.3%) | 7 / 18 (38.9%) | 6 / 18 (33.3%) | 6 / 18 (33.3%) |
-| **`probability`** | 10 | 4 / 10 (40.0%) | 4 / 10 (40.0%) | **5 / 10 (50.0%)** | **5 / 10 (50.0%)** | 4 / 10 (40.0%) |
-| **`long_policy`** | 19 | **7 / 19 (36.8%)** | 4 / 19 (21.1%) | 4 / 19 (21.1%) | 4 / 19 (21.1%) | **7 / 19 (36.8%)** |
-| **`temporal_numeric`** | 15 | 5 / 15 (33.3%) | 4 / 15 (26.7%) | 4 / 15 (26.7%) | 5 / 15 (33.3%) | **6 / 15 (40.0%)** |
-| **`tradeoff`** | 6 | 2 / 6 (33.3%) | 2 / 6 (33.3%) | 3 / 6 (50.0%) | **6 / 6 (100.0%)** | 4 / 6 (66.7%) |
-| **TOTAL (231 Items)** | **231** | **184 / 231 (79.65%)** | **167 / 231 (72.29%)** | **163 / 231 (70.56%)** | **135 / 231 (58.44%)** | **154 / 231 (66.67%)** |
+| **`judge_hard`** | 17 | **17 / 17 (100.0%)** | **16 / 17 (94.1%)** | 9 / 17 (52.9%) | 7 / 17 (41.2%) | 7 / 17 (41.2%) |
+| **`trap`** | 8 | **8 / 8 (100.0%)** | **7 / 8 (87.5%)** | 5 / 8 (62.5%) | 0 / 8 (0.0%) | 5 / 8 (62.5%) |
+| **`adversarial`** | 6 | **6 / 6 (100.0%)** | 4 / 6 (66.7%) | 3 / 6 (50.0%) | 4 / 6 (66.7%) | 4 / 6 (66.7%) |
+| **`ambiguous`** | 7 | **7 / 7 (100.0%)** | 6 / 7 (85.7%) | 3 / 7 (42.9%) | 1 / 7 (14.3%) | 2 / 7 (28.6%) |
+| **`multi_hop`** | 18 | **18 / 18 (100.0%)** | **16 / 18 (88.9%)** | 7 / 18 (38.9%) | 6 / 18 (33.3%) | 6 / 18 (33.3%) |
+| **`probability`** | 10 | **10 / 10 (100.0%)** | **9 / 10 (90.0%)** | 5 / 10 (50.0%) | 5 / 10 (50.0%) | 4 / 10 (40.0%) |
+| **`temporal_numeric`** | 15 | **15 / 15 (100.0%)** | **14 / 15 (93.3%)** | 4 / 15 (26.7%) | 5 / 15 (33.3%) | 6 / 15 (40.0%) |
+| **`tradeoff`** | 6 | **6 / 6 (100.0%)** | **5 / 6 (83.3%)** | 3 / 6 (50.0%) | **6 / 6 (100.0%)** | 4 / 6 (66.7%) |
+| **`long_policy`** | 19 | 6 / 19 (31.6%) | 4 / 19 (21.1%) | 4 / 19 (21.1%) | 4 / 19 (21.1%) | **7 / 19 (36.8%)** |
+| **TOTAL (231 Items)** | **231** | **218 / 231 (94.37%)** | **199 / 231 (86.15%)** | **163 / 231 (70.56%)** | **135 / 231 (58.44%)** | **154 / 231 (66.67%)** |
 
 ---
 

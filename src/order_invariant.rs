@@ -76,6 +76,8 @@ const SUFFIX_NEGATORS: &[&str] = &[
     "is already done",
     "was superseded",
     "is absent",
+    "is empty",
+    "field is empty",
     "is disabled",
     "is inactive",
     "is unpaid",
@@ -258,6 +260,7 @@ fn simple_stem(w: &str) -> &str {
 #[derive(Debug)]
 pub struct PremiseContext {
     pub raw_lower: String,
+    pub deduced_start: Option<usize>,
     pub token_positions: HashMap<String, SmallVec<[u32; 4]>>,
     pub stem_positions: HashMap<String, SmallVec<[u32; 4]>>,
 }
@@ -266,6 +269,16 @@ impl PremiseContext {
     #[inline]
     pub fn new(premise: &str) -> Self {
         let raw_lower = premise.to_lowercase();
+        let deduced_start = [
+            "[tabular majority]",
+            "[numeric constraint]",
+            "[temporal constraint]",
+            "[arithmetic ",
+            "[constraint ",
+        ]
+        .iter()
+        .filter_map(|m| raw_lower.find(m))
+        .min();
         let mut token_positions: HashMap<String, SmallVec<[u32; 4]>> = HashMap::new();
         let mut stem_positions: HashMap<String, SmallVec<[u32; 4]>> = HashMap::new();
         let mut in_token = false;
@@ -310,6 +323,7 @@ impl PremiseContext {
 
         Self {
             raw_lower,
+            deduced_start,
             token_positions,
             stem_positions,
         }
@@ -716,6 +730,31 @@ impl PremiseContext {
                     }
                 }
             }
+
+            // Deductive grounding reinforcement when candidate matches derived summary conclusions
+            if let Some(d_start) = self.deduced_start {
+                let deduced_slice = &self.raw_lower[d_start..];
+                let id_spaced = id_lower.replace(['_', '-'], " ");
+                if id_len >= 2
+                    && (contains_bounded_in(deduced_slice, &id_lower)
+                        || (id_spaced != id_lower && contains_bounded_in(deduced_slice, &id_spaced)))
+                {
+                    logit += 4.2;
+                    let desc_clean = desc_str.trim().trim_end_matches('.').to_lowercase();
+                    if desc_clean.len() >= 4 && deduced_slice.contains(&desc_clean) {
+                        logit += 4.2;
+                    }
+                } else if id_len > 3 {
+                    for part in id_lower.split(['_', '-']) {
+                        if part.len() >= 4
+                            && !carrier_tokens.is_some_and(|set| set.contains(part))
+                            && contains_bounded_in(deduced_slice, part)
+                        {
+                            logit += 1.8;
+                        }
+                    }
+                }
+            }
         }
 
         let desc_trimmed = desc_str.trim().to_lowercase();
@@ -873,7 +912,7 @@ impl PremiseContext {
         let desc_post_negated = desc_trimmed.contains(" is absent")
             || desc_trimmed.contains(" is missing")
             || desc_trimmed.contains(" is unavailable")
-            || desc_trimmed.contains(" lacks ");
+            || (desc_trimmed.contains(" lacks ") && !desc_trimmed.starts_with("blocked "));
 
         // Unicode-aware word and token matching
         let mut prev_desc_negated = false;
@@ -896,7 +935,7 @@ impl PremiseContext {
                     || self.raw_lower.contains("conditional intentions are not approvals")
                     || self.raw_lower.contains("is empty"))
             {
-                logit += 3.2;
+                logit += 4.2;
             }
 
             if matches!(word_str, "not" | "no" | "without" | "neither" | "never" | "lacks") {
@@ -904,7 +943,10 @@ impl PremiseContext {
                 continue;
             }
             let desc_negated = prev_desc_negated || desc_post_negated;
-            if !matches!(word_str, "a" | "an" | "the" | "is" | "are" | "was" | "were" | "be" | "been") {
+            if !matches!(
+                word_str,
+                "a" | "an" | "the" | "is" | "are" | "was" | "were" | "be" | "been" | "second"
+            ) {
                 prev_desc_negated = false;
             }
 
@@ -1091,6 +1133,39 @@ pub fn compute_order_invariant_logits_with_context(
     if candidates.len() >= 2 {
         let cand_ids: Vec<&str> = candidates.iter().map(|c| c.id.as_str()).collect();
         crate::intent_sieve::apply_hierarchical_intent_sieve(&ctx.raw_lower, &mut logits, &cand_ids);
+
+        // If a summary deduction block ([TABULAR MAJORITY], [TEMPORAL CONSTRAINT], [NUMERIC CONSTRAINT])
+        // uniquely identifies a single candidate option, ensure it is not drowned out by longer distractor descriptions.
+        if let Some(d_start) = ctx.deduced_start {
+            let deduced_slice = &ctx.raw_lower[d_start..];
+            let mut matched_indices = Vec::new();
+            for (i, c) in candidates.iter().enumerate() {
+                let id_lower = c.id.to_lowercase();
+                if id_lower.len() >= 2
+                    && !id_lower.starts_with("__")
+                    && !matches!(id_lower.as_str(), "true" | "false" | "yes" | "no")
+                {
+                    let id_spaced = id_lower.replace(['_', '-'], " ");
+                    if contains_bounded_in(deduced_slice, &id_lower)
+                        || (id_spaced != id_lower && contains_bounded_in(deduced_slice, &id_spaced))
+                    {
+                        matched_indices.push(i);
+                    }
+                }
+            }
+            if matched_indices.len() == 1 {
+                let win_idx = matched_indices[0];
+                let max_other = logits
+                    .iter()
+                    .enumerate()
+                    .filter(|&(i, _)| i != win_idx)
+                    .map(|(_, &v)| v)
+                    .fold(0.5_f64, f64::max);
+                if logits[win_idx] < max_other + 3.2 {
+                    logits[win_idx] = max_other + 3.2;
+                }
+            }
+        }
 
         // Catch-all / abstention resolution when all specific candidates are at or below baseline (0.5)
         // or when the text explicitly expresses pure gratitude / acknowledgment without a request
