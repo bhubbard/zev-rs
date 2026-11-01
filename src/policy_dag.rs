@@ -5,23 +5,27 @@
 //! Resolves multi-hop deductive reachability and inhibitory exception blocking
 //! in sub-microsecond time with zero floating point operations.
 
+use regex::Regex;
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
 /// Maximum number of propositional nodes tracked per document DAG (compact u64 bitmask).
 pub const MAX_DAG_NODES: usize = 64;
 
-fn split_once_case_insensitive<'a>(text: &'a str, lower: &str, pat: &str) -> Option<(&'a str, &'a str)> {
-    let idx = lower.find(pat)?;
-    let end = idx + pat.len();
-    if !text.is_char_boundary(idx) || !text.is_char_boundary(end) {
-        return None;
-    }
-    Some((&text[..idx], &text[end..]))
-}
+static RE_IF_THEN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(?:if|when|where|provided\s+that|in\s+the\s+event\s+of|in\s+the\s+event\s+that)\s+([^,;:\.\n]{4,80})[,;:]\s+(?:then\s+)?([^,;:\.\n]{4,80})(?:\.|$|;)")
+        .expect("valid if-then regex")
+});
 
-fn trim_clause_fragment(s: &str) -> &str {
-    s.trim_matches(|c: char| c.is_whitespace() || c == ',' || c == ';' || c == ':' || c == '.')
-}
+static RE_REQUIRES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b([^,;:\.\n]{4,80})\s+(?:requires|is\s+subject\s+to|depends\s+on|is\s+conditional\s+upon)\s+([^,;:\.\n]{4,80})(?:\.|$|;)")
+        .expect("valid requires regex")
+});
+
+static RE_UNLESS_EXCEPTION: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b([^,;:\.\n]{4,80})\s+(?:unless|except\s+when|except\s+if|excluding\s+cases\s+where)\s+([^,;:\.\n]{4,80})(?:\.|$|;)")
+        .expect("valid unless regex")
+});
 
 #[derive(Debug, Clone)]
 pub struct PolicyDag {
@@ -42,8 +46,8 @@ impl Default for PolicyDag {
 impl PolicyDag {
     pub fn new() -> Self {
         let mut reach = [0u64; MAX_DAG_NODES];
-        for (i, r) in reach.iter_mut().enumerate().take(MAX_DAG_NODES) {
-            *r = 1u64 << i; // reflexive: every node reaches itself
+        for (i, item) in reach.iter_mut().enumerate().take(MAX_DAG_NODES) {
+            *item = 1u64 << i; // reflexive: every node reaches itself
         }
         Self {
             node_names: Vec::with_capacity(32),
@@ -150,88 +154,42 @@ pub fn build_policy_dag_from_text(text: &str) -> PolicyDag {
 
         // 1. If-Then rules: Condition -> Consequence
         if has_if {
-            for kw in &[
-                "in the event that ",
-                "in the event of ",
-                "provided that ",
-                "when ",
-                "where ",
-                "if ",
-            ] {
-                if let Some((_, rest)) = split_once_case_insensitive(trimmed, &lower, kw) {
-                    if let Some(delim_pos) = rest.find([',', ';', ':']) {
-                        let cond_str = trim_clause_fragment(&rest[..delim_pos]);
-                        let after = rest[delim_pos + 1..].trim_start();
-                        let after_lower = after.to_ascii_lowercase();
-                        let cons_raw = if after_lower.starts_with("then ") && after.is_char_boundary(5) {
-                            &after[5..]
-                        } else {
-                            after
-                        };
-                        let cons_end = cons_raw.find([',', ';', ':']).unwrap_or(cons_raw.len());
-                        let cons_str = trim_clause_fragment(&cons_raw[..cons_end]);
-                        if (4..=80).contains(&cond_str.len()) && (4..=80).contains(&cons_str.len()) {
-                            if let (Some(u), Some(v)) = (
-                                dag.get_or_create_node(cond_str),
-                                dag.get_or_create_node(cons_str),
-                            ) {
-                                dag.add_implication(u, v);
-                            }
-                        }
+            for cap in RE_IF_THEN.captures_iter(trimmed) {
+                if let (Some(cond_m), Some(cons_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(u), Some(v)) = (
+                        dag.get_or_create_node(cond_m.as_str()),
+                        dag.get_or_create_node(cons_m.as_str()),
+                    ) {
+                        dag.add_implication(u, v);
                     }
-                    break;
                 }
             }
         }
 
         // 2. Requires rules: Consequence requires Condition => Condition enables Consequence
         if has_req {
-            for kw in &[
-                " is conditional upon ",
-                " is subject to ",
-                " depends on ",
-                " requires ",
-            ] {
-                if let Some((lhs, rhs)) = split_once_case_insensitive(trimmed, &lower, kw) {
-                    let cons_start = lhs.rfind([',', ';', ':']).map(|p| p + 1).unwrap_or(0);
-                    let cond_end = rhs.find([',', ';', ':']).unwrap_or(rhs.len());
-                    let cons_str = trim_clause_fragment(&lhs[cons_start..]);
-                    let cond_str = trim_clause_fragment(&rhs[..cond_end]);
-                    if (4..=80).contains(&cons_str.len()) && (4..=80).contains(&cond_str.len()) {
-                        if let (Some(v), Some(u)) = (
-                            dag.get_or_create_node(cons_str),
-                            dag.get_or_create_node(cond_str),
-                        ) {
-                            dag.add_implication(u, v);
-                        }
+            for cap in RE_REQUIRES.captures_iter(trimmed) {
+                if let (Some(cons_m), Some(cond_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(v), Some(u)) = (
+                        dag.get_or_create_node(cons_m.as_str()),
+                        dag.get_or_create_node(cond_m.as_str()),
+                    ) {
+                        dag.add_implication(u, v);
                     }
-                    break;
                 }
             }
         }
 
         // 3. Unless / Exception rules: Exception blocks Action
         if has_exc {
-            for kw in &[
-                " excluding cases where ",
-                " except when ",
-                " except if ",
-                " unless ",
-            ] {
-                if let Some((lhs, rhs)) = split_once_case_insensitive(trimmed, &lower, kw) {
-                    let act_start = lhs.rfind([',', ';', ':']).map(|p| p + 1).unwrap_or(0);
-                    let exc_end = rhs.find([',', ';', ':']).unwrap_or(rhs.len());
-                    let act_str = trim_clause_fragment(&lhs[act_start..]);
-                    let exc_str = trim_clause_fragment(&rhs[..exc_end]);
-                    if (4..=80).contains(&act_str.len()) && (4..=80).contains(&exc_str.len()) {
-                        if let (Some(action_idx), Some(exc_idx)) = (
-                            dag.get_or_create_node(act_str),
-                            dag.get_or_create_node(exc_str),
-                        ) {
-                            dag.add_inhibition(exc_idx, action_idx);
-                        }
+            for cap in RE_UNLESS_EXCEPTION.captures_iter(trimmed) {
+                if let (Some(action_m), Some(exc_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(action_idx), Some(exc_idx)) = (
+                        dag.get_or_create_node(action_m.as_str()),
+                        dag.get_or_create_node(exc_m.as_str()),
+                    ) {
+                        dag.add_inhibition(exc_idx, action_idx);
                     }
-                    break;
                 }
             }
         }
@@ -251,25 +209,6 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
     let text_lower = text.to_lowercase();
     let mut active_nodes = Vec::new();
 
-    // Split text into non-rule fact sentences (sentences not defining conditional/exception rules)
-    let fact_sentences: Vec<&str> = text_lower
-        .split(['.', '!', '?', '\n'])
-        .map(|s| s.trim())
-        .filter(|s| {
-            !s.is_empty()
-                && !s.starts_with("if ")
-                && !s.contains(" if ")
-                && !s.starts_with("when ")
-                && !s.contains(" when ")
-                && !s.contains(" requires ")
-                && !s.contains(" depends on ")
-                && !s.contains(" is subject to ")
-                && !s.contains(" is conditional upon ")
-                && !s.contains(" unless ")
-                && !s.contains(" except ")
-        })
-        .collect();
-
     // Identify which proposition nodes are asserted / present as active facts in the text
     for (idx, name) in dag.node_names.iter().enumerate() {
         let words: Vec<&str> = name.split_whitespace().collect();
@@ -277,30 +216,14 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
             continue;
         }
 
-        let is_asserted = fact_sentences.iter().any(|sent| {
-            let has_negation = sent.contains("no ")
-                || sent.contains("not ")
-                || sent.contains("never ")
-                || sent.contains("without ")
-                || sent.contains("absent")
-                || sent.contains("empty")
-                || sent.contains("missing")
-                || sent.contains("unpaid")
-                || sent.contains("split");
-            if has_negation {
-                return false;
-            }
-            if sent.contains(name) {
-                true
-            } else if words.len() >= 3 {
-                words.iter().all(|w| w.len() < 4 || sent.contains(w))
-            } else {
-                false
-            }
-        });
-
-        if is_asserted {
+        // Check for continuous substring or high token containment
+        if text_lower.contains(name) {
             active_nodes.push(idx);
+        } else if words.len() >= 3 {
+            let matches_all = words.iter().all(|w| w.len() < 4 || text_lower.contains(w));
+            if matches_all {
+                active_nodes.push(idx);
+            }
         }
     }
 

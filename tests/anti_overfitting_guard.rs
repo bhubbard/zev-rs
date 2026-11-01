@@ -133,6 +133,28 @@ fn test_no_benchmark_entity_memorization_in_src() {
         "erase_but_retain_transaction_records",
         "credit_minus_restocking_fee",
         "mon dec 8",
+        // Prompt-template phrase cheats (from JevBench hard/original/easy):
+        "Only INTERACTIVE sign-ins are compared",
+        "email: requires token check",
+        "authentication: no token check recorded",
+        "conditional intentions are not approvals",
+        "never sent a new approval",
+        "assigns replacement buses",
+        "waits for conservation clearance",
+        "Notice was received Friday",
+        "tare weight",
+        "restraint total",
+        "Foreign transaction fee",
+        "lodging caps",
+        "no deploys",
+        "withdrawn before any reliance",
+        "unavailable to every customer",
+        "every function work",
+        "counted as",
+        "pending inspection",
+        "trading name",
+        "bank country",
+        "serving cell",
     ];
 
     for file in &files {
@@ -166,6 +188,28 @@ fn test_no_cheat_functions_in_src() {
         "detect_policy_precondition_violation",
         "apply_mention_vs_request_intent_filter",
         "inject_blueprint_knowledge",
+        "resolve_multi_table_joins",
+        "RE_REVIEW_QUORUM",
+        "RE_TRIAGE_LADDER_P0",
+        "RE_SECTION_CLOSURE_BUS",
+        "RE_MIN_SCHEDULED_DAYS",
+        "RE_CONSERVATION_FLAG_NO_SURROGATE",
+        "RE_LB_TO_KG_RULE",
+        "RE_WARRANTY_MONTHS",
+        "RE_PRORATA_REFUND",
+        "RE_ACTIVE_DAYS_PRORATA",
+        "RE_IMPURITY_MASS",
+        "RE_HYPERGEOM_LOT",
+        "RE_STATUTORY_REFUND",
+        "RE_COMBINED_EXTENSION",
+        "RE_COOLING_OFF_CALLBACK",
+        "RE_BAYES_PRIOR",
+        "RE_CARD_CYCLE_LIMIT",
+        "RE_FOLIO_HEADER",
+        "RE_SUPPORT_WINDOW_HOURS",
+        "RE_COUNTED_BDAY",
+        "RE_EXCL_WEEK_RANGE",
+        "RE_SIZE_BAND_THRESHOLD",
     ];
 
     for file in &files {
@@ -189,6 +233,7 @@ fn test_no_artificial_logit_boost_bypasses() {
     collect_rs_files(Path::new("src"), &mut files);
 
     let suspicious_patterns = [
+        "+= 4.2",
         "+= 5.5",
         "+= 6.0",
         "+= 8.0",
@@ -197,6 +242,10 @@ fn test_no_artificial_logit_boost_bypasses() {
         "+= 30.",
         "+= 50.",
         "+= 100.",
+        "max_other +",
+        "deduced_start",
+        "deduced_slice",
+        "[TABULAR MAJORITY]",
         "line.find(\"-> \")",
         "blueprint resolution override",
         "VERIFIED_OUTCOME:",
@@ -216,6 +265,69 @@ fn test_no_artificial_logit_boost_bypasses() {
                 pat
             );
         }
+    }
+}
+
+#[test]
+fn test_no_benchmark_option_id_synthesis_in_src() {
+    let mut files = Vec::new();
+    collect_rs_files(Path::new("src"), &mut files);
+
+    let forbidden_option_id_patterns = [
+        "blocked_second_review",
+        "conservation_hold",
+        "bus_substitution",
+        "coverage_excluded",
+        "require_director",
+        "needs_authentication",
+        "late_by_under_2h",
+        "credit_full_month",
+        "credit_20_percent",
+        "tier3_cfo",
+        "retain_until_",
+        "p{prio_num}_fix_",
+        "credit_{final_pct}_percent",
+        "eur_{:.2}",
+    ];
+
+    for file in &files {
+        let content = fs::read_to_string(file)
+            .unwrap_or_else(|e| panic!("Failed to read {}: {}", file.display(), e));
+
+        for pat in &forbidden_option_id_patterns {
+            assert!(
+                !content.contains(pat),
+                "OVERFITTING GUARD VIOLATION: File {} synthesizes or hardcodes benchmark option ID pattern '{}'",
+                file.display(),
+                pat
+            );
+        }
+    }
+}
+
+#[test]
+fn test_no_prompt_template_regexes_in_src() {
+    let mut files = Vec::new();
+    collect_rs_files(Path::new("src"), &mut files);
+
+    // Multi-clause prompt-template regexes that span across paragraphs with `[\s\S]*?`
+    // inside temporal_numeric.rs, table_graph.rs, or symbolic.rs are a classic signature
+    // of matching specific benchmark prompt layouts rather than general linguistic constructs.
+    let guarded_modules = ["temporal_numeric.rs", "table_graph.rs", "symbolic.rs", "order_invariant.rs"];
+
+    for file in &files {
+        let fname = file.file_name().and_then(|s| s.to_str()).unwrap_or("");
+        if !guarded_modules.contains(&fname) {
+            continue;
+        }
+        let content = fs::read_to_string(file)
+            .unwrap_or_else(|e| panic!("Failed to read {}: {}", file.display(), e));
+
+        assert!(
+            !content.contains(r"[\s\S]*?"),
+            "OVERFITTING GUARD VIOLATION: File {} contains multi-paragraph prompt-template regex `[\\s\\S]*?`",
+            file.display()
+        );
     }
 }
 

@@ -394,28 +394,20 @@ pub fn format_structured_state<'a>(input: &'a str) -> Cow<'a, str> {
 }
 
 static RE_UNTRUSTED_PAYLOAD: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)(<!--[\s\S]*?-->|((?:uploaded\s+file\s+preview\s+contains|preview\s+contains|text\s+layer\s+embedded\s+in\s+[^,]+\s+reads|contains\s+white-on-white\s+text|attachment\s+contains|invisible\s+to\s+readers\s+says|untrusted\s+[^:]+[:,\s]+)[:,\s]*)[“"'\x60]([^“”"'\x60]+)[”"'\x60])"#).expect("valid untrusted regex")
+    Regex::new(r#"(?i)((?:uploaded\s+file\s+preview\s+contains|preview\s+contains|text\s+layer\s+embedded\s+in\s+[^,]+\s+reads|contains\s+white-on-white\s+text|attachment\s+contains)[:,\s]+)[“"'\x60]([^“”"'\x60]+)[”"'\x60]"#).expect("valid untrusted regex")
 });
 
-/// Masks untrusted attachments, OCR text layers, HTML comments, and embedded prompt injection payloads.
+/// Masks untrusted attachments, OCR text layers, and embedded prompt injection payloads.
 pub fn mask_untrusted_payload<'a>(text: &'a str) -> Cow<'a, str> {
     let bytes = text.as_bytes();
-    let has_trigger = text.contains("<!--")
-        || bytes
-            .windows(7)
-            .any(|w| {
-                w.eq_ignore_ascii_case(b"preview")
-                    || w.eq_ignore_ascii_case(b"embedde")
-                    || w.eq_ignore_ascii_case(b"attachm")
-                    || w.eq_ignore_ascii_case(b"white-o")
-                    || w.eq_ignore_ascii_case(b"invisib")
-                    || w.eq_ignore_ascii_case(b"untrust")
-            });
+    let has_trigger = bytes
+        .windows(7)
+        .any(|w| w.eq_ignore_ascii_case(b"preview") || w.eq_ignore_ascii_case(b"embedde") || w.eq_ignore_ascii_case(b"attachm") || w.eq_ignore_ascii_case(b"white-o"));
     if !has_trigger {
         return Cow::Borrowed(text);
     }
     if RE_UNTRUSTED_PAYLOAD.is_match(text) {
-        let replaced = RE_UNTRUSTED_PAYLOAD.replace_all(text, "[UNTRUSTED_CONTENT_FILTERED]");
+        let replaced = RE_UNTRUSTED_PAYLOAD.replace_all(text, "$1[UNTRUSTED_CONTENT_FILTERED]");
         Cow::Owned(replaced.into_owned())
     } else {
         Cow::Borrowed(text)
@@ -433,7 +425,7 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
     let mut enriched = if enable_temporal {
         inject_temporal_facts(&unmasked).into_owned()
     } else {
-        unmasked.as_ref().to_string()
+        unmasked.into_owned()
     };
 
     // 1. Generic markdown table resolution
@@ -465,38 +457,27 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
     }
 
     // 5. Generic structural constraint verification for request/response pairs
-    let mut ran_json_structural = false;
-    if state_str.trim_start().starts_with('{') {
-        if let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(state_str.trim()) {
-            if let (Some(req_val), Some(resp_val)) = (map.get("request"), map.get("response")) {
-                if let (Some(req_str), Some(resp_str)) = (req_val.as_str(), resp_val.as_str()) {
-                    ran_json_structural = true;
-                    let structural_findings = crate::symbolic::verify_structural_constraints(req_str, resp_str);
-                    if !structural_findings.is_empty() {
-                        enriched.push_str("\n\n");
-                        enriched.push_str(&structural_findings.join("\n"));
-                    }
+    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(state_str.trim()) {
+        if let (Some(req_val), Some(resp_val)) = (map.get("request"), map.get("response")) {
+            if let (Some(req_str), Some(resp_str)) = (req_val.as_str(), resp_val.as_str()) {
+                let structural_findings = crate::symbolic::verify_structural_constraints(req_str, resp_str);
+                if !structural_findings.is_empty() {
+                    enriched.push_str("\n\n");
+                    enriched.push_str(&structural_findings.join("\n"));
                 }
             }
         }
     }
-    if !ran_json_structural {
-        let inline_findings = crate::symbolic::verify_inline_adequacy(&enriched);
-        if !inline_findings.is_empty() {
-            enriched.push_str("\n\n");
-            enriched.push_str(&inline_findings.join("\n"));
-        }
-    }
 
     // 6. Generic temporal policy duration and window constraints
-    let duration_constraints = crate::temporal_numeric::resolve_temporal_duration_constraints(&unmasked);
+    let duration_constraints = crate::temporal_numeric::resolve_temporal_duration_constraints(&enriched);
     if !duration_constraints.is_empty() {
         enriched.push_str("\n\n");
         enriched.push_str(&duration_constraints.join("\n"));
     }
 
     // 7. Generic finite-state policy DAG reachability deductions
-    let dag_deductions = crate::policy_dag::resolve_policy_dag_deductions(&unmasked);
+    let dag_deductions = crate::policy_dag::resolve_policy_dag_deductions(&enriched);
     if !dag_deductions.is_empty() {
         enriched.push_str("\n\n");
         enriched.push_str(&dag_deductions.join("\n"));

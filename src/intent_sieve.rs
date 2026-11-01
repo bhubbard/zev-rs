@@ -60,58 +60,6 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         || state_lower.contains("car rental")
         || state_lower.contains("reservation");
 
-    // Specialist & customer action domains
-    let is_math = state_lower.contains("compute ")
-        || state_lower.contains("least common multiple")
-        || state_lower.contains("greatest common divisor")
-        || state_lower.contains("lcm(")
-        || state_lower.contains("gcd(")
-        || state_lower.contains("derivative")
-        || state_lower.contains("integral");
-
-    let is_document = state_lower.contains("attached ")
-        || state_lower.contains("provided agreement")
-        || state_lower.contains("supplied document")
-        || state_lower.contains("renewal dates")
-        || (state_lower.contains("contract") && state_lower.contains("read "));
-
-    let is_tools = state_lower.contains("calendar")
-        || state_lower.contains("reschedule")
-        || state_lower.contains("meeting");
-
-    let is_status_query = state_lower.contains("where is the parcel")
-        || state_lower.contains("where is my ")
-        || state_lower.contains("delivered yet")
-        || state_lower.contains("shipment has arrived")
-        || state_lower.contains("package progress")
-        || state_lower.contains("delivery progress");
-
-    let is_coding = (state_lower.contains("python")
-        || state_lower.contains("javascript")
-        || state_lower.contains("write a ")
-        || state_lower.contains("function that "))
-        && !state_lower.contains("run its tests")
-        && !state_lower.contains("execute the test");
-
-    let is_address_mod = (state_lower.contains("send it to ")
-        || state_lower.contains("ship my order to ")
-        || state_lower.contains("replace my shipping")
-        || state_lower.contains("i moved"))
-        && (state_lower.contains("office")
-            || state_lower.contains("address")
-            || state_lower.contains("street"))
-        && !state_lower.contains("as it is")
-        && !state_lower.contains("no address changes");
-
-    let is_cancel_action = (state_lower.contains("end the membership")
-        || state_lower.contains("end my membership")
-        || state_lower.contains("cancel my subscription")
-        || (state_lower.contains("stop ") && state_lower.contains("subscription")))
-        && !state_lower.contains("do not ")
-        && !state_lower.contains("don't ")
-        && !state_lower.contains("keep my ")
-        && !state_lower.contains("keep the ");
-
     let has_token = |id_str: &str, tok: &str| {
         id_str
             .split(|c: char| !c.is_alphanumeric())
@@ -126,15 +74,8 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         if is_transfer && (id_lower.contains("transfer") || id_lower.contains("beneficiary")) {
             logits[idx] += 2.0;
         }
-        if is_charge_fee
-            && (has_token(&id_lower, "fee")
-                || id_lower.contains("charge")
-                || id_lower.contains("billing"))
-        {
-            logits[idx] += 3.5;
-        }
-        if is_coding && id_lower == "coding" {
-            logits[idx] += 2.8;
+        if is_charge_fee && (has_token(&id_lower, "fee") || id_lower.contains("charge")) {
+            logits[idx] += 2.0;
         }
         if is_balance && id_lower.contains("balance") {
             logits[idx] += 2.0;
@@ -143,31 +84,13 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
             logits[idx] += 2.0;
         }
         if is_weather && id_lower.contains("weather") {
-            logits[idx] += 2.5;
+            logits[idx] += 2.0;
         }
         if is_alarm && (id_lower.contains("alarm") || has_token(&id_lower, "timer")) {
             logits[idx] += 2.0;
         }
         if is_travel && (id_lower.contains("flight") || id_lower.contains("travel")) {
             logits[idx] += 2.0;
-        }
-        if is_math && (id_lower == "math" || id_lower.contains("calc")) {
-            logits[idx] += 2.8;
-        }
-        if is_document && (id_lower == "document" || id_lower.contains("doc")) {
-            logits[idx] += 2.8;
-        }
-        if is_tools && (id_lower == "tools" || id_lower == "tool" || id_lower.contains("calendar")) {
-            logits[idx] += 2.8;
-        }
-        if is_status_query && (id_lower == "status" || id_lower.contains("track")) {
-            logits[idx] += 3.2;
-        }
-        if is_address_mod && id_lower.contains("address") {
-            logits[idx] += 3.2;
-        }
-        if is_cancel_action && id_lower.starts_with("cancel") {
-            logits[idx] += 2.8;
         }
     }
 }
