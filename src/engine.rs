@@ -417,6 +417,8 @@ impl ZevEngine {
         let mut has_structured_resolution = false;
         let mut precomputed_logits: Option<Vec<f64>> = None;
 
+        let family = determine_question_family(final_question);
+
         let q_ctx = if preprocessed_state.trim().is_empty() {
             let clean_instr =
                 crate::premise_window::strip_directive_header(final_question.instructions());
@@ -456,6 +458,29 @@ impl ZevEngine {
                     ctx
                 }
             }
+        } else if family == "policy"
+            && preprocessed_state.len() >= 900
+            && !_state_borrowed.trim().starts_with('{')
+            && !preprocessed_state.contains("[TABULAR RELATION]")
+            && !preprocessed_state.contains("[TEMPORAL CONSTRAINT]")
+        {
+            let mut query_text =
+                crate::premise_window::strip_directive_header(final_question.instructions())
+                    .to_string();
+            for c in &candidates {
+                if !c.description.is_empty() {
+                    query_text.push(' ');
+                    query_text.push_str(&c.description);
+                }
+            }
+            if let Some(windowed) =
+                crate::premise_window::extract_premise_window(preprocessed_state, &query_text, 4)
+            {
+                per_q_ctx = PremiseContext::new(&windowed);
+                &per_q_ctx
+            } else {
+                ctx
+            }
         } else {
             ctx
         };
@@ -466,7 +491,6 @@ impl ZevEngine {
         };
 
         // Calibrated Decoding
-        let family = determine_question_family(final_question);
 
         if matches!(final_question, Question::Choice(_)) && (2..=16).contains(&candidates.len()) {
             let cand_ids: Vec<&str> = candidates.iter().map(|c| c.id.as_str()).collect();

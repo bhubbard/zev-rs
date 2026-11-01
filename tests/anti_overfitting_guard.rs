@@ -532,3 +532,121 @@ fn test_entity_schema_projection_perturbation_invariance() {
     assert_eq!(res.answers["q_present"].decision, Some(serde_json::json!("opt_heat")));
     assert_eq!(res.answers["q_missing"].decision, Some(serde_json::json!("opt_na")));
 }
+
+#[test]
+fn test_state_transition_and_3hop_table_perturbation_invariance() {
+    let engine = ZevEngine::default();
+
+    // 1. State-transition perturbation invariance on novel entity IDs
+    let target_options = vec![
+        OptionDef {
+            id: "opt_yes".into(),
+            description: "yes, this device is in the justified target set".into(),
+        },
+        OptionDef {
+            id: "opt_no".into(),
+            description: "no, this device is not in the justified target set".into(),
+        },
+    ];
+
+    let mut q_map = BTreeMap::new();
+    q_map.insert(
+        "t_alpha".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Determine whether dev_alpha_99 is in the justified target set:".into(),
+            options: target_options.clone(),
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+    q_map.insert(
+        "t_beta".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Determine whether dev_beta_88 is in the justified target set:".into(),
+            options: target_options,
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+
+    // dev_alpha_99 is already on (power: true), while dev_beta_88 is off (power: false).
+    // Request asks to turn on all studio lights -> only dev_beta_88 needs a state transition!
+    let sim_req = ZevRequest {
+        state: serde_json::json!({
+            "request": "Turn on the studio lights",
+            "devices": [
+                {"id": "dev_alpha_99", "name": "Studio Main Light", "room": "studio", "kind": "light", "available": true, "power": true},
+                {"id": "dev_beta_88", "name": "Studio Desk Lamp", "room": "studio", "kind": "light", "available": true, "power": false}
+            ]
+        }),
+        questions: q_map,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+        images: None,
+    };
+
+    let sim_res = engine.evaluate(&sim_req).expect("eval state transition");
+    assert_eq!(
+        sim_res.answers["t_alpha"].decision,
+        Some(serde_json::json!("opt_no")),
+        "Device already satisfying requested state must not be in active target set"
+    );
+    assert_eq!(
+        sim_res.answers["t_beta"].decision,
+        Some(serde_json::json!("opt_yes")),
+        "Available device needing state change must be in active target set"
+    );
+
+    // 2. 3-hop relational table join perturbation invariance on novel synthetic tables
+    let hop_state = r#"
+Incident alert on node NODE-7741.
+
+| Node | Cluster |
+|------|---------|
+| NODE-7741 | clus-omega |
+| NODE-1102 | clus-sigma |
+
+| Cluster | Service |
+|---------|---------|
+| clus-omega | svc-quantum |
+| clus-sigma | svc-ledger |
+
+| Service | EscalationPager |
+|---------|-----------------|
+| svc-quantum | pager_quantum_oncall |
+| svc-ledger | pager_ledger_oncall |
+"#;
+
+    let mut hop_q = BTreeMap::new();
+    hop_q.insert(
+        "pager".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Which escalation pager handles this alert?".into(),
+            options: vec![
+                OptionDef {
+                    id: "pager_quantum_oncall".into(),
+                    description: "Quantum service on-call pager".into(),
+                },
+                OptionDef {
+                    id: "pager_ledger_oncall".into(),
+                    description: "Ledger service on-call pager".into(),
+                },
+            ],
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+
+    let hop_req = ZevRequest {
+        state: serde_json::json!(hop_state),
+        questions: hop_q,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+        images: None,
+    };
+
+    let hop_res = engine.evaluate(&hop_req).expect("eval 3-hop table join");
+    assert_eq!(
+        hop_res.answers["pager"].decision,
+        Some(serde_json::json!("pager_quantum_oncall"))
+    );
+}

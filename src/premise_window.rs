@@ -604,44 +604,10 @@ pub fn resolve_entity_schema_query(
         }
     }
 
-    if let Some(attr_key) = matched_key {
-        if let Some((entity_obj, _)) = matched_obj {
-            match entity_obj.get(&attr_key) {
-                Some(v) if !v.is_null() => {
-                    let v_str = match v {
-                        serde_json::Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    };
-                    Some(EntitySchemaResolution::FoundValue(format!(
-                        "{}: {}",
-                        attr_key, v_str
-                    )))
-                }
-                _ => Some(EntitySchemaResolution::MissingAttribute),
-            }
-        } else if inst_lower.contains(" for ") {
-            // The question asks `... for <entity>` with a valid schema attribute key,
-            // but `<entity>` is not present in the state's entity collection.
-            Some(EntitySchemaResolution::MissingAttribute)
-        } else {
-            None
-        }
-    } else if let Some((entity_obj, _)) = matched_obj {
-        // The question asks about a specific entity `entity_obj` without querying a specific attribute key
-        // (e.g., asking whether `entity_obj` is targeted/involved in the state's `"request"`).
-        let req_str = map.get("request").and_then(|v| v.as_str())?;
-        let req_lower = req_str.to_lowercase();
-
-        let is_available = entity_obj
-            .get("available")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
-        if !is_available {
-            return Some(EntitySchemaResolution::FoundValue(
-                "no, not, false".to_string(),
-            ));
-        }
-
+    // Helper: evaluate whether a single entity object `entity_obj` is an active target of `req_lower`
+    let is_entity_addressed = |entity_obj: &serde_json::Map<String, serde_json::Value>,
+                               req_lower: &str|
+     -> bool {
         let id_str = entity_obj
             .get("id")
             .and_then(|v| v.as_str())
@@ -671,7 +637,9 @@ pub fn resolve_entity_schema_query(
         let mut group_match = false;
         if let Some(groups) = map.get("groups").and_then(|v| v.as_object()) {
             for (g_name, g_members) in groups {
-                if req_lower.contains(&g_name.to_lowercase()) {
+                let g_lower = g_name.to_lowercase();
+                let g_spaced = g_lower.replace('_', " ");
+                if req_lower.contains(&g_lower) || req_lower.contains(&g_spaced) {
                     if let Some(arr) = g_members.as_array() {
                         if arr
                             .iter()
@@ -684,11 +652,15 @@ pub fn resolve_entity_schema_query(
             }
         }
 
-        let mut room_match = !room_str.is_empty() && req_lower.contains(&room_str);
+        let room_spaced = room_str.replace('_', " ");
+        let mut room_match = !room_str.is_empty()
+            && (req_lower.contains(&room_str) || req_lower.contains(&room_spaced));
         if !room_match && !room_str.is_empty() {
             if let Some(aliases) = map.get("room_aliases").and_then(|v| v.as_object()) {
                 for (alias, rooms) in aliases {
-                    if req_lower.contains(&alias.to_lowercase()) {
+                    let alias_lower = alias.to_lowercase();
+                    let alias_spaced = alias_lower.replace('_', " ");
+                    if req_lower.contains(&alias_lower) || req_lower.contains(&alias_spaced) {
                         if let Some(arr) = rooms.as_array() {
                             if arr.iter().any(|r| {
                                 r.as_str().is_some_and(|s| s.eq_ignore_ascii_case(&room_str))
@@ -708,15 +680,263 @@ pub fn resolve_entity_schema_query(
                         || req_lower.contains("unlock")
                         || req_lower.contains("door")))
                 || (kind_str == "light"
-                    && (req_lower.contains("light") || req_lower.contains("lamp"))));
+                    && (req_lower.contains("light") || req_lower.contains("lamp")))
+                || (kind_str == "plug"
+                    && (req_lower.contains("plug")
+                        || req_lower.contains("outlet")
+                        || req_lower.contains("socket")))
+                || (kind_str == "thermostat"
+                    && (req_lower.contains("thermostat")
+                        || req_lower.contains("temperature")
+                        || req_lower.contains("heat")
+                        || req_lower.contains("cool")
+                        || req_lower.contains("hvac"))));
 
-        if direct_match || (group_match && (kind_match || kind_str.is_empty())) || (room_match && kind_match) {
+        let room_all_match = room_match
+            && (req_lower.contains("everything")
+                || req_lower.contains("all devices")
+                || req_lower.contains("all appliances"));
+
+        direct_match
+            || (group_match && (kind_match || kind_str.is_empty()))
+            || (room_match && kind_match)
+            || room_all_match
+    };
+
+    // Helper: analyze the state-transition semantics of `map["request"]` against `objects` and `map["policy"]`
+    let analyze_request_transition = |req_str: &str| -> (
+        bool, // is_query
+        bool, // is_schedule
+        bool, // is_rule
+        bool, // is_policy_blocked
+        Vec<(&serde_json::Map<String, serde_json::Value>, bool, bool)>, // (obj, is_available, is_already_satisfied)
+        Option<bool>, // desired_power
+    ) {
+        let req_lower = req_str.trim().to_lowercase();
+        let is_query = req_lower.ends_with('?')
+            || req_lower.starts_with("is ")
+            || req_lower.starts_with("are ")
+            || req_lower.starts_with("what ")
+            || req_lower.starts_with("which ")
+            || req_lower.starts_with("check ")
+            || req_lower.starts_with("tell me ")
+            || req_lower.contains("status of");
+
+        let is_rule = !is_query
+            && (req_lower.contains("whenever ")
+                || req_lower.starts_with("when ")
+                || req_lower.starts_with("if ")
+                || req_lower.contains("automatically ")
+                || req_lower.contains("automation")
+                || req_lower.contains("rule"));
+
+        let is_schedule = !is_query
+            && !is_rule
+            && (req_lower.contains("tomorrow")
+                || req_lower.contains("tonight")
+                || req_lower.contains("every day")
+                || req_lower.contains("every morning")
+                || req_lower.contains("every night")
+                || req_lower.contains("schedule")
+                || req_lower.contains(" at ")
+                || req_lower.contains(" in 1 ")
+                || req_lower.contains(" in 2 ")
+                || req_lower.contains(" in 30 "));
+
+        let wants_unlock = req_lower.contains("unlock");
+        let wants_lock = !wants_unlock && req_lower.contains("lock");
+        let wants_power_off = req_lower.contains("turn off")
+            || req_lower.contains("switch off")
+            || req_lower.contains("power off")
+            || req_lower.contains("shut off")
+            || req_lower.ends_with(" off");
+        let wants_power_on = !wants_power_off
+            && (req_lower.contains("turn on")
+                || req_lower.contains("switch on")
+                || req_lower.contains("power on")
+                || req_lower.ends_with(" on"));
+
+        let desired_power = if wants_power_on {
+            Some(true)
+        } else if wants_power_off {
+            Some(false)
+        } else {
+            None
+        };
+
+        let mut is_policy_blocked = false;
+        if let Some(policy_val) = map.get("policy") {
+            let policy_str = policy_val.to_string().to_lowercase();
+            if wants_unlock
+                && (policy_str.contains("unlock")
+                    || policy_str.contains("lock")
+                    || policy_str.contains("security"))
+                && (policy_str.contains("false")
+                    || policy_str.contains("forbid")
+                    || policy_str.contains("prohibit")
+                    || policy_str.contains("never")
+                    || policy_str.contains("not ")
+                    || policy_str.contains("block")
+                    || policy_str.contains("disallow")
+                    || policy_str.contains("deny"))
+            {
+                is_policy_blocked = true;
+            }
+        }
+
+        let mut addressed = Vec::new();
+        for &obj in &objects {
+            if is_entity_addressed(obj, &req_lower) {
+                let avail = obj
+                    .get("available")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                let mut already_sat = false;
+                if let Some(dp) = desired_power {
+                    if obj.get("power").and_then(|v| v.as_bool()) == Some(dp) {
+                        already_sat = true;
+                    }
+                }
+                if wants_lock && obj.get("locked").and_then(|v| v.as_bool()) == Some(true) {
+                    already_sat = true;
+                } else if wants_unlock
+                    && obj.get("locked").and_then(|v| v.as_bool()) == Some(false)
+                {
+                    already_sat = true;
+                }
+                addressed.push((obj, avail, already_sat));
+            }
+        }
+
+        (
+            is_query,
+            is_schedule,
+            is_rule,
+            is_policy_blocked,
+            addressed,
+            desired_power,
+        )
+    };
+
+    if let Some(attr_key) = matched_key {
+        if let Some((entity_obj, _)) = matched_obj {
+            match entity_obj.get(&attr_key) {
+                Some(v) if !v.is_null() => {
+                    let v_str = match v {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    Some(EntitySchemaResolution::FoundValue(format!(
+                        "{}: {}",
+                        attr_key, v_str
+                    )))
+                }
+                _ => Some(EntitySchemaResolution::MissingAttribute),
+            }
+        } else if inst_lower.contains(" for ") {
+            // The question asks `... for <entity>` with a valid schema attribute key,
+            // but `<entity>` is not present in the state's entity collection.
+            Some(EntitySchemaResolution::MissingAttribute)
+        } else {
+            None
+        }
+    } else if let Some((entity_obj, _)) = matched_obj {
+        // The question asks about a specific entity `entity_obj` without querying a specific attribute key
+        // (e.g., asking whether `entity_obj` is in the justified target set for `map["request"]`).
+        let req_str = map.get("request").and_then(|v| v.as_str())?;
+        let (is_query, is_schedule, is_rule, is_policy_blocked, addressed, _) =
+            analyze_request_transition(req_str);
+
+        if is_query || is_schedule || is_rule || is_policy_blocked {
+            return Some(EntitySchemaResolution::FoundValue(
+                "no, not, false".to_string(),
+            ));
+        }
+
+        let target_id = entity_obj.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let is_active_target = addressed.iter().any(|(obj, avail, already_sat)| {
+            obj.get("id").and_then(|v| v.as_str()) == Some(target_id) && *avail && !*already_sat
+        });
+
+        if is_active_target {
             Some(EntitySchemaResolution::FoundValue("yes, true".to_string()))
         } else {
             Some(EntitySchemaResolution::FoundValue(
                 "no, not, false".to_string(),
             ))
         }
+    } else if let Some(req_str) = map.get("request").and_then(|v| v.as_str()) {
+        // High-level state-transition disposition or resulting state-change question over `map["request"]`
+        let (is_query, is_schedule, is_rule, is_policy_blocked, addressed, desired_power) =
+            analyze_request_transition(req_str);
+
+        if is_query {
+            return Some(EntitySchemaResolution::FoundValue(
+                "answer a state query, no device property changes".to_string(),
+            ));
+        }
+        if is_policy_blocked {
+            return Some(EntitySchemaResolution::FoundValue(
+                "block under household policy, no device property changes".to_string(),
+            ));
+        }
+        if is_schedule {
+            return Some(EntitySchemaResolution::FoundValue(
+                "execute now, a future schedule is added, scheduled".to_string(),
+            ));
+        }
+        if is_rule {
+            return Some(EntitySchemaResolution::FoundValue(
+                "execute now, an automation rule is saved, rule".to_string(),
+            ));
+        }
+
+        if addressed.is_empty() {
+            return Some(EntitySchemaResolution::FoundValue(
+                "ask a clarifying question, no device property changes".to_string(),
+            ));
+        }
+
+        let total_addr = addressed.len();
+        let avail_count = addressed.iter().filter(|(_, avail, _)| *avail).count();
+        let active_targets: Vec<&serde_json::Map<String, serde_json::Value>> = addressed
+            .iter()
+            .filter(|(_, avail, already_sat)| *avail && !*already_sat)
+            .map(|(obj, _, _)| *obj)
+            .collect();
+
+        if avail_count > 0 && active_targets.is_empty() {
+            return Some(EntitySchemaResolution::FoundValue(
+                "make no change because already satisfied, no device property changes".to_string(),
+            ));
+        }
+
+        let action_str = if avail_count < total_addr && !active_targets.is_empty() {
+            "execute available parts now"
+        } else if !active_targets.is_empty() {
+            "execute now"
+        } else {
+            "ask a clarifying question"
+        };
+
+        let mut effect_parts = Vec::new();
+        if let Some(dp) = desired_power {
+            for obj in &active_targets {
+                if let Some(id_s) = obj.get("id").and_then(|v| v.as_str()) {
+                    effect_parts.push(format!("{}.power becomes {}", id_s, dp));
+                }
+            }
+        }
+        let effect_str = if effect_parts.is_empty() {
+            "no device property changes".to_string()
+        } else {
+            effect_parts.join(", ")
+        };
+
+        Some(EntitySchemaResolution::FoundValue(format!(
+            "{}, {}",
+            action_str, effect_str
+        )))
     } else {
         None
     }
@@ -738,11 +958,16 @@ pub fn extract_premise_window(state: &str, query: &str, max_sentences: usize) ->
         return None;
     }
 
-    // Split state into sentences
+    // Split state into sentences while separating synthetic verification tags (`[...]: ...`)
     let mut sentences = Vec::new();
+    let mut verifier_tags = Vec::new();
     for line in state.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with('[') && trimmed.contains("]:") {
+            verifier_tags.push(trimmed);
             continue;
         }
         for chunk in trimmed.split(". ") {
@@ -757,7 +982,7 @@ pub fn extract_premise_window(state: &str, query: &str, max_sentences: usize) ->
         return None;
     }
 
-    // Score each sentence by query word hits
+    // Score each sentence by query word & stem hits
     let mut best_idx = 0;
     let mut best_score = 0;
 
@@ -766,7 +991,12 @@ pub fn extract_premise_window(state: &str, query: &str, max_sentences: usize) ->
         let mut score = 0;
         for &qw in &query_words {
             if sent_lower.contains(qw) {
-                score += 1;
+                score += 2;
+            } else {
+                let stem = stem_english_word(qw);
+                if stem.len() >= 4 && sent_lower.contains(&stem) {
+                    score += 1;
+                }
             }
         }
         if score > best_score {
@@ -784,7 +1014,8 @@ pub fn extract_premise_window(state: &str, query: &str, max_sentences: usize) ->
     let start_idx = best_idx.saturating_sub(half);
     let end_idx = (start_idx + max_sentences).min(sentences.len());
 
-    let window: Vec<&str> = sentences[start_idx..end_idx].to_vec();
+    let mut window: Vec<&str> = sentences[start_idx..end_idx].to_vec();
+    window.extend(verifier_tags);
     Some(window.join(". "))
 }
 

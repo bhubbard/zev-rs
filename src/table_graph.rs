@@ -141,9 +141,15 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
 
             // Check if any cell in this row matches an entity mentioned in the query
             for cell in row {
-                let cell_lower = cell.to_lowercase();
+                let cell_lower = cell.trim().to_lowercase();
                 for token in &query_tokens {
-                    if cell_lower.contains(token) && token.len() >= 4 {
+                    if token.len() >= 4
+                        && (cell_lower == *token
+                            || cell_lower
+                                .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+                                .any(|w| w == *token)
+                            || (token.len() >= 5 && cell_lower.contains(token)))
+                    {
                         matches_query = true;
                         break;
                     }
@@ -182,6 +188,9 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
         }
     }
 
+    // Collect 2-hop bridge entities from Hop 2 matched rows for 3-hop transitive joins
+    let mut hop2_bridge_entities: HashSet<String> = HashSet::new();
+
     // Hop 2: Transitive multi-hop joins across tables or subsequent rows using bridge entities
     if !hop1_bridge_entities.is_empty() {
         for (t_idx, table) in tables.iter().enumerate() {
@@ -195,6 +204,67 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
                 for cell in row {
                     let cell_lower = cell.trim().to_lowercase();
                     for bridge in &hop1_bridge_entities {
+                        if cell_lower == *bridge || (bridge.len() >= 4 && cell_lower.contains(bridge)) {
+                            matched_bridge = Some(cell.trim().to_string());
+                            break;
+                        }
+                    }
+                    if matched_bridge.is_some() {
+                        break;
+                    }
+                }
+
+                if let Some(bridge_str) = matched_bridge {
+                    matched_row_fingerprints.insert(row_fp);
+                    let mut facts = Vec::new();
+                    for (h_idx, header) in table.headers.iter().enumerate() {
+                        if let Some(val) = row.get(h_idx) {
+                            let trimmed_val = val.trim();
+                            if !trimmed_val.is_empty() && trimmed_val != bridge_str {
+                                facts.push(format!("{}: {}", header, trimmed_val));
+                                let val_lower = trimmed_val.to_lowercase();
+                                if val_lower.len() >= 3
+                                    && !val_lower
+                                        .chars()
+                                        .all(|c| c.is_numeric() || c == '.' || c == ',')
+                                {
+                                    hop2_bridge_entities.insert(val_lower);
+                                }
+                            }
+                        }
+                    }
+
+                    if !facts.is_empty() {
+                        let title_prefix = table
+                            .title
+                            .as_deref()
+                            .map(|t| format!("in {}: ", t))
+                            .unwrap_or_default();
+                        relations.push(format!(
+                            "[TRANSITIVE RELATION (2-HOP)]: Via \"{}\" {}{}",
+                            bridge_str,
+                            title_prefix,
+                            facts.join(", ")
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    // Hop 3: Transitive 3-hop joins across tables using Hop 2 bridge entities
+    if !hop2_bridge_entities.is_empty() {
+        for (t_idx, table) in tables.iter().enumerate() {
+            for (r_idx, row) in table.rows.iter().enumerate() {
+                let row_fp = format!("{}:{}:{}", t_idx, r_idx, row.join("|"));
+                if matched_row_fingerprints.contains(&row_fp) {
+                    continue;
+                }
+
+                let mut matched_bridge = None;
+                for cell in row {
+                    let cell_lower = cell.trim().to_lowercase();
+                    for bridge in &hop2_bridge_entities {
                         if cell_lower == *bridge || (bridge.len() >= 4 && cell_lower.contains(bridge)) {
                             matched_bridge = Some(cell.trim().to_string());
                             break;
@@ -223,7 +293,7 @@ pub fn resolve_tabular_relations(text: &str) -> Vec<String> {
                             .map(|t| format!("in {}: ", t))
                             .unwrap_or_default();
                         relations.push(format!(
-                            "[TRANSITIVE RELATION (2-HOP)]: Via \"{}\" {}{}",
+                            "[TRANSITIVE RELATION (3-HOP)]: Via \"{}\" {}{}",
                             bridge_str,
                             title_prefix,
                             facts.join(", ")

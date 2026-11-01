@@ -16,7 +16,7 @@ static RE_ISO_DATE: LazyLock<Regex> =
 
 static RE_TEXT_DATE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})\b",
+        r"\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(\d{1,2}),?\s+(\d{4})\b",
     )
     .expect("valid text date regex")
 });
@@ -45,7 +45,9 @@ pub fn compute_pairwise_date_facts(text: &str) -> String {
         let day_str = &cap[2];
         let year_str = &cap[3];
         let date_str = format!("{month_str} {day_str}, {year_str}");
-        if let Ok(d) = NaiveDate::parse_from_str(&date_str, "%B %d, %Y") {
+        if let Ok(d) = NaiveDate::parse_from_str(&date_str, "%B %d, %Y")
+            .or_else(|_| NaiveDate::parse_from_str(&date_str, "%b %d, %Y"))
+        {
             if !found.iter().any(|(r, _)| *r == raw) {
                 found.push((raw.to_string(), d));
             }
