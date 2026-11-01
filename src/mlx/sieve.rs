@@ -34,6 +34,7 @@ impl MlxSemanticSieve {
         margin_threshold: f64,
         min_confidence: f64,
     ) -> Result<Self> {
+        crate::mlx::ensure_mlx_device();
         if candidates.is_empty() {
             return Err(ZevError::InvalidRequest(
                 "MlxSemanticSieve requires at least one candidate".to_string(),

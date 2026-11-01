@@ -12,6 +12,21 @@ pub use embedding::{DlqClusterSummary, MlxDlqClusterer, MlxProjectionHead};
 pub use sieve::MlxSemanticSieve;
 pub use triage::{MlxTriageClassifier, SlmModelFamily};
 
+/// Ensures the MLX default device is initialized safely, falling back to CPU (Accelerate/AMX)
+/// in headless CI environments or when `ZEV_MLX_DEVICE=cpu` is set.
+pub fn ensure_mlx_device() {
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| {
+        let force_cpu = std::env::var("ZEV_MLX_DEVICE")
+            .map(|v| v.eq_ignore_ascii_case("cpu"))
+            .unwrap_or(false)
+            || std::env::var("CI").is_ok();
+        if force_cpu {
+            mlx_rs::Device::set_default(&mlx_rs::Device::cpu());
+        }
+    });
+}
+
 /// Speculative fallback evaluator powered by Apple MLX on Metal.
 pub fn evaluate_speculative_mlx(
     state: &str,

@@ -18,6 +18,7 @@ impl MlxProjectionHead {
     /// Creates a projection head with deterministic pseudo-random orthogonal weights
     /// or predefined projection weights.
     pub fn new(input_dim: usize, output_dim: usize) -> Result<Self> {
+        crate::mlx::ensure_mlx_device();
         if input_dim == 0 || output_dim == 0 {
             return Err(ZevError::InvalidRequest(
                 "Dimensions must be greater than 0".to_string(),
@@ -130,6 +131,7 @@ impl MlxDlqClusterer {
         embeddings: &[Vec<f32>],
         similarity_threshold: f32,
     ) -> Result<Vec<DlqClusterSummary>> {
+        crate::mlx::ensure_mlx_device();
         if embeddings.is_empty() {
             return Ok(Vec::new());
         }

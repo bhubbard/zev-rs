@@ -50,6 +50,7 @@ pub struct MlxTriageClassifier {
 impl MlxTriageClassifier {
     /// Creates a new classifier for a given model family.
     pub fn new(family: SlmModelFamily, input_dim: usize, projection_dim: usize) -> Result<Self> {
+        crate::mlx::ensure_mlx_device();
         if input_dim == 0 || projection_dim == 0 {
             return Err(ZevError::InvalidRequest(
                 "Dimensions must be greater than 0".to_string(),
