@@ -282,10 +282,8 @@ impl ContrastiveHead {
 pub fn embed_text(text: &str, dim: usize) -> Vec<f32> {
     let mut vec = vec![0.0f32; dim];
     let lower = text.to_lowercase();
-    let words: Vec<&str> = lower.split_whitespace().collect();
 
-    for w in &words {
-        let clean: String = w.chars().filter(|c| c.is_alphanumeric()).collect();
+    for clean in lower.split(|c: char| !c.is_alphanumeric()) {
         if clean.is_empty() {
             continue;
         }

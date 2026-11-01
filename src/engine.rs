@@ -414,18 +414,78 @@ impl ZevEngine {
 
         // Full premise context with inverted token index
         let per_q_ctx;
+        let mut has_structured_resolution = false;
+        let mut precomputed_logits: Option<Vec<f64>> = None;
+
         let q_ctx = if preprocessed_state.trim().is_empty() {
-            per_q_ctx = PremiseContext::new(final_question.instructions());
+            let clean_instr =
+                crate::premise_window::strip_directive_header(final_question.instructions());
+            let instr_preprocessed = preprocess_state(clean_instr, true);
+            per_q_ctx = PremiseContext::new(&instr_preprocessed);
             &per_q_ctx
+        } else if let Some(nli_logits) = crate::premise_window::evaluate_nli_hypothesis(
+            preprocessed_state,
+            final_question.instructions(),
+            &candidates,
+        ) {
+            has_structured_resolution = true;
+            precomputed_logits = Some(nli_logits);
+            ctx
+        } else if let Some(schema_res) = crate::premise_window::resolve_entity_schema_query(
+            _state_borrowed,
+            final_question.instructions(),
+        ) {
+            has_structured_resolution = true;
+            match schema_res {
+                crate::premise_window::EntitySchemaResolution::FoundValue(val_ctx) => {
+                    per_q_ctx = PremiseContext::new(&val_ctx);
+                    &per_q_ctx
+                }
+                crate::premise_window::EntitySchemaResolution::MissingAttribute => {
+                    let miss_logits = candidates
+                        .iter()
+                        .map(|c| {
+                            if crate::abstain::is_abstain_candidate(&c.id, &c.description) {
+                                3.5
+                            } else {
+                                0.2
+                            }
+                        })
+                        .collect();
+                    precomputed_logits = Some(miss_logits);
+                    ctx
+                }
+            }
         } else {
             ctx
         };
 
-        let logits = compute_order_invariant_logits_with_context(q_ctx, &candidates);
-
+        let mut logits = match precomputed_logits {
+            Some(l) => l,
+            None => compute_order_invariant_logits_with_context(q_ctx, &candidates),
+        };
 
         // Calibrated Decoding
         let family = determine_question_family(final_question);
+
+        if matches!(final_question, Question::Choice(_)) && (2..=16).contains(&candidates.len()) {
+            let cand_ids: Vec<&str> = candidates.iter().map(|c| c.id.as_str()).collect();
+            crate::intent_sieve::apply_hierarchical_intent_sieve(
+                &q_ctx.raw_lower,
+                &mut logits,
+                &cand_ids,
+            );
+
+            if family == "intent"
+                && crate::intent_sieve::is_pure_acknowledgment_without_request(q_ctx)
+            {
+                for (c, l) in candidates.iter().zip(logits.iter_mut()) {
+                    if crate::abstain::is_abstain_candidate(&c.id, &c.description) {
+                        *l += 4.0;
+                    }
+                }
+            }
+        }
         let base_temp = if let Some(t) = temperature {
             resolve_temperature(Some(t))?
         } else if self.use_type_temperatures {
@@ -440,12 +500,18 @@ impl ZevEngine {
             self.default_temperature
         };
         let family_temp = crate::calibration::family_calibrated_temperature(family, base_temp);
-        let effective_temp =
+        let raw_effective_temp =
             crate::calibration::adaptive_margin_temperature(&logits, family_temp, 0.40);
+        let effective_temp = if has_structured_resolution {
+            raw_effective_temp.min(0.95)
+        } else {
+            raw_effective_temp
+        };
 
         // Counterfactual Shadow Inversion Probing: Detect and penalize spurious lexical attractors
         // Gated to relevant families (policy, trap, adversarial, judge_hard) to maintain sub-100µs median latency
-        let effective_logits = if candidates.len() >= 2
+        let effective_logits = if !has_structured_resolution
+            && candidates.len() >= 2
             && (family == "policy" || family == "trap" || family == "adversarial" || family == "judge_hard" || family == "ambiguous")
             && !preprocessed_state.trim().is_empty()
         {
@@ -509,27 +575,38 @@ impl ZevEngine {
 
         if is_clm || is_poe || (is_cascade && should_fallback) {
             let query_context = if preprocessed_state.trim().is_empty() {
-                final_question.instructions()
+                crate::premise_window::strip_directive_header(final_question.instructions())
             } else {
                 preprocessed_state
             };
             let mut verifier = crate::clm::HybridVerifier::default();
             let state_emb = crate::clm::embed_text(query_context, 512);
             let mut clm_logits = Vec::with_capacity(candidates.len());
-            for cand in &candidates {
+            for (idx, cand) in candidates.iter().enumerate() {
+                let is_synthetic_id = cand.id.starts_with("option_")
+                    || cand.id.chars().all(|c| c.is_ascii_digit());
                 let text = if cand.description.is_empty() {
                     cand.id.clone()
+                } else if is_synthetic_id {
+                    cand.description.clone()
                 } else {
                     format!("{} {}", cand.id, cand.description)
                 };
                 let action_emb = crate::clm::embed_text(&text, 512);
                 verifier.register_action_embedding(&cand.id, &action_emb);
-                let score = verifier.head.score(&state_emb, &action_emb);
+                let raw_score = verifier.head.score(&state_emb, &action_emb);
+                let unit_cos = raw_score / verifier.head.scale.max(1.0);
+                let denoised_cos = if candidates.len() <= 16 && unit_cos > 0.14 {
+                    unit_cos - 0.14
+                } else {
+                    0.0
+                };
+                let score = logits[idx] + 0.40 * denoised_cos;
                 clm_logits.push(score);
             }
 
             if is_poe {
-                // Bayesian Product of Experts: 0.60 * L_simd + 0.40 * L_clm
+                // Bayesian Product of Experts: fuse order-invariant logits with denoised CLM logits
                 let poe_logits: Vec<f64> = logits
                     .iter()
                     .zip(clm_logits.iter())

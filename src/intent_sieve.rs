@@ -60,6 +60,14 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         || state_lower.contains("car rental")
         || state_lower.contains("reservation");
 
+    let is_delivery_status = state_lower.contains('?')
+        && (state_lower.contains("parcel")
+            || state_lower.contains("package")
+            || state_lower.contains("shipment")
+            || state_lower.contains("delivered")
+            || state_lower.contains("tracking")
+            || state_lower.contains("shipped"));
+
     let has_token = |id_str: &str, tok: &str| {
         id_str
             .split(|c: char| !c.is_alphanumeric())
@@ -74,8 +82,14 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         if is_transfer && (id_lower.contains("transfer") || id_lower.contains("beneficiary")) {
             logits[idx] += 2.0;
         }
-        if is_charge_fee && (has_token(&id_lower, "fee") || id_lower.contains("charge")) {
-            logits[idx] += 2.0;
+        if is_charge_fee
+            && (has_token(&id_lower, "fee")
+                || id_lower.contains("charge")
+                || id_lower.contains("billing")
+                || has_token(&id_lower, "bill")
+                || id_lower.contains("invoice"))
+        {
+            logits[idx] += 2.5;
         }
         if is_balance && id_lower.contains("balance") {
             logits[idx] += 2.0;
@@ -84,7 +98,7 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
             logits[idx] += 2.0;
         }
         if is_weather && id_lower.contains("weather") {
-            logits[idx] += 2.0;
+            logits[idx] += 2.5;
         }
         if is_alarm && (id_lower.contains("alarm") || has_token(&id_lower, "timer")) {
             logits[idx] += 2.0;
@@ -92,7 +106,50 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         if is_travel && (id_lower.contains("flight") || id_lower.contains("travel")) {
             logits[idx] += 2.0;
         }
+        if is_delivery_status
+            && (id_lower.contains("status")
+                || id_lower.contains("track")
+                || id_lower.contains("delivery"))
+        {
+            logits[idx] += 3.5;
+        }
     }
+}
+
+/// Speech-Act Classifier (Searle's taxonomy: Expressive/Assertive vs Directive/Interrogative).
+/// Returns true if the message expresses gratitude or comprehension without any directive request
+/// or interrogative question.
+pub fn is_pure_acknowledgment_without_request(ctx: &crate::order_invariant::PremiseContext) -> bool {
+    if ctx.raw_lower.contains('?') {
+        return false;
+    }
+
+    const EXPRESSIVE_MARKERS: &[&str] = &[
+        "thank",
+        "thanks",
+        "appreciate",
+        "understand",
+        "understood",
+        "clear",
+        "clearer",
+    ];
+    let has_expressive = EXPRESSIVE_MARKERS
+        .iter()
+        .any(|&w| ctx.contains_bounded(w));
+    if !has_expressive {
+        return false;
+    }
+
+    const DIRECTIVE_OR_INTERROGATIVE_MARKERS: &[&str] = &[
+        "please", "want", "need", "like", "can", "could", "would", "should", "must", "help",
+        "issue", "give", "send", "stop", "start", "make", "get", "how", "when", "where", "why",
+        "what", "which", "who", "request", "asking",
+    ];
+    let has_directive = DIRECTIVE_OR_INTERROGATIVE_MARKERS
+        .iter()
+        .any(|&w| ctx.contains_bounded(w) && !ctx.is_negated(w));
+
+    !has_directive
 }
 
 #[cfg(test)]

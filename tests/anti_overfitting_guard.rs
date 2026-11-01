@@ -38,6 +38,14 @@ fn test_no_benchmark_case_ids_in_src() {
         "sol-a-",
         "sol-b-",
         "sol-c-",
+        "ContractNLI-",
+        "HomeAppliance-",
+        "SimpleBench-",
+        "ARC-Challenge-",
+        "ARC-Easy-",
+        "BANKING77-",
+        "CLINC150-",
+        "option_132",
     ];
 
     for file in &files {
@@ -396,4 +404,131 @@ fn test_entity_perturbation_robustness() {
     );
     let prob_diff = (ans_a.probabilities["billing"] - ans_b.probabilities["billing"]).abs();
     assert!(prob_diff < 0.20, "Confidence spread under entity perturbation should be reasonable, got diff: {}", prob_diff);
+}
+
+#[test]
+fn test_nli_perturbation_invariance() {
+    let engine = ZevEngine::default();
+    let options = vec![
+        OptionDef {
+            id: "Entailment".into(),
+            description: "The contract entails the hypothesis.".into(),
+            },
+        OptionDef {
+            id: "Contradiction".into(),
+            description: "The contract contradicts the hypothesis.".into(),
+        },
+        OptionDef {
+            id: "NotMentioned".into(),
+            description: "The hypothesis is neither entailed nor contradicted by the contract.".into(),
+        },
+    ];
+
+    let mut questions = BTreeMap::new();
+    questions.insert(
+        "q_ent".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Classify the relationship between the contract and this hypothesis:\nReceiving Party may share some Confidential Information with its employees.".into(),
+            options: options.clone(),
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+    questions.insert(
+        "q_nm".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Classify the relationship between the contract and this hypothesis:\nReceiving Party shall not reverse engineer any objects which embody Disclosing Party's Confidential Information.".into(),
+            options: options.clone(),
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+    questions.insert(
+        "q_con".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Classify the relationship between the contract and this hypothesis:\nConfidential Information shall only include information disclosed in writing.".into(),
+            options,
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+
+    let req_a = ZevRequest {
+        state: serde_json::json!(
+            "Section 1. Alpha Corp (Disclosing Party) and Beta LLC (Receiving Party) agree to protect Confidential Information. \
+             Section 2. Receiving Party may disclose Confidential Information to its employees who have a need to know. \
+             Section 3. Confidential Information includes all technical and financial data disclosed whether orally or in writing."
+        ),
+        questions: questions.clone(),
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+        images: None,
+    };
+
+    let req_b = ZevRequest {
+        state: serde_json::json!(
+            "Article I. Zephyr Bio (Disclosing Party) and Orion Labs (Receiving Party) enter into this protective covenant regarding Confidential Information. \
+             Article II. Confidential Information means any proprietary materials furnished whether orally or in writing. \
+             Article III. Receiving Party is permitted to provide Confidential Information to its personnel and staff on a need-to-know basis."
+        ),
+        questions,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+        images: None,
+    };
+
+    let res_a = engine.evaluate(&req_a).expect("eval nli a");
+    let res_b = engine.evaluate(&req_b).expect("eval nli b");
+
+    assert_eq!(res_a.answers["q_ent"].decision, Some(serde_json::json!("Entailment")));
+    assert_eq!(res_b.answers["q_ent"].decision, Some(serde_json::json!("Entailment")));
+    assert_eq!(res_a.answers["q_nm"].decision, Some(serde_json::json!("NotMentioned")));
+    assert_eq!(res_b.answers["q_nm"].decision, Some(serde_json::json!("NotMentioned")));
+    assert_eq!(res_a.answers["q_con"].decision, Some(serde_json::json!("Contradiction")));
+    assert_eq!(res_b.answers["q_con"].decision, Some(serde_json::json!("Contradiction")));
+}
+
+#[test]
+fn test_entity_schema_projection_perturbation_invariance() {
+    let engine = ZevEngine::default();
+    let options = vec![
+        OptionDef { id: "opt_heat".into(), description: "heat".into() },
+        OptionDef { id: "opt_cool".into(), description: "cool".into() },
+        OptionDef { id: "opt_na".into(), description: "not applicable or not listed".into() },
+    ];
+
+    let mut questions = BTreeMap::new();
+    questions.insert(
+        "q_present".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Select the mode for entity_alpha:".into(),
+            options: options.clone(),
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+    questions.insert(
+        "q_missing".into(),
+        Question::Choice(ChoiceQuestion {
+            instructions: "Select the mode for entity_beta:".into(),
+            options,
+            policy: Policy { allow_abstain: false, ..Default::default() },
+        }),
+    );
+
+    let req = ZevRequest {
+        state: serde_json::json!({
+            "devices": [
+                {"id": "entity_alpha", "kind": "thermostat", "mode": "heat", "state": "on"},
+                {"id": "entity_beta", "kind": "lamp", "state": "off"}
+            ]
+        }),
+        questions,
+        model: None,
+        temperature: None,
+        enable_temporal_facts: false,
+        images: None,
+    };
+
+    let res = engine.evaluate(&req).expect("eval schema projection");
+    assert_eq!(res.answers["q_present"].decision, Some(serde_json::json!("opt_heat")));
+    assert_eq!(res.answers["q_missing"].decision, Some(serde_json::json!("opt_na")));
 }

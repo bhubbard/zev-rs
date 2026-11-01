@@ -15,9 +15,9 @@ static RE_SENTENCE_CONSTRAINT: LazyLock<Regex> = LazyLock::new(|| {
         .expect("valid sentence constraint regex")
 });
 
-/// Regex matching requested word count, e.g. "in two words", "at most 5 words"
+/// Regex matching requested word count, e.g. "in two words", "at most 5 words", "exactly two words"
 static RE_WORD_CONSTRAINT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(?:in|at most|maximum of|exactly)\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+words?\b")
+    Regex::new(r"(?i)\b(in|at most|maximum of|exactly)\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+words?\b")
         .expect("valid word constraint regex")
 });
 
@@ -209,13 +209,25 @@ pub fn verify_structural_constraints(request_text: &str, response_text: &str) ->
 
     // 2. Word count constraint check
     if let Some(cap) = RE_WORD_CONSTRAINT.captures(request_text) {
-        if let Some(target_str) = cap.get(1) {
-            if let Some(max_words) = word_to_number(target_str.as_str()) {
+        let mode = cap.get(1).map(|m| m.as_str().to_lowercase()).unwrap_or_default();
+        if let Some(target_str) = cap.get(2) {
+            if let Some(target_words) = word_to_number(target_str.as_str()) {
                 let actual_words = response_text.split_whitespace().count();
-                if actual_words > max_words {
+                let is_exact = mode == "exactly";
+                let violated = if is_exact {
+                    actual_words != target_words
+                } else {
+                    actual_words > target_words
+                };
+                if violated {
                     findings.push(format!(
-                        "[CONSTRAINT ERROR]: Requested constraint of at most {} words, but response contains {} words. (CONSTRAINT_SATISFIED: FALSE)",
-                        max_words, actual_words
+                        "[CONSTRAINT ERROR]: Requested constraint of {} {} words, but response contains {} words. (CONSTRAINT_SATISFIED: FALSE)",
+                        mode, target_words, actual_words
+                    ));
+                } else {
+                    findings.push(format!(
+                        "[CONSTRAINT VERIFIED]: Response adheres to the {}-word constraint. (CONSTRAINT_SATISFIED: TRUE)",
+                        target_words
                     ));
                 }
             }

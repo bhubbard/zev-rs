@@ -87,7 +87,6 @@ static QUOTE_HEADERS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     [
         r"(?i)^\s*On .{0,300}wrote:\s*$",
         r"(?i)^\s*-{2,}\s*(Original|Forwarded) Message\s*-{2,}",
-        r"^\s*_{8,}\s*$",
         r"(?i)^\s*From:\s.+$",
     ]
     .iter()
@@ -105,7 +104,7 @@ static SIGNATURE_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
 
 static DISCLAIMER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?i)(confidential|intended (solely )?for the (use of the )?(named )?(addressee|recipient)|if you (have )?received this (e-?mail|message) in error|confidentiality notice:)",
+        r"(?i)(this (e-?mail|message) .{0,40}confidential|intended (solely )?for the (use of the )?(named )?(addressee|recipient)|if you (have )?received this (e-?mail|message) in error|confidentiality notice:)",
     )
     .expect("valid disclaimer regex")
 });
@@ -151,12 +150,12 @@ pub fn clean_email_body(body: &str) -> String {
         lines.truncate(idx);
     }
 
-    // Strip disclaimer lines
+    // Strip disclaimer lines in the tail
     let mut cleaned_lines = Vec::new();
     for (i, line) in lines.into_iter().enumerate() {
         let trimmed = line.trim();
         if DISCLAIMER_REGEX.is_match(&line)
-            || (i > 0 && (trimmed.starts_with("---") || trimmed.starts_with("___")))
+            || (i >= tail_start && (trimmed == "---" || trimmed == "___"))
         {
             break;
         }
@@ -345,10 +344,16 @@ pub fn inject_temporal_facts<'a>(text: &'a str) -> Cow<'a, str> {
 /// Formats structured JSON state (e.g. conversations, invoices, tickets) into clean natural text.
 pub fn format_structured_state<'a>(input: &'a str) -> Cow<'a, str> {
     let trimmed = input.trim();
+    if trimmed == "{}" || trimmed == "[]" || trimmed == "null" {
+        return Cow::Borrowed("");
+    }
     if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
         return Cow::Borrowed(input);
     }
     if let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if map.is_empty() {
+            return Cow::Borrowed("");
+        }
         let mut parts = Vec::new();
         if let Some(serde_json::Value::Array(conv)) = map.get("conversation") {
             for turn in conv {
@@ -373,7 +378,10 @@ pub fn format_structured_state<'a>(input: &'a str) -> Cow<'a, str> {
                             serde_json::Value::Object(nested) => {
                                 let nest_strs: Vec<String> = nested
                                     .iter()
-                                    .map(|(nk, nv)| format!("{}: {}", nk, nv))
+                                    .map(|(nk, nv)| match nv {
+                                        serde_json::Value::String(ns) => format!("{}: {}", nk, ns),
+                                        _ => format!("{}: {}", nk, nv),
+                                    })
                                     .collect();
                                 format!("{}: {{{}}}", sk, nest_strs.join(", "))
                             }
@@ -382,6 +390,8 @@ pub fn format_structured_state<'a>(input: &'a str) -> Cow<'a, str> {
                     })
                     .collect();
                 parts.push(format!("{}: {}", k, sub_strs.join(", ")));
+            } else if let serde_json::Value::String(s) = v {
+                parts.push(format!("{}: {}", k, s));
             } else if !v.is_null() {
                 parts.push(format!("{}: {}", k, v));
             }
@@ -465,6 +475,16 @@ pub fn preprocess_state<'a>(state_str: &'a str, enable_temporal: bool) -> Cow<'a
                     enriched.push_str("\n\n");
                     enriched.push_str(&structural_findings.join("\n"));
                 }
+            }
+        }
+    } else if let (Some(req_idx), Some(resp_idx)) = (enriched.find("Request:"), enriched.find("Response:")) {
+        if req_idx < resp_idx {
+            let req_str = enriched[req_idx + "Request:".len()..resp_idx].trim();
+            let resp_str = enriched[resp_idx + "Response:".len()..].trim();
+            let structural_findings = crate::symbolic::verify_structural_constraints(req_str, resp_str);
+            if !structural_findings.is_empty() {
+                enriched.push_str("\n\n");
+                enriched.push_str(&structural_findings.join("\n"));
             }
         }
     }

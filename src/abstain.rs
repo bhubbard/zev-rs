@@ -23,6 +23,7 @@ pub const ABSTAIN_PREFIXES: &[&str] = &[
     "neither of these",
     "neither of the above",
     "unable to determine",
+    "out of scope",
 ];
 
 pub const ABSTAIN_EXACT: &[&str] = &[
@@ -43,11 +44,13 @@ pub const ABSTAIN_EXACT: &[&str] = &[
     "cannot tell",
     "__insufficient__",
     "insufficient_evidence",
+    "oos",
+    "undetermined",
 ];
 
 /// Returns true if the text matches an abstention exact keyword or prefix.
 pub fn is_abstain_text(text: &str) -> bool {
-    let t = text.trim().to_lowercase();
+    let t = text.trim().to_lowercase().replace('_', " ");
     let clean = t
         .trim_end_matches(|c: char| c.is_ascii_punctuation())
         .trim();

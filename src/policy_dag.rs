@@ -18,13 +18,18 @@ static RE_IF_THEN: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static RE_REQUIRES: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b([^,;:\.\n]{4,80})\s+(?:requires|is\s+subject\s+to|depends\s+on|is\s+conditional\s+upon)\s+([^,;:\.\n]{4,80})(?:\.|$|;)")
+    Regex::new(r"(?i)\b([^,;:\.\n]{3,80})\s+(?:requires?|are\s+subject\s+to|is\s+subject\s+to|depends?\s+on|is\s+conditional\s+upon|are\s+conditional\s+upon)\s+([^,;:\.\n]{3,80})(?:\.|$|;)")
         .expect("valid requires regex")
 });
 
 static RE_UNLESS_EXCEPTION: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b([^,;:\.\n]{4,80})\s+(?:unless|except\s+when|except\s+if|excluding\s+cases\s+where)\s+([^,;:\.\n]{4,80})(?:\.|$|;)")
+    Regex::new(r"(?i)\b([^,;:\.\n]{3,80})\s+(?:unless|except\s+when|except\s+if|excluding\s+cases\s+where)\s+([^,;:\.\n]{3,80})(?:\.|$|;)")
         .expect("valid unless regex")
+});
+
+static RE_OVERRIDES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b([^,;:\.\n]{3,80})\s+(?:overrides?|supersedes?|prohibits?|blocks?|revokes?)\s+([^,;:\.\n]{3,80})(?:\.|$|;)")
+        .expect("valid overrides regex")
 });
 
 #[derive(Debug, Clone)]
@@ -35,6 +40,8 @@ pub struct PolicyDag {
     pub reach: [u64; MAX_DAG_NODES],
     /// Bitmask inhibitory matrix: inhibit[i] & (1 << j) means node i blocks node j
     pub inhibit: [u64; MAX_DAG_NODES],
+    /// Required preconditions: (action_node_idx, required_condition_idx)
+    pub required_preconditions: Vec<(usize, usize)>,
 }
 
 impl Default for PolicyDag {
@@ -54,6 +61,7 @@ impl PolicyDag {
             node_lookup: HashMap::with_capacity(32),
             reach,
             inhibit: [0u64; MAX_DAG_NODES],
+            required_preconditions: Vec::new(),
         }
     }
 
@@ -140,15 +148,21 @@ pub fn build_policy_dag_from_text(text: &str) -> PolicyDag {
             || lower.contains("where ")
             || lower.contains("provided ")
             || lower.contains("in the event ");
-        let has_req = lower.contains("requires ")
+        let has_req = lower.contains("require")
             || lower.contains("subject to ")
             || lower.contains("depends on ")
+            || lower.contains("depend on ")
             || lower.contains("conditional upon ");
         let has_exc = lower.contains("unless ")
             || lower.contains("except ")
             || lower.contains("excluding ");
+        let has_ovr = lower.contains("override")
+            || lower.contains("supersede")
+            || lower.contains("prohibit")
+            || lower.contains("block")
+            || lower.contains("revoke");
 
-        if !has_if && !has_req && !has_exc {
+        if !has_if && !has_req && !has_exc && !has_ovr {
             continue;
         }
 
@@ -166,15 +180,19 @@ pub fn build_policy_dag_from_text(text: &str) -> PolicyDag {
             }
         }
 
-        // 2. Requires rules: Consequence requires Condition => Condition enables Consequence
+        // 2. Requires rules: Consequence requires Condition => Condition enables Consequence (and Modus Tollens: !Condition blocks Consequence)
         if has_req {
             for cap in RE_REQUIRES.captures_iter(trimmed) {
                 if let (Some(cons_m), Some(cond_m)) = (cap.get(1), cap.get(2)) {
-                    if let (Some(v), Some(u)) = (
-                        dag.get_or_create_node(cons_m.as_str()),
-                        dag.get_or_create_node(cond_m.as_str()),
-                    ) {
-                        dag.add_implication(u, v);
+                    if let Some(v) = dag.get_or_create_node(cons_m.as_str()) {
+                        let cond_raw = cond_m.as_str();
+                        // Split conjunctive preconditions ("a receipt and purchase within 30 days")
+                        for sub_cond in cond_raw.split(" and ").flat_map(|s| s.split(" AND ")) {
+                            if let Some(u) = dag.get_or_create_node(sub_cond.trim()) {
+                                dag.add_implication(u, v);
+                                dag.required_preconditions.push((v, u));
+                            }
+                        }
                     }
                 }
             }
@@ -193,6 +211,20 @@ pub fn build_policy_dag_from_text(text: &str) -> PolicyDag {
                 }
             }
         }
+
+        // 4. Overrides / Prohibits rules: Inhibitor overrides/blocks Target
+        if has_ovr {
+            for cap in RE_OVERRIDES.captures_iter(trimmed) {
+                if let (Some(inhib_m), Some(target_m)) = (cap.get(1), cap.get(2)) {
+                    if let (Some(inhib_idx), Some(target_idx)) = (
+                        dag.get_or_create_node(inhib_m.as_str()),
+                        dag.get_or_create_node(target_m.as_str()),
+                    ) {
+                        dag.add_inhibition(inhib_idx, target_idx);
+                    }
+                }
+            }
+        }
     }
 
     dag.compute_transitive_closure();
@@ -206,7 +238,38 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
         return Vec::new();
     }
 
-    let text_lower = text.to_lowercase();
+    // Build fact context by excluding hypothetical ("if/when...") antecedents and ("unless/except...") tails
+    let mut fact_clauses = Vec::new();
+    for clause in text.split(['\n', '.', ';']) {
+        let trimmed = clause.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.starts_with("if ")
+            || lower.starts_with("when ")
+            || lower.starts_with("where ")
+            || lower.starts_with("provided ")
+            || lower.starts_with("in the event ")
+        {
+            continue;
+        }
+        // Strip hypothetical exception tail ("unless ...", "except ...", "excluding ...")
+        let fact_part = if let Some(idx) = lower
+            .find(" unless ")
+            .or_else(|| lower.find(" except "))
+            .or_else(|| lower.find(" excluding "))
+        {
+            &trimmed[..idx]
+        } else {
+            trimmed
+        };
+        fact_clauses.push(fact_part);
+    }
+    let fact_text = fact_clauses.join(". ");
+    let fact_lower = fact_text.to_lowercase();
+    let fact_ctx = crate::order_invariant::PremiseContext::new(&fact_text);
+    let ctx = crate::order_invariant::PremiseContext::new(text);
     let mut active_nodes = Vec::new();
 
     // Identify which proposition nodes are asserted / present as active facts in the text
@@ -216,22 +279,86 @@ pub fn resolve_policy_dag_deductions(text: &str) -> Vec<String> {
             continue;
         }
 
-        // Check for continuous substring or high token containment
-        if text_lower.contains(name) {
+        // Check for continuous substring or high token/stem containment in fact clauses
+        if fact_lower.contains(name) {
             active_nodes.push(idx);
-        } else if words.len() >= 3 {
-            let matches_all = words.iter().all(|w| w.len() < 4 || text_lower.contains(w));
-            if matches_all {
+        } else {
+            let content_words: Vec<&str> = words
+                .iter()
+                .copied()
+                .filter(|w| w.len() >= 4 && *w != "temporary" && *w != "all" && *w != "their")
+                .collect();
+            if !content_words.is_empty()
+                && content_words
+                    .iter()
+                    .all(|w| (fact_ctx.contains_bounded(w) || fact_ctx.contains_stem(w)) && !fact_ctx.is_negated(w) && !fact_ctx.is_stem_negated(w))
+            {
                 active_nodes.push(idx);
             }
         }
     }
 
-    if active_nodes.is_empty() {
-        return Vec::new();
+    let mut findings = Vec::new();
+
+    // Modus Tollens check on required preconditions:
+    // If action V requires precondition U, and U is negated/violated in the premise, V is blocked.
+    for &(action_idx, req_idx) in &dag.required_preconditions {
+        let action_name = &dag.node_names[action_idx];
+        let req_name = &dag.node_names[req_idx];
+
+        // Case A: Negative precondition ("absence of X", "no X", "without X") violated by presence of X
+        let neg_prefix_target = req_name
+            .strip_prefix("absence of ")
+            .or_else(|| req_name.strip_prefix("the absence of "))
+            .or_else(|| req_name.strip_prefix("no "))
+            .or_else(|| req_name.strip_prefix("without "));
+
+        if let Some(forbidden_noun) = neg_prefix_target {
+            let fn_clean = forbidden_noun.trim();
+            if (ctx.contains_bounded(fn_clean) || ctx.contains_stem(fn_clean))
+                && !ctx.is_negated(fn_clean)
+                && !ctx.is_stem_negated(fn_clean)
+            {
+                findings.push(format!(
+                    "[POLICY DEDUCTION BLOCKED]: Action \"{}\" requires \"{}\", which is violated in the state (DEDUCTION_VALID: FALSE, EXCEPTION_ACTIVE: TRUE).",
+                    action_name, req_name
+                ));
+                continue;
+            }
+        }
+
+        // Case B: Affirmative precondition ("a receipt", "overdue status") whose core noun is negated in the state ("has no receipt")
+        let core_words: Vec<&str> = req_name
+            .split_whitespace()
+            .filter(|w| w.len() >= 4 && *w != "within" && *w != "days")
+            .collect();
+        if !core_words.is_empty()
+            && core_words
+                .iter()
+                .any(|w| ctx.is_negated(w) || ctx.is_stem_negated(w))
+        {
+            findings.push(format!(
+                "[POLICY DEDUCTION BLOCKED]: Action \"{}\" requires \"{}\", which is negated or missing in the state (DEDUCTION_VALID: FALSE, EXCEPTION_ACTIVE: TRUE).",
+                action_name, req_name
+            ));
+        }
     }
 
-    let mut findings = Vec::new();
+    // Direct inhibition check: if an inhibitor node is active in the premise (outside its own rule definition)
+    for target in 0..dag.node_names.len() {
+        if dag.is_inhibited(&active_nodes, target) {
+            let target_name = &dag.node_names[target];
+            findings.push(format!(
+                "[POLICY DEDUCTION BLOCKED]: Target \"{}\" is overridden or blocked by an active inhibition rule (DEDUCTION_VALID: FALSE, EXCEPTION_ACTIVE: TRUE).",
+                target_name
+            ));
+        }
+    }
+
+    if active_nodes.is_empty() {
+        return findings;
+    }
+
     let mut recorded_pairs = HashSet::new();
 
     for &src in &active_nodes {
