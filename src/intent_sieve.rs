@@ -60,6 +60,28 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         || state_lower.contains("car rental")
         || state_lower.contains("reservation");
 
+    const WORLD_LANGUAGES: &[&str] = &[
+        "spanish", "french", "german", "italian", "japanese", "chinese", "mandarin", "cantonese",
+        "korean", "russian", "portuguese", "arabic", "dutch", "swedish", "polish", "greek",
+        "hindi", "vietnamese", "thai", "turkish", "hebrew", "latin", "icelandic", "finnish",
+        "norwegian", "danish", "hungarian", "czech", "romanian", "ukrainian", "bulgarian",
+        "croatian", "serbian", "slovak", "slovenian", "indonesian", "malay", "tagalog",
+        "filipino", "swahili", "persian", "farsi", "urdu", "bengali", "punjabi", "tamil",
+        "telugu", "hawaiian", "irish", "welsh", "gaelic", "yiddish", "catalan",
+    ];
+
+    let has_language_target = WORLD_LANGUAGES.iter().any(|lang| {
+        for pat in ["in ", "into ", "to ", "the "] {
+            let mut buf = String::with_capacity(pat.len() + lang.len());
+            buf.push_str(pat);
+            buf.push_str(lang);
+            if state_lower.contains(&buf) {
+                return true;
+            }
+        }
+        false
+    });
+
     let is_translate = state_lower.contains("translate")
         || state_lower.contains("translation")
         || state_lower.contains("how do you say")
@@ -67,32 +89,14 @@ pub fn apply_hierarchical_intent_sieve(state: &str, logits: &mut [f64], candidat
         || state_lower.contains("how do i say")
         || state_lower.contains("how would i say")
         || state_lower.contains("how can i say")
+        || state_lower.contains("how can you say")
         || state_lower.contains("how to say")
         || state_lower.contains("how do they say")
+        || state_lower.contains("how does one say")
+        || state_lower.contains("how do people say")
         || state_lower.contains("what is the word for")
         || state_lower.contains("what's the word for")
-        || state_lower.contains("in spanish")
-        || state_lower.contains("in french")
-        || state_lower.contains("in german")
-        || state_lower.contains("in italian")
-        || state_lower.contains("in japanese")
-        || state_lower.contains("in chinese")
-        || state_lower.contains("in mandarin")
-        || state_lower.contains("in cantonese")
-        || state_lower.contains("in korean")
-        || state_lower.contains("in russian")
-        || state_lower.contains("in portuguese")
-        || state_lower.contains("in arabic")
-        || state_lower.contains("in dutch")
-        || state_lower.contains("in swedish")
-        || state_lower.contains("in polish")
-        || state_lower.contains("in greek")
-        || state_lower.contains("in hindi")
-        || state_lower.contains("in vietnamese")
-        || state_lower.contains("in thai")
-        || state_lower.contains("in turkish")
-        || state_lower.contains("in hebrew")
-        || state_lower.contains("in latin");
+        || has_language_target;
 
     let is_delivery_status = state_lower.contains('?')
         && (state_lower.contains("parcel")
